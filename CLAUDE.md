@@ -11,10 +11,10 @@ YAML on disk.
 
 ## Hard rules
 
-- **Never use the word "Postman"** anywhere in source, UI text, comments, namespaces,
-  file/class names, or docs. Use Yamlet terminology. (Real user data may live in a
-  folder literally named `postman/` — that's their data, not ours; don't rename it, but
-  don't echo the word in our code/strings.)
+- **Never name external API clients** anywhere in source, UI text, comments, namespaces,
+  file/class names, or docs. Use Yamlet terminology. (Real user data may live in
+  folders named after other clients — that's their data, not ours; don't rename it, but
+  don't echo those names in our code/strings.)
 - **No emojis anywhere.** All iconography is vector SVG. UI icons are `PathIcon` backed
   by `StreamGeometry` in [Themes/Icons.axaml](src/Yamlet.App/Themes/Icons.axaml); the
   brand mark is the multi-path [Controls/YamletLogo.axaml](src/Yamlet.App/Controls/YamletLogo.axaml).
@@ -140,11 +140,12 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
 - Colors/brushes live in [Themes/Colors.axaml](src/Yamlet.App/Themes/Colors.axaml)
   (warm surfaces, text tiers, green `AccentBrush` + `AccentSoftBrush`, per-method and
   per-status colors).
-- **Method (GET/POST/…) and status (2xx/3xx/…) colors are the standard mapping but in
-  PASTEL / low-saturation tones** (soft green/yellow/blue/purple/red — never bright).
+- **Method (GET/POST/DEL/…) and status (2xx/3xx/…) colors are the standard mapping but
+  in PASTEL / low-saturation tones** (soft green/yellow/blue/purple/red — never bright).
   The source of truth is the two converters in [Controls/](src/Yamlet.App/Controls/)
   (`MethodToBrushConverter`, `StatusCategoryToBrushConverter`); keep the `Color` entries
-  in Colors.axaml in sync. Badges pair pastel fills with dark text.
+  in Colors.axaml in sync. HTTP method labels are plain uppercase bold text colored by
+  method, without a box. Status labels keep pastel fills with dark text.
 - Shared control styles (compact inputs, buttons, `.accent`/`.ghost`/`.section`/`.title`
   classes, badges, rail icon coloring) live in
   [Themes/Yamlet.axaml](src/Yamlet.App/Themes/Yamlet.axaml).

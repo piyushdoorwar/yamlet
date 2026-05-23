@@ -8,7 +8,7 @@ namespace Yamlet.App.Controls;
 /// <c>{{name}}</c> placeholders: it can tell whether a variable resolves, read its
 /// current value, and write a new value back to the active scope. View models that
 /// own a request's variable context implement this so the body editor can offer
-/// Postman-style inline variable management.
+/// inline variable management.
 /// </summary>
 public interface IVariableSource
 {

@@ -35,7 +35,7 @@ public sealed class FolderNodeViewModel : TreeNodeViewModel
     public required YamletCollection OwningCollection { get; init; }
 }
 
-/// <summary>A request leaf node, carrying its HTTP method for badge display.</summary>
+/// <summary>A request leaf node, carrying its HTTP method for compact display.</summary>
 public sealed partial class RequestNodeViewModel : TreeNodeViewModel
 {
     public required YamletRequest Request { get; init; }
@@ -45,6 +45,14 @@ public sealed partial class RequestNodeViewModel : TreeNodeViewModel
     [ObservableProperty]
     private string _method = "GET";
 
-    /// <summary>Uppercased method text shown in the method badge.</summary>
-    public string MethodBadge => string.IsNullOrWhiteSpace(Method) ? "GET" : Method.ToUpperInvariant();
+    /// <summary>Uppercased method text shown before the request name.</summary>
+    public string MethodLabel => FormatMethod(Method);
+
+    partial void OnMethodChanged(string value) => OnPropertyChanged(nameof(MethodLabel));
+
+    private static string FormatMethod(string? method)
+    {
+        var normalized = string.IsNullOrWhiteSpace(method) ? "GET" : method.ToUpperInvariant();
+        return normalized == "DELETE" ? "DEL" : normalized;
+    }
 }

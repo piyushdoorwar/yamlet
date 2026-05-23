@@ -16,7 +16,7 @@ namespace Yamlet.App.Controls;
 
 /// <summary>
 /// A compact code editor (AvaloniaEdit-backed) with line numbers, JSON beautify, and
-/// Postman-style <c>{{variable}}</c> highlighting: placeholders render amber when they
+/// <c>{{variable}}</c> highlighting: placeholders render amber when they
 /// resolve in the active scopes and red when undefined, and clicking one opens an
 /// inspector to view or set its value. Variable features activate only when a
 /// <see cref="VariableSource"/> is supplied.

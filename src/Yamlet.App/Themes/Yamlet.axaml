@@ -135,7 +135,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
-  <!-- Main work-area tab strip (Postman-style): one tab per open editor. -->
+  <!-- Main work-area tab strip: one tab per open editor. -->
   <Style Selector="Border.tab">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -225,7 +225,16 @@
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
-  <!-- Method/status badge label. -->
+  <!-- Method labels are plain colored text; status still uses a filled label. -->
+  <Style Selector="TextBlock.methodVerb">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="MinWidth" Value="24" />
+  </Style>
+  <Style Selector="TextBlock.methodVerb.tabMethod">
+    <Setter Property="FontSize" Value="9" />
+  </Style>
+
   <Style Selector="Border.badge">
     <Setter Property="CornerRadius" Value="3" />
     <Setter Property="Padding" Value="5,1" />

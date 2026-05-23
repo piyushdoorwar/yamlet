@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Yamlet.App.ViewModels;
 
-/// <summary>What kind of editor a tab hosts, used to pick its header icon/badge.</summary>
+/// <summary>What kind of editor a tab hosts, used to pick its header marker.</summary>
 public enum OpenTabKind
 {
     Request,
@@ -61,9 +61,15 @@ public sealed partial class OpenTabViewModel : ViewModelBase
     public bool IsEnvironment => Kind == OpenTabKind.Environment;
     public bool IsCollection => Kind == OpenTabKind.Collection;
 
-    public string MethodBadge => string.IsNullOrWhiteSpace(Method) ? "GET" : Method.ToUpperInvariant();
+    public string MethodLabel => FormatMethod(Method);
 
-    partial void OnMethodChanged(string value) => OnPropertyChanged(nameof(MethodBadge));
+    partial void OnMethodChanged(string value) => OnPropertyChanged(nameof(MethodLabel));
+
+    private static string FormatMethod(string? method)
+    {
+        var normalized = string.IsNullOrWhiteSpace(method) ? "GET" : method.ToUpperInvariant();
+        return normalized == "DELETE" ? "DEL" : normalized;
+    }
 
     [RelayCommand]
     private void Activate() => _activate(this);

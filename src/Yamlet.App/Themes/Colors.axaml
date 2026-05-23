@@ -34,8 +34,8 @@
   <Color x:Key="StatusClientErrorColor">#FFE6CF8A</Color>
   <Color x:Key="StatusServerErrorColor">#FFE8A39C</Color>
 
-  <!-- {{variable}} highlighting in editors (Postman-like): amber when the variable
-       resolves in the active scopes, red when it's undefined. -->
+  <!-- {{variable}} highlighting in editors: amber when the variable resolves in the
+       active scopes, red when it's undefined. -->
   <Color x:Key="VariableDefinedColor">#FFE0A458</Color>
   <Color x:Key="VariableUndefinedColor">#FFE2655A</Color>
 

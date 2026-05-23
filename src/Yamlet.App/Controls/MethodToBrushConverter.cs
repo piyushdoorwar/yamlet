@@ -4,12 +4,12 @@ using Avalonia.Media;
 
 namespace Yamlet.App.Controls;
 
-/// <summary>Maps an HTTP method name to its badge color.</summary>
+/// <summary>Maps an HTTP method name to its label color.</summary>
 public sealed class MethodToBrushConverter : IValueConverter
 {
     public static readonly MethodToBrushConverter Instance = new();
 
-    // Pastel, low-saturation method colors (paired with dark badge text).
+    // Pastel, low-saturation method colors used directly on dark surfaces.
     private static readonly IBrush Get = Brush("#FF8FD3A8");
     private static readonly IBrush Post = Brush("#FFE6CF8A");
     private static readonly IBrush Put = Brush("#FF9CC0EC");

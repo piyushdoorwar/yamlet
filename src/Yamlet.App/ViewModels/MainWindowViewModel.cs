@@ -66,7 +66,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private RequestEditorViewModel? _currentEditor;
 
-    /// <summary>Open editor tabs (requests, environments, collections), Postman-style.</summary>
+    /// <summary>Open editor tabs for requests, environments, and collections.</summary>
     public ObservableCollection<OpenTabViewModel> OpenTabs { get; } = new();
 
     /// <summary>The currently active tab; its <see cref="OpenTabViewModel.Content"/> fills the main panel.</summary>

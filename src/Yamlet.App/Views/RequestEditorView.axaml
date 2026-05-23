@@ -56,10 +56,18 @@
       </Popup>
       <Button Grid.Column="2"
               Classes="accent"
-              MinWidth="96"
+              MinWidth="64"
               Command="{Binding SendCommand}"
               IsEnabled="{Binding !IsSending}"
-              Content="Send" />
+              ToolTip.Tip="Send">
+        <Viewbox Width="20" Height="20">
+          <Path Data="{StaticResource IconSend}"
+                Stroke="#FFFFFFFF"
+                StrokeThickness="2"
+                StrokeLineCap="Round"
+                StrokeJoin="Round" />
+        </Viewbox>
+      </Button>
     </Grid>
 
     <!-- Request + response split. Orientation (stacked vs side-by-side) is set in
