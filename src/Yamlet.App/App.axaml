@@ -12,6 +12,7 @@
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
         <ResourceInclude Source="avares://Yamlet.App/Themes/Colors.axaml" />
+        <ResourceInclude Source="avares://Yamlet.App/Themes/Icons.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

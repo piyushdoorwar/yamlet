@@ -29,10 +29,13 @@
               <TextBox Grid.Column="3" Text="{Binding Description}" PlaceholderText="description" Margin="2,0" />
               <Button Grid.Column="4"
                       Classes="ghost"
-                      Content="✕"
                       Padding="4"
                       Command="{Binding #GridRoot.DataContext.RemoveRowCommand}"
-                      CommandParameter="{Binding}" />
+                      CommandParameter="{Binding}"
+                      ToolTip.Tip="Remove row">
+                <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12"
+                          Foreground="{DynamicResource TextMutedBrush}" />
+              </Button>
             </Grid>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

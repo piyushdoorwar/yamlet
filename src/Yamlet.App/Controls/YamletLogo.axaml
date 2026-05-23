@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Yamlet.App.Controls.YamletLogo">
+
+  <!-- The Yamlet mark: a YAML file with an egg badge and a stylized Y.
+       Drawn on a 64x64 canvas and scaled uniformly by the Viewbox. -->
+  <Viewbox Stretch="Uniform">
+    <Canvas Width="64" Height="64">
+      <!-- Page / file base -->
+      <Path Fill="#1F2430"
+            Data="M18 8H38L50 20V46C50 51.523 45.523 56 40 56H18C12.477 56 8 51.523 8 46V18C8 12.477 12.477 8 18 8Z" />
+      <!-- Folded corner -->
+      <Path Fill="#596579"
+            Data="M38 8V17C38 18.657 39.343 20 41 20H50L38 8Z" />
+      <!-- Inner egg / badge -->
+      <Path Fill="#2CA9BC"
+            Data="M30 18C23.6 18 19 26.1 19 34.2C19 41.8 23.8 47 30 47C36.2 47 41 41.8 41 34.2C41 26.1 36.4 18 30 18Z" />
+      <!-- Yolk -->
+      <Ellipse Fill="#FFCB59" Width="8.4" Height="8.4" Canvas.Left="25.8" Canvas.Top="34.3" />
+      <!-- Stylized Y -->
+      <Path Stroke="#F8FAFC" StrokeThickness="3"
+            StrokeLineCap="Round" StrokeJoin="Round"
+            Data="M24.7 26.7L30 32L35.3 26.7M30 32V42" />
+    </Canvas>
+  </Viewbox>
+
+</UserControl>

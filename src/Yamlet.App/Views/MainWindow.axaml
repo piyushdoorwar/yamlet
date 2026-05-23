@@ -21,14 +21,16 @@
     <!-- Tree node templates, selected by node type. -->
     <TreeDataTemplate DataType="vm:CollectionNodeViewModel" ItemsSource="{Binding Children}">
       <StackPanel Orientation="Horizontal" Spacing="6">
-        <TextBlock Text="🗂" FontSize="13" VerticalAlignment="Center" />
+        <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15"
+                  Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
       </StackPanel>
     </TreeDataTemplate>
 
     <TreeDataTemplate DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
       <StackPanel Orientation="Horizontal" Spacing="6">
-        <TextBlock Text="📁" FontSize="13" VerticalAlignment="Center" />
+        <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15"
+                  Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
         <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
       </StackPanel>
     </TreeDataTemplate>
@@ -57,30 +59,36 @@
       <Border Grid.Column="0" Background="{StaticResource RailBrush}">
         <Grid RowDefinitions="Auto,*">
           <StackPanel Grid.Row="0" Spacing="6" Margin="0,12" HorizontalAlignment="Center">
-            <TextBlock Text="🍳" FontSize="22" HorizontalAlignment="Center" Margin="0,0,0,8"
-                       ToolTip.Tip="Yamlet" />
-            <ToggleButton Classes="rail" Content="🗂"
+            <controls:YamletLogo Width="28" Height="28"
+                                 HorizontalAlignment="Center" Margin="0,0,0,8"
+                                 ToolTip.Tip="Yamlet" />
+            <ToggleButton Classes="rail" ToolTip.Tip="Collections"
                           IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Collections, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Collections}"
-                          ToolTip.Tip="Collections" />
-            <ToggleButton Classes="rail" Content="🌐"
+                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Collections}">
+              <PathIcon Data="{StaticResource IconCollections}" />
+            </ToggleButton>
+            <ToggleButton Classes="rail" ToolTip.Tip="Environments"
                           IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Environments, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Environments}"
-                          ToolTip.Tip="Environments" />
-            <ToggleButton Classes="rail" Content="🌍"
+                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Environments}">
+              <PathIcon Data="{StaticResource IconEnvironment}" />
+            </ToggleButton>
+            <ToggleButton Classes="rail" ToolTip.Tip="Globals"
                           IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Globals, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Globals}"
-                          ToolTip.Tip="Globals" />
-            <ToggleButton Classes="rail" Content="🕘"
+                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Globals}">
+              <PathIcon Data="{StaticResource IconGlobals}" />
+            </ToggleButton>
+            <ToggleButton Classes="rail" ToolTip.Tip="History"
                           IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=History, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.History}"
-                          ToolTip.Tip="History" />
+                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.History}">
+              <PathIcon Data="{StaticResource IconHistory}" />
+            </ToggleButton>
           </StackPanel>
-          <ToggleButton Grid.Row="1" Classes="rail" Content="⚙" VerticalAlignment="Bottom"
-                        Margin="0,0,0,12" HorizontalAlignment="Center"
+          <ToggleButton Grid.Row="1" Classes="rail" VerticalAlignment="Bottom"
+                        Margin="0,0,0,12" HorizontalAlignment="Center" ToolTip.Tip="Settings"
                         IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Settings, Mode=OneWay}"
-                        Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Settings}"
-                        ToolTip.Tip="Settings" />
+                        Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Settings}">
+            <PathIcon Data="{StaticResource IconSettings}" />
+          </ToggleButton>
         </Grid>
       </Border>
 
@@ -105,12 +113,20 @@
                 IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Collections}">
             <TextBlock Classes="heading" Text="COLLECTIONS" VerticalAlignment="Center" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-              <Button Classes="ghost" Content="＋ Coll" FontSize="11"
-                      Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection" />
-              <Button Classes="ghost" Content="＋ Folder" FontSize="11"
-                      Command="{Binding NewFolderCommand}" ToolTip.Tip="New folder" />
-              <Button Classes="ghost" Content="＋ Req" FontSize="11"
-                      Command="{Binding NewRequestCommand}" ToolTip.Tip="New request" />
+              <Button Classes="ghost" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection">
+                <PathIcon Data="{StaticResource IconCollections}" />
+              </Button>
+              <Button Classes="ghost" Command="{Binding NewFolderCommand}" ToolTip.Tip="New folder">
+                <PathIcon Data="{StaticResource IconFolder}" />
+              </Button>
+              <Button Classes="ghost" Command="{Binding NewRequestCommand}" ToolTip.Tip="New request">
+                <Panel>
+                  <PathIcon Data="{StaticResource IconRequest}" />
+                  <PathIcon Data="{StaticResource IconPlus}" Width="9" Height="9"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                            Foreground="{DynamicResource AccentBrush}" />
+                </Panel>
+              </Button>
             </StackPanel>
           </Grid>
 
@@ -167,9 +183,9 @@
         <ContentControl Content="{Binding CurrentEditor}"
                         ContentTemplate="{StaticResource EditorTemplate}"
                         IsVisible="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}" />
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8"
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
                     IsVisible="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNull}}">
-          <TextBlock Text="🍳" FontSize="40" HorizontalAlignment="Center" />
+          <controls:YamletLogo Width="56" Height="56" HorizontalAlignment="Center" />
           <TextBlock Classes="muted" HorizontalAlignment="Center"
                      Text="Select a request, or create one to get started." />
         </StackPanel>
