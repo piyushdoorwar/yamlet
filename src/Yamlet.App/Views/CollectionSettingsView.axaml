@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yamlet.App.ViewModels"
+             x:Class="Yamlet.App.Views.CollectionSettingsView"
+             x:DataType="vm:CollectionSettingsViewModel">
+
+  <Grid RowDefinitions="Auto,*" Margin="14,12">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel>
+        <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" />
+        <TextBlock Classes="muted" FontSize="12" Margin="0,2,0,0"
+                   Text="Collection settings" />
+      </StackPanel>
+      <Button Grid.Column="1" Classes="accent" VerticalAlignment="Top"
+              Content="Save" Command="{Binding SaveCommand}" />
+    </Grid>
+
+    <Border Grid.Row="1" Margin="0,12,0,0"
+            Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            Padding="10">
+      <TabControl>
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Authorization" VerticalAlignment="Center" />
+              <Ellipse Classes="tabdot" IsVisible="{Binding HasAuth}" />
+            </StackPanel>
+          </TabItem.Header>
+
+          <StackPanel Margin="0,10,0,0" Spacing="12" MaxWidth="560" HorizontalAlignment="Left">
+            <TextBox Text="{Binding Name}" PlaceholderText="Collection name" />
+
+            <ComboBox Width="220"
+                      HorizontalAlignment="Left"
+                      ItemsSource="{Binding AuthTypes}"
+                      SelectedItem="{Binding SelectedAuthType}" />
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsBearerVisible}">
+              <TextBlock Classes="heading" Text="TOKEN" />
+              <TextBox Text="{Binding BearerToken}" PlaceholderText="Bearer token" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsCookieVisible}">
+              <TextBlock Classes="heading" Text="COOKIE" />
+              <TextBox Text="{Binding Cookie}" PlaceholderText="name=value; other=value" />
+            </StackPanel>
+          </StackPanel>
+        </TabItem>
+      </TabControl>
+    </Border>
+
+  </Grid>
+</UserControl>

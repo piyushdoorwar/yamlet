@@ -99,6 +99,83 @@ public class RequestExecutorTests
     }
 
     [Fact]
+    public async Task Execute_AppliesCollectionBearerWhenRequestInheritsAuth()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            Auth = new YamletAuth { Type = YamletAuthType.Inherit },
+        };
+        var collectionAuth = new YamletAuth { Type = YamletAuthType.Bearer, Token = "{{token}}" };
+        var context = VariableContext.Create(
+            null, null, new List<YamletVariable> { new() { Key = "token", Value = "abc123", Enabled = true } }, null);
+
+        await executor.ExecuteAsync(request, context, collectionAuth);
+
+        Assert.Equal("Bearer", handler.LastRequest!.Headers.Authorization!.Scheme);
+        Assert.Equal("abc123", handler.LastRequest.Headers.Authorization.Parameter);
+    }
+
+    [Fact]
+    public async Task Execute_RequestAuthOverridesCollectionAuth()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            Auth = new YamletAuth { Type = YamletAuthType.Bearer, Token = "request-token" },
+        };
+        var collectionAuth = new YamletAuth { Type = YamletAuthType.Bearer, Token = "collection-token" };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty, collectionAuth);
+
+        Assert.Equal("request-token", handler.LastRequest!.Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
+    public async Task Execute_NoAuthRequestDoesNotUseCollectionAuth()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            Auth = new YamletAuth { Type = YamletAuthType.None },
+        };
+        var collectionAuth = new YamletAuth { Type = YamletAuthType.Bearer, Token = "collection-token" };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty, collectionAuth);
+
+        Assert.Null(handler.LastRequest!.Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task Execute_AppliesCookieAuthHeader()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            Auth = new YamletAuth { Type = YamletAuthType.Cookie, Cookie = "session={{sessionId}}" },
+        };
+        var context = VariableContext.Create(
+            null, null, new List<YamletVariable> { new() { Key = "sessionId", Value = "abc123", Enabled = true } }, null);
+
+        await executor.ExecuteAsync(request, context);
+
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("Cookie", out var values));
+        Assert.Equal("session=abc123", Assert.Single(values));
+    }
+
+    [Fact]
     public async Task Execute_SendsJsonBody()
     {
         var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.Created));

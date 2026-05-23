@@ -6,10 +6,12 @@ namespace Yamlet.App.Models;
 /// </summary>
 public enum YamletAuthType
 {
+    Inherit,
     None,
     Bearer,
     Basic,
     ApiKey,
+    Cookie,
 }
 
 /// <summary>
@@ -28,7 +30,7 @@ public enum ApiKeyLocation
 /// </summary>
 public sealed class YamletAuth
 {
-    public YamletAuthType Type { get; set; } = YamletAuthType.None;
+    public YamletAuthType Type { get; set; } = YamletAuthType.Inherit;
 
     // Bearer
     public string Token { get; set; } = string.Empty;
@@ -42,6 +44,9 @@ public sealed class YamletAuth
     public string ApiKeyValue { get; set; } = string.Empty;
     public ApiKeyLocation ApiKeyIn { get; set; } = ApiKeyLocation.Header;
 
+    // Cookie
+    public string Cookie { get; set; } = string.Empty;
+
     public YamletAuth Clone() => new()
     {
         Type = Type,
@@ -51,5 +56,6 @@ public sealed class YamletAuth
         ApiKeyName = ApiKeyName,
         ApiKeyValue = ApiKeyValue,
         ApiKeyIn = ApiKeyIn,
+        Cookie = Cookie,
     };
 }

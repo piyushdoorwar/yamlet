@@ -18,6 +18,9 @@
     <DataTemplate DataType="vm:VariableSetEditorViewModel">
       <views:VariableSetEditorView />
     </DataTemplate>
+    <DataTemplate DataType="vm:CollectionSettingsViewModel">
+      <views:CollectionSettingsView />
+    </DataTemplate>
 
     <!-- Tree node templates, selected by node type. -->
     <TreeDataTemplate DataType="vm:CollectionNodeViewModel" ItemsSource="{Binding Children}">
@@ -165,7 +168,7 @@
                     IsVisible="{Binding MainContent, Converter={x:Static ObjectConverters.IsNull}}">
           <controls:YamletLogo Width="56" Height="56" HorizontalAlignment="Center" />
           <TextBlock Classes="muted" HorizontalAlignment="Center"
-                     Text="Select a request, or create one to get started." />
+                     Text="Select a collection or request to get started." />
         </StackPanel>
       </Panel>
     </Grid>

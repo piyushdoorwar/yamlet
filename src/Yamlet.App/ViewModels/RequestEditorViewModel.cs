@@ -16,6 +16,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private readonly RequestExecutor _executor;
     private readonly RequestFileService _requestFiles;
     private readonly Func<YamletRequest, VariableContext> _contextFactory;
+    private readonly Func<YamletAuth?> _collectionAuthFactory;
     private readonly Action<string>? _status;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
@@ -34,10 +35,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
 
     public IReadOnlyList<LabeledOption<YamletAuthType>> AuthTypes { get; } = new[]
     {
+        new LabeledOption<YamletAuthType>("Inherit from Collection", YamletAuthType.Inherit),
         new LabeledOption<YamletAuthType>("No Auth", YamletAuthType.None),
         new LabeledOption<YamletAuthType>("Bearer Token", YamletAuthType.Bearer),
         new LabeledOption<YamletAuthType>("Basic Auth", YamletAuthType.Basic),
         new LabeledOption<YamletAuthType>("API Key", YamletAuthType.ApiKey),
+        new LabeledOption<YamletAuthType>("Cookie", YamletAuthType.Cookie),
     };
 
     public IReadOnlyList<LabeledOption<ApiKeyLocation>> ApiKeyLocations { get; } = new[]
@@ -55,12 +58,14 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         RequestExecutor executor,
         RequestFileService requestFiles,
         Func<YamletRequest, VariableContext> contextFactory,
+        Func<YamletAuth?>? collectionAuthFactory = null,
         Action<string>? status = null)
     {
         _node = node;
         _executor = executor;
         _requestFiles = requestFiles;
         _contextFactory = contextFactory;
+        _collectionAuthFactory = collectionAuthFactory ?? (() => null);
         _status = status;
 
         BreadcrumbPath = BuildBreadcrumb(node);
@@ -107,6 +112,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private LabeledOption<ApiKeyLocation> _selectedApiKeyLocation = null!;
 
     [ObservableProperty]
+    private string _cookie = string.Empty;
+
+    [ObservableProperty]
     private string _preRequestScript = string.Empty;
 
     [ObservableProperty]
@@ -125,6 +133,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     public bool IsBearerVisible => SelectedAuthType.Value == YamletAuthType.Bearer;
     public bool IsBasicVisible => SelectedAuthType.Value == YamletAuthType.Basic;
     public bool IsApiKeyVisible => SelectedAuthType.Value == YamletAuthType.ApiKey;
+    public bool IsCookieVisible => SelectedAuthType.Value == YamletAuthType.Cookie;
 
     /// <summary>Tab content indicators (small dots shown next to tab headers).</summary>
     public bool HasAuth => SelectedAuthType.Value != YamletAuthType.None;
@@ -146,6 +155,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsBearerVisible));
         OnPropertyChanged(nameof(IsBasicVisible));
         OnPropertyChanged(nameof(IsApiKeyVisible));
+        OnPropertyChanged(nameof(IsCookieVisible));
         OnPropertyChanged(nameof(HasAuth));
     }
 
@@ -215,6 +225,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         ApiKeyName = request.Auth.ApiKeyName;
         ApiKeyValue = request.Auth.ApiKeyValue;
         SelectedApiKeyLocation = ApiKeyLocations.First(l => l.Value == request.Auth.ApiKeyIn);
+        Cookie = request.Auth.Cookie;
 
         PreRequestScript = request.PreRequestScript;
         PostResponseScript = request.PostResponseScript;
@@ -251,6 +262,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
             ApiKeyName = ApiKeyName,
             ApiKeyValue = ApiKeyValue,
             ApiKeyIn = SelectedApiKeyLocation.Value,
+            Cookie = Cookie,
         };
         request.PreRequestScript = PreRequestScript;
         request.PostResponseScript = PostResponseScript;
@@ -297,7 +309,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         try
         {
             var context = _contextFactory(request);
-            var response = await _executor.ExecuteAsync(request, context, _inflight.Token).ConfigureAwait(false);
+            var response = await _executor
+                .ExecuteAsync(request, context, _collectionAuthFactory(), _inflight.Token)
+                .ConfigureAwait(false);
             ApplyResponse(response);
             _status?.Invoke(response.IsError
                 ? $"Request failed: {response.ErrorMessage}"

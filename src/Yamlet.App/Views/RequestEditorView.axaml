@@ -88,6 +88,11 @@
                         ItemsSource="{Binding ApiKeyLocations}"
                         SelectedItem="{Binding SelectedApiKeyLocation}" />
             </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsCookieVisible}">
+              <TextBlock Classes="heading" Text="COOKIE" />
+              <TextBox Text="{Binding Cookie}" PlaceholderText="name=value; other=value" />
+            </StackPanel>
           </StackPanel>
         </TabItem>
 

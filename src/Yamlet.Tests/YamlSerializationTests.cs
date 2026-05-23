@@ -56,7 +56,24 @@ public class YamlSerializationTests
         var yaml = _yaml.Serialize(RequestDto.FromDomain(request));
 
         Assert.Contains("queryParams:", yaml);
-        Assert.Contains("type: none", yaml);
+        Assert.Contains("type: noauth", yaml);
+    }
+
+    [Fact]
+    public void RequestYaml_OmitsAuthWhenRequestInherits()
+    {
+        var request = new YamletRequest
+        {
+            Name = "Sample",
+            Method = "GET",
+            Url = "https://api.example.com",
+        };
+
+        var yaml = _yaml.Serialize(RequestDto.FromDomain(request));
+        var restored = _yaml.Deserialize<RequestDto>(yaml).ToDomain("/tmp/sample.yaml");
+
+        Assert.DoesNotContain("auth:", yaml);
+        Assert.Equal(YamletAuthType.Inherit, restored.Auth.Type);
     }
 
     [Fact]
@@ -66,6 +83,7 @@ public class YamlSerializationTests
         {
             Id = "col-1",
             Name = "My API",
+            Auth = new YamletAuth { Type = YamletAuthType.Bearer, Token = "{{token}}" },
             Variables = { new YamletVariable { Key = "baseUrl", Value = "https://api.example.com", Enabled = true } },
         };
 
@@ -76,6 +94,8 @@ public class YamlSerializationTests
 
         Assert.Equal("col-1", restored.Id);
         Assert.Equal("My API", restored.Name);
+        Assert.Equal(YamletAuthType.Bearer, restored.Auth.Type);
+        Assert.Equal("{{token}}", restored.Auth.Token);
         Assert.Single(restored.Variables);
         Assert.Equal("baseUrl", restored.Variables[0].Key);
     }
@@ -121,5 +141,20 @@ public class YamlSerializationTests
         Assert.Equal(YamletAuthType.ApiKey, restored.Type);
         Assert.Equal(ApiKeyLocation.Query, restored.ApiKeyIn);
         Assert.Equal("X-Api-Key", restored.ApiKeyName);
+    }
+
+    [Fact]
+    public void CookieAuth_RoundTrips()
+    {
+        var auth = new YamletAuth
+        {
+            Type = YamletAuthType.Cookie,
+            Cookie = "session={{sessionId}}",
+        };
+
+        var restored = AuthDto.FromDomain(auth).ToDomain();
+
+        Assert.Equal(YamletAuthType.Cookie, restored.Type);
+        Assert.Equal("session={{sessionId}}", restored.Cookie);
     }
 }

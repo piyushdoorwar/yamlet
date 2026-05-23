@@ -130,8 +130,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 _executor,
                 _requestFileService,
                 request => BuildContext(requestNode.OwningCollection, request),
+                () => EffectiveCollectionAuth(requestNode.OwningCollection),
                 msg => StatusMessage = msg);
             MainContent = CurrentEditor;
+        }
+        else if (value is CollectionNodeViewModel collectionNode)
+        {
+            CurrentEditor = null;
+            MainContent = new CollectionSettingsViewModel(
+                collectionNode.Collection,
+                _collectionService,
+                msg =>
+                {
+                    collectionNode.Name = collectionNode.Collection.Name;
+                    StatusMessage = msg;
+                });
         }
     }
 
@@ -141,6 +154,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             environment: SelectedEnvironment?.Variables,
             collection: collection.Variables,
             request: request.Variables);
+
+    private static YamletAuth? EffectiveCollectionAuth(YamletCollection collection) =>
+        collection.Auth.Type != YamletAuthType.None
+            ? collection.Auth
+            : null;
 
     // ---- Startup -----------------------------------------------------------
 

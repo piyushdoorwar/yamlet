@@ -28,11 +28,18 @@ public sealed class RequestExecutor
         YamletRequest request,
         VariableContext context,
         CancellationToken cancellationToken = default)
+        => await ExecuteAsync(request, context, collectionAuth: null, cancellationToken).ConfigureAwait(false);
+
+    public async Task<YamletResponse> ExecuteAsync(
+        YamletRequest request,
+        VariableContext context,
+        YamletAuth? collectionAuth,
+        CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            using var message = BuildMessage(request, context);
+            using var message = BuildMessage(request, context, collectionAuth);
             using var response = await _client
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
@@ -67,17 +74,25 @@ public sealed class RequestExecutor
     /// Builds the outgoing <see cref="HttpRequestMessage"/> from a request and context.
     /// Exposed internally so tests can assert on the resolved message shape.
     /// </summary>
-    internal HttpRequestMessage BuildMessage(YamletRequest request, VariableContext context)
+    internal HttpRequestMessage BuildMessage(
+        YamletRequest request,
+        VariableContext context,
+        YamletAuth? collectionAuth = null)
     {
         var url = BuildUrl(request, context);
         var message = new HttpRequestMessage(new HttpMethod(request.Method.ToUpperInvariant()), url);
 
         ApplyBody(request, context, message);
         ApplyHeaders(request, context, message);
-        ApplyAuth(request, context, message);
+        ApplyAuth(EffectiveAuth(request, collectionAuth), context, message);
 
         return message;
     }
+
+    private static YamletAuth EffectiveAuth(YamletRequest request, YamletAuth? collectionAuth) =>
+        request.Auth.Type == YamletAuthType.Inherit && collectionAuth is not null
+            ? collectionAuth
+            : request.Auth;
 
     private string BuildUrl(YamletRequest request, VariableContext context)
     {
@@ -118,9 +133,8 @@ public sealed class RequestExecutor
         }
     }
 
-    private void ApplyAuth(YamletRequest request, VariableContext context, HttpRequestMessage message)
+    private void ApplyAuth(YamletAuth auth, VariableContext context, HttpRequestMessage message)
     {
-        var auth = request.Auth;
         switch (auth.Type)
         {
             case YamletAuthType.Bearer:
@@ -155,7 +169,16 @@ public sealed class RequestExecutor
                 }
                 break;
 
+            case YamletAuthType.Cookie:
+                var cookie = _resolver.Resolve(auth.Cookie, context);
+                if (!string.IsNullOrWhiteSpace(cookie))
+                {
+                    message.Headers.TryAddWithoutValidation("Cookie", cookie);
+                }
+                break;
+
             case YamletAuthType.None:
+            case YamletAuthType.Inherit:
             default:
                 break;
         }

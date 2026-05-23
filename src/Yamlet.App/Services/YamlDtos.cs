@@ -24,13 +24,14 @@ public sealed class KeyValueDto
 
 public sealed class AuthDto
 {
-    public string Type { get; set; } = "none";
+    public string Type { get; set; } = "noauth";
     public string? Token { get; set; }
     public string? Username { get; set; }
     public string? Password { get; set; }
     public string? Key { get; set; }
     public string? Value { get; set; }
     public string? In { get; set; }
+    public string? Cookie { get; set; }
 
     public static AuthDto FromDomain(YamletAuth a) => new()
     {
@@ -39,13 +40,15 @@ public sealed class AuthDto
             YamletAuthType.Bearer => "bearer",
             YamletAuthType.Basic => "basic",
             YamletAuthType.ApiKey => "apikey",
-            _ => "none",
+            YamletAuthType.Cookie => "cookie",
+            _ => "noauth",
         },
         Token = NullIfEmpty(a.Token),
         Username = NullIfEmpty(a.Username),
         Password = NullIfEmpty(a.Password),
         Key = NullIfEmpty(a.ApiKeyName),
         Value = NullIfEmpty(a.ApiKeyValue),
+        Cookie = NullIfEmpty(a.Cookie),
         In = a.Type == YamletAuthType.ApiKey
             ? (a.ApiKeyIn == ApiKeyLocation.Query ? "query" : "header")
             : null,
@@ -58,6 +61,12 @@ public sealed class AuthDto
             "bearer" => YamletAuthType.Bearer,
             "basic" => YamletAuthType.Basic,
             "apikey" => YamletAuthType.ApiKey,
+            "api-key" => YamletAuthType.ApiKey,
+            "cookie" => YamletAuthType.Cookie,
+            "inherit" => YamletAuthType.Inherit,
+            "inherited" => YamletAuthType.Inherit,
+            "noauth" => YamletAuthType.None,
+            "none" => YamletAuthType.None,
             _ => YamletAuthType.None,
         },
         Token = Token ?? string.Empty,
@@ -65,6 +74,7 @@ public sealed class AuthDto
         Password = Password ?? string.Empty,
         ApiKeyName = Key ?? string.Empty,
         ApiKeyValue = Value ?? string.Empty,
+        Cookie = Cookie ?? string.Empty,
         ApiKeyIn = string.Equals(In, "query", StringComparison.OrdinalIgnoreCase)
             ? ApiKeyLocation.Query
             : ApiKeyLocation.Header,
@@ -159,7 +169,7 @@ public sealed class RequestDto
         Variables = r.Variables.Count == 0 ? null : r.Variables
             .Select(v => new KeyValueDto { Key = v.Key, Value = v.Value, Enabled = v.Enabled })
             .ToList(),
-        Auth = AuthDto.FromDomain(r.Auth),
+        Auth = r.Auth.Type == YamletAuthType.Inherit ? null : AuthDto.FromDomain(r.Auth),
         Body = BodyDto.FromDomain(r.Body),
     };
 
@@ -185,7 +195,7 @@ public sealed class RequestDto
         {
             Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList(),
-        Auth = (Auth ?? new AuthDto()).ToDomain(),
+        Auth = Auth is null ? new YamletAuth { Type = YamletAuthType.Inherit } : Auth.ToDomain(),
         Body = (Body ?? new BodyDto()).ToDomain(),
         SourceFilePath = sourceFilePath,
     };
@@ -285,11 +295,13 @@ public sealed class CollectionDto
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public List<KeyValueDto>? Variables { get; set; }
+    public AuthDto? Auth { get; set; }
 
     public static CollectionDto FromDomain(YamletCollection c) => new()
     {
         Id = c.Id,
         Name = c.Name,
+        Auth = c.Auth.Type == YamletAuthType.None ? null : AuthDto.FromDomain(c.Auth),
         Variables = c.Variables.Count == 0 ? null : c.Variables
             .Select(v => new KeyValueDto { Key = v.Key, Value = v.Value, Enabled = v.Enabled })
             .ToList(),
@@ -299,6 +311,7 @@ public sealed class CollectionDto
     {
         c.Id = string.IsNullOrWhiteSpace(Id) ? c.Id : Id;
         c.Name = Name;
+        c.Auth = Auth is null ? new YamletAuth { Type = YamletAuthType.None } : Auth.ToDomain();
         c.Variables = (Variables ?? new()).Select(v => new YamletVariable
         {
             Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,

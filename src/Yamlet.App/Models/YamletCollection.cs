@@ -13,6 +13,7 @@ public sealed class YamletCollection
     public List<YamletFolder> Folders { get; set; } = new();
     public List<YamletRequest> Requests { get; set; } = new();
     public List<YamletVariable> Variables { get; set; } = new();
+    public YamletAuth Auth { get; set; } = new() { Type = YamletAuthType.None };
 
     /// <summary>Absolute path of the collection's root directory, if saved.</summary>
     public string? DirectoryPath { get; set; }
