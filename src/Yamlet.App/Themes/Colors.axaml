@@ -34,6 +34,11 @@
   <Color x:Key="StatusClientErrorColor">#FFE6CF8A</Color>
   <Color x:Key="StatusServerErrorColor">#FFE8A39C</Color>
 
+  <!-- {{variable}} highlighting in editors (Postman-like): amber when the variable
+       resolves in the active scopes, red when it's undefined. -->
+  <Color x:Key="VariableDefinedColor">#FFE0A458</Color>
+  <Color x:Key="VariableUndefinedColor">#FFE2655A</Color>
+
   <!-- Brushes -->
   <SolidColorBrush x:Key="RailBrush" Color="{StaticResource RailColor}" />
   <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource SidebarColor}" />
@@ -54,5 +59,8 @@
   <!-- Soft accent tint for hover/selection backgrounds (subtle, Claude-like). -->
   <SolidColorBrush x:Key="AccentSoftBrush" Color="#FF4CA877" Opacity="0.18" />
   <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource PanelAltColor}" Opacity="0.6" />
+
+  <SolidColorBrush x:Key="VariableDefinedBrush" Color="{StaticResource VariableDefinedColor}" />
+  <SolidColorBrush x:Key="VariableUndefinedBrush" Color="{StaticResource VariableUndefinedColor}" />
 
 </ResourceDictionary>

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ae="using:AvaloniaEdit"
              x:Class="Yamlet.App.Controls.CodeEditorView"
              x:Name="Root">
 
@@ -7,53 +8,69 @@
           BorderBrush="{DynamicResource BorderBrush}"
           BorderThickness="1"
           CornerRadius="8">
-    <DockPanel LastChildFill="True">
-      <Border DockPanel.Dock="Top"
-              Background="{DynamicResource PanelAltBrush}"
-              BorderBrush="{DynamicResource BorderBrush}"
-              BorderThickness="0,0,0,1"
-              Padding="6,5"
-              IsVisible="{Binding #Root.AllowBeautify}">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Grid.Column="0"
-                     Classes="muted"
-                     FontSize="12"
-                     VerticalAlignment="Center"
-                     Text="JSON" />
-          <Button Grid.Column="1"
-                  Padding="10,4"
-                  Click="OnBeautifyClicked"
-                  Content="Beautify" />
-        </Grid>
-      </Border>
-
-      <Grid ColumnDefinitions="Auto,*">
-        <Border Grid.Column="0"
+    <Grid>
+      <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top"
                 Background="{DynamicResource PanelAltBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,1,0"
-                Padding="8,7">
-          <TextBlock x:Name="LineNumbers"
-                     FontFamily="Cascadia Code, Consolas, monospace"
-                     FontSize="12"
-                     Foreground="{DynamicResource TextMutedBrush}"
-                     TextAlignment="Right" />
+                BorderThickness="0,0,0,1"
+                Padding="6,5"
+                IsVisible="{Binding #Root.AllowBeautify}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Classes="muted"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Text="JSON" />
+            <Button Grid.Column="1"
+                    Padding="10,4"
+                    Click="OnBeautifyClicked"
+                    Content="Beautify" />
+          </Grid>
         </Border>
 
-        <TextBox x:Name="EditorBox"
-                 Grid.Column="1"
-                 Text="{Binding #Root.Text, Mode=TwoWay}"
-                 IsReadOnly="{Binding #Root.IsReadOnly}"
-                 AcceptsReturn="True"
-                 AcceptsTab="True"
-                 TextWrapping="NoWrap"
-                 FontFamily="Cascadia Code, Consolas, monospace"
-                 FontSize="12"
-                 Background="Transparent"
-                 BorderThickness="0"
-                 Padding="10,7"
-                 TextChanged="OnEditorTextChanged" />
-      </Grid>
-    </DockPanel>
+        <ae:TextEditor x:Name="EditorBox"
+                       ShowLineNumbers="True"
+                       IsReadOnly="{Binding #Root.IsReadOnly}"
+                       FontFamily="Cascadia Code, Consolas, monospace"
+                       FontSize="12"
+                       Background="Transparent"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       HorizontalScrollBarVisibility="Auto"
+                       VerticalScrollBarVisibility="Auto"
+                       Padding="6,7" />
+      </DockPanel>
+
+      <!-- Inline variable inspector, opened by clicking a {{placeholder}}. -->
+      <Popup x:Name="VarPopup"
+             Placement="Pointer"
+             IsLightDismissEnabled="True">
+        <Border Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                MinWidth="260">
+          <StackPanel Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{}{{" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock x:Name="VarNameText" FontWeight="SemiBold"
+                         Foreground="{DynamicResource VariableDefinedBrush}" />
+              <TextBlock Text="}}" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <TextBlock x:Name="VarStatusText" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+            <TextBox x:Name="VarValueBox" PlaceholderText="Enter value" />
+            <Grid ColumnDefinitions="*,Auto,Auto">
+              <TextBlock x:Name="VarScopeText" Grid.Column="0" Classes="muted"
+                         FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <Button Grid.Column="1" Classes="ghost" Padding="10,4" Content="Cancel"
+                      Click="OnVarCancelClicked" />
+              <Button Grid.Column="2" Classes="accent" Padding="10,4" Content="Save"
+                      Margin="6,0,0,0" Click="OnVarSaveClicked" />
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Popup>
+    </Grid>
   </Border>
 </UserControl>

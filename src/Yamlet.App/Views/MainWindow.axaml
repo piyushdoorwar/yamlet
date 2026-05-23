@@ -177,12 +177,33 @@
     <Border Grid.Row="1" Background="{StaticResource RailBrush}"
             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
             Padding="12,5">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Grid.Column="0" FontSize="12" Classes="muted"
                    VerticalAlignment="Center" Text="{Binding StatusMessage}" />
         <TextBlock Grid.Column="1" FontSize="12" Classes="muted"
                    VerticalAlignment="Center"
                    Text="{Binding SelectedEnvironment.Name, FallbackValue='No environment'}" />
+
+        <!-- Stacked vs side-by-side request/response layout toggle (active editor only). -->
+        <Button Grid.Column="2"
+                Classes="ghost"
+                Padding="5"
+                Margin="10,0,0,0"
+                VerticalAlignment="Center"
+                IsVisible="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}"
+                Command="{Binding CurrentEditor.ToggleLayoutCommand}"
+                ToolTip.Tip="{Binding CurrentEditor.LayoutToggleTooltip}">
+          <Panel>
+            <PathIcon Data="{StaticResource IconLayoutColumns}"
+                      Width="15" Height="15"
+                      Foreground="{DynamicResource TextMutedBrush}"
+                      IsVisible="{Binding !CurrentEditor.IsSideBySide}" />
+            <PathIcon Data="{StaticResource IconLayoutRows}"
+                      Width="15" Height="15"
+                      Foreground="{DynamicResource TextMutedBrush}"
+                      IsVisible="{Binding CurrentEditor.IsSideBySide}" />
+          </Panel>
+        </Button>
       </Grid>
     </Border>
   </Grid>

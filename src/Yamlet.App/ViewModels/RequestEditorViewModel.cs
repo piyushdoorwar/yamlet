@@ -1,6 +1,7 @@
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Yamlet.App.Controls;
 using Yamlet.App.Models;
 using Yamlet.App.Services;
 
@@ -11,7 +12,7 @@ namespace Yamlet.App.ViewModels;
 /// fields, maps them back to the <see cref="YamletRequest"/> model on save/send, and
 /// surfaces the resulting <see cref="YamletResponse"/>.
 /// </summary>
-public sealed partial class RequestEditorViewModel : ViewModelBase
+public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSource
 {
     private readonly RequestExecutor _executor;
     private readonly RequestFileService _requestFiles;
@@ -20,8 +21,11 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private readonly Func<YamletAuth?> _collectionAuthFactory;
     private readonly Action<string>? _status;
     private readonly Action<bool>? _persistLayout;
+    private readonly Func<string, string, Task>? _setEnvironmentVariableAsync;
+    private readonly Func<string?>? _activeEnvironmentName;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
+    private VariableContext? _variableCache;
 
     public static readonly string[] Methods =
         { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" };
@@ -64,7 +68,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         Func<YamletAuth?>? collectionAuthFactory = null,
         Action<string>? status = null,
         bool initialSideBySide = false,
-        Action<bool>? persistLayout = null)
+        Action<bool>? persistLayout = null,
+        Func<string, string, Task>? setEnvironmentVariableAsync = null,
+        Func<string?>? activeEnvironmentName = null)
     {
         _node = node;
         _executor = executor;
@@ -74,6 +80,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
         _status = status;
         _persistLayout = persistLayout;
+        _setEnvironmentVariableAsync = setEnvironmentVariableAsync;
+        _activeEnvironmentName = activeEnvironmentName;
         _isSideBySide = initialSideBySide;
 
         BreadcrumbPath = BuildBreadcrumb(node);
@@ -196,6 +204,30 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
 
     [RelayCommand]
     private void ToggleLayout() => IsSideBySide = !IsSideBySide;
+
+    // ---- Variable inspection (IVariableSource) -----------------------------
+
+    /// <summary>Raised after a variable is written, so editors re-highlight placeholders.</summary>
+    public event EventHandler? VariablesChanged;
+
+    /// <inheritdoc />
+    public bool TryGetValue(string name, out string value) =>
+        (_variableCache ??= _contextFactory(_node.Request)).TryGet(name, out value);
+
+    /// <inheritdoc />
+    public string TargetScopeName => _activeEnvironmentName?.Invoke() ?? "active environment";
+
+    /// <inheritdoc />
+    public async Task SetAsync(string name, string value)
+    {
+        if (_setEnvironmentVariableAsync is not null)
+        {
+            await _setEnvironmentVariableAsync(name, value).ConfigureAwait(true);
+        }
+
+        _variableCache = null;
+        VariablesChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     // ---- Response state ----------------------------------------------------
 

@@ -122,6 +122,7 @@
             <controls:CodeEditorView Text="{Binding BodyText}"
                                      Language="{Binding BodyEditorLanguage}"
                                      AllowBeautify="{Binding IsJsonBodyEditor}"
+                                     VariableSource="{Binding}"
                                      IsVisible="{Binding IsBodyEditorVisible}" />
           </DockPanel>
         </TabItem>
@@ -194,26 +195,6 @@
                      Classes="muted"
                      Text="Send the request to see the response."
                      IsVisible="{Binding !HasResponse}" />
-
-          <!-- Toggle between stacked and side-by-side request/response layout. -->
-          <Button Grid.Column="1"
-                  Classes="ghost"
-                  Padding="6"
-                  HorizontalAlignment="Right"
-                  VerticalAlignment="Center"
-                  Command="{Binding ToggleLayoutCommand}"
-                  ToolTip.Tip="{Binding LayoutToggleTooltip}">
-            <Panel>
-              <PathIcon Data="{StaticResource IconLayoutColumns}"
-                        Width="16" Height="16"
-                        Foreground="{DynamicResource TextMutedBrush}"
-                        IsVisible="{Binding !IsSideBySide}" />
-              <PathIcon Data="{StaticResource IconLayoutRows}"
-                        Width="16" Height="16"
-                        Foreground="{DynamicResource TextMutedBrush}"
-                        IsVisible="{Binding IsSideBySide}" />
-            </Panel>
-          </Button>
         </Grid>
 
         <TabControl Grid.Row="1" Margin="0,6,0,0" IsVisible="{Binding HasResponse}">

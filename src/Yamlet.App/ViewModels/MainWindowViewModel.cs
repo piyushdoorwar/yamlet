@@ -139,7 +139,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 () => EffectiveCollectionAuth(requestNode.OwningCollection),
                 msg => StatusMessage = msg,
                 _recent.LoadResponseSideBySide(),
-                _recent.RememberResponseSideBySide);
+                _recent.RememberResponseSideBySide,
+                SetActiveEnvironmentVariableAsync,
+                () => SelectedEnvironment?.Name);
             MainContent = CurrentEditor;
         }
         else if (value is CollectionNodeViewModel collectionNode)
@@ -193,6 +195,34 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             await _requestFileService.SaveRequestAsync(request);
         }
+    }
+
+    /// <summary>
+    /// Sets a variable's value in the active environment and persists it. Used by the
+    /// body editor's inline variable inspector. Adds the variable if it doesn't exist.
+    /// </summary>
+    private async Task SetActiveEnvironmentVariableAsync(string key, string value)
+    {
+        if (SelectedEnvironment is null)
+        {
+            StatusMessage = "Select an environment before setting a variable.";
+            return;
+        }
+
+        var existing = SelectedEnvironment.Variables
+            .FirstOrDefault(v => string.Equals(v.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            SelectedEnvironment.Variables.Add(new YamletVariable { Key = key, Value = value, Enabled = true });
+        }
+        else
+        {
+            existing.Value = value;
+            existing.Enabled = true;
+        }
+
+        await _workspaceService.SaveEnvironmentAsync(SelectedEnvironment);
+        StatusMessage = $"Set {{{{{key}}}}} in {SelectedEnvironment.Name}";
     }
 
     private static YamletAuth? EffectiveCollectionAuth(YamletCollection collection) =>
