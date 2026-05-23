@@ -178,10 +178,22 @@
             Padding="10">
       <Grid RowDefinitions="Auto,*">
 
-        <!-- Response summary bar -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
-          <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding HasResponse}">
-            <Border Classes="badge"
+        <!-- Condensed response bar: view dropdown on the left, status/time/size on the right. -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+          <ComboBox Grid.Column="0"
+                    MinWidth="110"
+                    ItemsSource="{Binding ResponseViews}"
+                    SelectedItem="{Binding SelectedResponseView}"
+                    IsVisible="{Binding HasResponse}" />
+          <TextBlock Grid.Column="0"
+                     Classes="muted"
+                     VerticalAlignment="Center"
+                     Text="Send the request to see the response."
+                     IsVisible="{Binding !HasResponse}" />
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12"
+                      VerticalAlignment="Center" IsVisible="{Binding HasResponse}">
+            <Border Classes="badge" VerticalAlignment="Center"
                     Background="{Binding ResponseCategory, Converter={x:Static controls:StatusCategoryToBrushConverter.Instance}}">
               <TextBlock Text="{Binding ResponseStatusText}"
                          Foreground="#FF15150F"
@@ -191,30 +203,23 @@
             <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseDurationText}" />
             <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseSizeText}" />
           </StackPanel>
-          <TextBlock Grid.Column="0"
-                     Classes="muted"
-                     Text="Send the request to see the response."
-                     IsVisible="{Binding !HasResponse}" />
         </Grid>
 
-        <TabControl Grid.Row="1" Margin="0,6,0,0" IsVisible="{Binding HasResponse}">
-          <TabItem Header="Body">
-            <controls:CodeEditorView Text="{Binding ResponseBody}"
-                                     Language="{Binding ResponseBodyLanguage}"
-                                     AllowBeautify="{Binding IsResponseBodyJson}"
-                                     IsReadOnly="True" />
-          </TabItem>
-          <TabItem Header="Headers">
-            <controls:CodeEditorView Text="{Binding ResponseHeadersText}"
-                                     Language="text"
-                                     IsReadOnly="True" />
-          </TabItem>
-          <TabItem Header="Raw">
-            <controls:CodeEditorView Text="{Binding ResponseRaw}"
-                                     Language="text"
-                                     IsReadOnly="True" />
-          </TabItem>
-        </TabControl>
+        <Panel Grid.Row="1" Margin="0,8,0,0" IsVisible="{Binding HasResponse}">
+          <controls:CodeEditorView Text="{Binding ResponseBody}"
+                                   Language="{Binding ResponseBodyLanguage}"
+                                   AllowBeautify="{Binding IsResponseBodyJson}"
+                                   IsReadOnly="True"
+                                   IsVisible="{Binding IsResponseBodyView}" />
+          <controls:CodeEditorView Text="{Binding ResponseHeadersText}"
+                                   Language="text"
+                                   IsReadOnly="True"
+                                   IsVisible="{Binding IsResponseHeadersView}" />
+          <controls:CodeEditorView Text="{Binding ResponseRaw}"
+                                   Language="text"
+                                   IsReadOnly="True"
+                                   IsVisible="{Binding IsResponseRawView}" />
+        </Panel>
       </Grid>
     </Border>
 

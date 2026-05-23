@@ -34,6 +34,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _executor = executor;
         _dialogs = dialogs;
         _recent = recent;
+
+        OpenTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasOpenTabs));
     }
 
     /// <summary>Parameterless constructor for the XAML design-time previewer.</summary>
@@ -64,12 +66,14 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private RequestEditorViewModel? _currentEditor;
 
-    /// <summary>
-    /// What the main panel shows: a request editor when a request is selected, or an
-    /// environment variable editor when an environment is opened.
-    /// </summary>
+    /// <summary>Open editor tabs (requests, environments, collections), Postman-style.</summary>
+    public ObservableCollection<OpenTabViewModel> OpenTabs { get; } = new();
+
+    /// <summary>The currently active tab; its <see cref="OpenTabViewModel.Content"/> fills the main panel.</summary>
     [ObservableProperty]
-    private object? _mainContent;
+    private OpenTabViewModel? _selectedTab;
+
+    public bool HasOpenTabs => OpenTabs.Count > 0;
 
     // Collapsible sidebar sections (accordion).
     [ObservableProperty]
@@ -100,12 +104,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _recent.RememberSelectedEnvironment(Workspace.RootPath, value.Id);
         }
 
-        MainContent = new VariableSetEditorViewModel(
-            value.Name,
-            "Environment variables. Use these names inside {{placeholders}}.",
-            value.Variables,
-            () => _workspaceService.SaveEnvironmentAsync(value),
-            msg => StatusMessage = msg);
+        OpenEnvironmentTab(value);
     }
 
     [ObservableProperty]
@@ -130,31 +129,137 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         if (value is RequestNodeViewModel requestNode)
         {
-            CurrentEditor = new RequestEditorViewModel(
-                requestNode,
-                _executor,
-                _requestFileService,
-                request => BuildContext(requestNode.OwningCollection, request),
-                request => BuildScriptVariables(requestNode.OwningCollection, request),
-                () => EffectiveCollectionAuth(requestNode.OwningCollection),
-                msg => StatusMessage = msg,
-                _recent.LoadResponseSideBySide(),
-                _recent.RememberResponseSideBySide,
-                SetActiveEnvironmentVariableAsync,
-                () => SelectedEnvironment?.Name);
-            MainContent = CurrentEditor;
+            OpenRequestTab(requestNode);
         }
         else if (value is CollectionNodeViewModel collectionNode)
         {
-            CurrentEditor = null;
-            MainContent = new CollectionSettingsViewModel(
-                collectionNode.Collection,
-                _collectionService,
-                msg =>
-                {
-                    collectionNode.Name = collectionNode.Collection.Name;
-                    StatusMessage = msg;
-                });
+            OpenCollectionTab(collectionNode);
+        }
+    }
+
+    /// <summary>Reflects the active tab in <see cref="CurrentEditor"/> and tab highlight state.</summary>
+    partial void OnSelectedTabChanged(OpenTabViewModel? value)
+    {
+        foreach (var tab in OpenTabs)
+        {
+            tab.IsActive = ReferenceEquals(tab, value);
+        }
+
+        CurrentEditor = value?.Content as RequestEditorViewModel;
+    }
+
+    // ---- Tab management ----------------------------------------------------
+
+    private void OpenRequestTab(RequestNodeViewModel node)
+    {
+        if (TryActivate(node))
+        {
+            return;
+        }
+
+        var editor = new RequestEditorViewModel(
+            node,
+            _executor,
+            _requestFileService,
+            request => BuildContext(node.OwningCollection, request),
+            request => BuildScriptVariables(node.OwningCollection, request),
+            () => EffectiveCollectionAuth(node.OwningCollection),
+            msg => StatusMessage = msg,
+            _recent.LoadResponseSideBySide(),
+            _recent.RememberResponseSideBySide,
+            SetActiveEnvironmentVariableAsync,
+            () => SelectedEnvironment?.Name);
+
+        var tab = new OpenTabViewModel(node, editor, OpenTabKind.Request, node.Name, ActivateTab, CloseTab, node.Method);
+        editor.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RequestEditorViewModel.Name))
+            {
+                tab.Title = editor.Name;
+            }
+            else if (e.PropertyName == nameof(RequestEditorViewModel.SelectedMethod))
+            {
+                tab.Method = editor.SelectedMethod;
+            }
+        };
+
+        AddAndSelect(tab);
+    }
+
+    private void OpenCollectionTab(CollectionNodeViewModel node)
+    {
+        if (TryActivate(node))
+        {
+            return;
+        }
+
+        var settings = new CollectionSettingsViewModel(
+            node.Collection,
+            _collectionService,
+            msg =>
+            {
+                node.Name = node.Collection.Name;
+                StatusMessage = msg;
+            });
+
+        var tab = new OpenTabViewModel(node, settings, OpenTabKind.Collection, node.Name, ActivateTab, CloseTab);
+        settings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CollectionSettingsViewModel.Name))
+            {
+                tab.Title = settings.Name;
+            }
+        };
+
+        AddAndSelect(tab);
+    }
+
+    private void OpenEnvironmentTab(YamletEnvironment environment)
+    {
+        if (TryActivate(environment))
+        {
+            return;
+        }
+
+        var editor = new VariableSetEditorViewModel(
+            environment.Name,
+            "Environment variables. Use these names inside {{placeholders}}.",
+            environment.Variables,
+            () => _workspaceService.SaveEnvironmentAsync(environment),
+            msg => StatusMessage = msg);
+
+        AddAndSelect(new OpenTabViewModel(environment, editor, OpenTabKind.Environment, environment.Name, ActivateTab, CloseTab));
+    }
+
+    /// <summary>Activates an already-open tab for <paramref name="key"/> if one exists.</summary>
+    private bool TryActivate(object key)
+    {
+        var existing = OpenTabs.FirstOrDefault(t => Equals(t.Key, key));
+        if (existing is null)
+        {
+            return false;
+        }
+
+        SelectedTab = existing;
+        return true;
+    }
+
+    private void AddAndSelect(OpenTabViewModel tab)
+    {
+        OpenTabs.Add(tab);
+        SelectedTab = tab;
+    }
+
+    private void ActivateTab(OpenTabViewModel tab) => SelectedTab = tab;
+
+    private void CloseTab(OpenTabViewModel tab)
+    {
+        var index = OpenTabs.IndexOf(tab);
+        OpenTabs.Remove(tab);
+
+        if (ReferenceEquals(SelectedTab, tab))
+        {
+            SelectedTab = OpenTabs.Count == 0 ? null : OpenTabs[Math.Min(index, OpenTabs.Count - 1)];
         }
     }
 
@@ -392,6 +497,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         Workspace = workspace;
         CurrentEditor = null;
         SelectedNode = null;
+        OpenTabs.Clear();
+        SelectedTab = null;
 
         CollectionNodes.Clear();
         foreach (var collection in workspace.Collections)
@@ -409,7 +516,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         SelectedEnvironment = Environments.FirstOrDefault(e => e.Id == cachedEnvironmentId)
             ?? Environments.FirstOrDefault();
 
-        MainContent = null;
         NewCollectionCommand.NotifyCanExecuteChanged();
     }
 

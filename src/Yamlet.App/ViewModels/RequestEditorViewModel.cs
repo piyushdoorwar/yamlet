@@ -264,6 +264,23 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     [ObservableProperty]
     private string _responseRaw = string.Empty;
 
+    /// <summary>Condensed response area: a single dropdown chooses which view is shown.</summary>
+    public IReadOnlyList<string> ResponseViews { get; } = new[] { "Body", "Headers", "Raw" };
+
+    [ObservableProperty]
+    private string _selectedResponseView = "Body";
+
+    public bool IsResponseBodyView => SelectedResponseView == "Body";
+    public bool IsResponseHeadersView => SelectedResponseView == "Headers";
+    public bool IsResponseRawView => SelectedResponseView == "Raw";
+
+    partial void OnSelectedResponseViewChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsResponseBodyView));
+        OnPropertyChanged(nameof(IsResponseHeadersView));
+        OnPropertyChanged(nameof(IsResponseRawView));
+    }
+
     // ---- Load / map --------------------------------------------------------
 
     private void LoadFrom(YamletRequest request)
