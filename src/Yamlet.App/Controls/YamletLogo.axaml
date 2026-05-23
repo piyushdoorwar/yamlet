@@ -2,17 +2,19 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Yamlet.App.Controls.YamletLogo">
 
-  <!-- The Yamlet mark: an egg with a stylized "Y", drawn on a 64x64 canvas and
-       scaled uniformly by the Viewbox. -->
+  <!-- Monochrome Yamlet mark: a rounded-square badge with a "Y" lettermark, drawn in
+       the accent color. Single-color, transparent interior, scales crisply. -->
   <Viewbox Stretch="Uniform">
     <Canvas Width="64" Height="64">
-      <!-- Egg -->
-      <Path Fill="#E8EEF2"
-            Data="M32 10 C24 10 18 20 18 31 C18 42 24.5 52 32 52 C39.5 52 46 42 46 31 C46 20 40 10 32 10Z" />
-      <!-- Stylized Y -->
-      <Path Stroke="#1F2430" StrokeThickness="3"
+      <!-- Badge outline -->
+      <Rectangle Canvas.Left="11" Canvas.Top="11" Width="42" Height="42"
+                 RadiusX="12" RadiusY="12"
+                 Stroke="{DynamicResource AccentBrush}" StrokeThickness="3.4"
+                 Fill="Transparent" />
+      <!-- Y lettermark -->
+      <Path Stroke="{DynamicResource AccentBrush}" StrokeThickness="4"
             StrokeLineCap="Round" StrokeJoin="Round"
-            Data="M26.5 24.5L32 30L37.5 24.5M32 30V41" />
+            Data="M24 25 L32 34 L40 25 M32 34 L32 45" />
     </Canvas>
   </Viewbox>
 
