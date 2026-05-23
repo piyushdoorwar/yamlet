@@ -1,4 +1,4 @@
-# CLAUDE.md
+# CODEX.md
 
 Guidance for working in the Yamlet codebase.
 
@@ -50,7 +50,8 @@ src/
     Services/      Disk + logic: WorkspaceService, CollectionService, RequestFileService,
                    YamlSerializationService, YamlDtos (on-disk shapes + mapping),
                    VariableResolver, RequestExecutor, DialogService, PathNaming
-    Stores/        RecentWorkspaceService (JSON in app-data)
+    Stores/        RecentWorkspaceService (JSON app cache: recent workspaces +
+                   selected environment per workspace)
     ViewModels/    MVVM: MainWindowViewModel, RequestEditorViewModel,
                    VariableSetEditorViewModel, tree node VMs, EditableRowsViewModel
     Views/         Avalonia XAML: MainWindow, RequestEditorView, VariableSetEditorView,
@@ -69,13 +70,17 @@ src/
 - **No DI container.** The object graph is wired by hand in
   [App.axaml.cs](src/Yamlet.App/App.axaml.cs) `ComposeRoot()`. `DialogService` is attached
   to the window afterward (it needs a `Window` for pickers/dialogs).
-- **MainContent switching.** `MainWindowViewModel.MainContent` holds either a
-  `RequestEditorViewModel` (request selected) or a `VariableSetEditorViewModel`
-  (environment opened). The main panel is a `ContentControl` with implicit
-  `DataTemplate`s mapping VM type → view.
+- **MainContent switching.** `MainWindowViewModel.MainContent` holds a
+  `RequestEditorViewModel` (request selected), `CollectionSettingsViewModel`
+  (collection selected), or `VariableSetEditorViewModel` (environment opened). The
+  main panel is a `ContentControl` with implicit `DataTemplate`s mapping VM type → view.
 - **Sidebar is a single accordion** (COLLECTIONS + ENVIRONMENTS), not an icon rail.
   Globals/History/Settings were intentionally removed from the UI. Selecting an
   environment both opens its editor and makes it the active one for variable resolution.
+- **App cache is user-local JSON, not workspace YAML.** `RecentWorkspaceService` stores
+  recently opened workspace paths and the selected environment ID per workspace under
+  the user's app-data directory. The selected environment is restored when the workspace
+  is reopened, with a first-environment fallback if the cached ID no longer exists.
 - **Variable precedence** (highest first): request → collection → environment → globals.
   Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
@@ -143,12 +148,12 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
 
 ## MVP scope / not implemented
 
-Implemented: workspace create/open, collection/folder/request create, edit
-method/URL/params/headers/raw+JSON body/auth, save & load YAML, send via HttpClient,
-response (status/duration/size/headers/body/raw), variable resolution, environment
-editing.
+Implemented: workspace create/open, collection/folder/request create, collection auth,
+edit method/URL/params/headers/raw+JSON body/auth, save & load YAML, send via
+HttpClient, response (status/duration/size/headers/body/raw), variable resolution,
+environment editing, selected-environment restore.
 
-Out of scope (for now): scripts/tests execution, collection runner, OAuth, cookies,
+Out of scope (for now): scripts/tests execution, collection runner, OAuth,
 multipart/file upload, `form-data`/`x-www-form-urlencoded` sending (selectable but not
 sent), code snippets, request history, rename/move/delete from the tree, globals UI,
 unknown-field-preserving save.

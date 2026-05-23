@@ -95,6 +95,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (Workspace is not null)
+        {
+            _recent.RememberSelectedEnvironment(Workspace.RootPath, value.Id);
+        }
+
         MainContent = new VariableSetEditorViewModel(
             value.Name,
             "Environment variables. Use these names inside {{placeholders}}.",
@@ -335,9 +340,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             Environments.Add(env);
         }
 
-        // Make the first environment active for variable resolution. This briefly opens
-        // its editor via the change handler; we reset to the empty state immediately after.
-        SelectedEnvironment = Environments.FirstOrDefault();
+        var cachedEnvironmentId = _recent.LoadSelectedEnvironmentId(workspace.RootPath);
+        SelectedEnvironment = Environments.FirstOrDefault(e => e.Id == cachedEnvironmentId)
+            ?? Environments.FirstOrDefault();
 
         MainContent = null;
         NewCollectionCommand.NotifyCanExecuteChanged();

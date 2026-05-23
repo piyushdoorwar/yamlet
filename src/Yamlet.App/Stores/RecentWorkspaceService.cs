@@ -27,19 +27,65 @@ public sealed class RecentWorkspaceService
 
     public List<string> Load()
     {
+        return LoadState().RecentWorkspaces;
+    }
+
+    public string? LoadSelectedEnvironmentId(string workspaceRootPath)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath))
+        {
+            return null;
+        }
+
+        var state = LoadState();
+        return state.SelectedEnvironmentByWorkspace.TryGetValue(NormalizePath(workspaceRootPath), out var environmentId)
+            ? environmentId
+            : null;
+    }
+
+    public void RememberSelectedEnvironment(string workspaceRootPath, string environmentId)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath) || string.IsNullOrWhiteSpace(environmentId))
+        {
+            return;
+        }
+
+        var state = LoadState();
+        state.SelectedEnvironmentByWorkspace[NormalizePath(workspaceRootPath)] = environmentId;
+        SaveState(state);
+    }
+
+    private CacheState LoadState()
+    {
         try
         {
             if (!File.Exists(_storePath))
             {
-                return new();
+                return new CacheState();
             }
 
             var json = File.ReadAllText(_storePath);
-            return JsonSerializer.Deserialize<List<string>>(json) ?? new();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new CacheState();
+            }
+
+            if (json.TrimStart().StartsWith('['))
+            {
+                return new CacheState
+                {
+                    RecentWorkspaces = JsonSerializer.Deserialize<List<string>>(json) ?? new(),
+                };
+            }
+
+            var state = JsonSerializer.Deserialize<CacheState>(json) ?? new CacheState();
+            state.RecentWorkspaces ??= new();
+            state.SelectedEnvironmentByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
+            return state;
         }
         catch
         {
-            return new();
+            return new CacheState();
         }
     }
 
@@ -50,22 +96,45 @@ public sealed class RecentWorkspaceService
             return;
         }
 
-        var entries = Load();
-        entries.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
-        entries.Insert(0, path);
+        var state = LoadState();
+        state.RecentWorkspaces.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+        state.RecentWorkspaces.Insert(0, path);
 
-        if (entries.Count > MaxEntries)
+        if (state.RecentWorkspaces.Count > MaxEntries)
         {
-            entries = entries.Take(MaxEntries).ToList();
+            state.RecentWorkspaces = state.RecentWorkspaces.Take(MaxEntries).ToList();
         }
 
+        SaveState(state);
+    }
+
+    private void SaveState(CacheState state)
+    {
         try
         {
-            File.WriteAllText(_storePath, JsonSerializer.Serialize(entries));
+            File.WriteAllText(_storePath, JsonSerializer.Serialize(state));
         }
         catch
         {
             // Best-effort persistence; ignore IO failures.
         }
+    }
+
+    private static string NormalizePath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    private sealed class CacheState
+    {
+        public List<string> RecentWorkspaces { get; set; } = new();
+        public Dictionary<string, string> SelectedEnvironmentByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 }
