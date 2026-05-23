@@ -24,6 +24,10 @@ public partial class App : Application
 
             var window = new MainWindow { DataContext = viewModel };
             dialogService.Attach(window);
+
+            // Reopen the most recently used workspace once the window is up.
+            window.Opened += async (_, _) => await viewModel.InitializeAsync();
+
             desktop.MainWindow = window;
         }
 

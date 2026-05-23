@@ -142,6 +142,28 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             collection: collection.Variables,
             request: request.Variables);
 
+    // ---- Startup -----------------------------------------------------------
+
+    /// <summary>
+    /// Reopens the most recently used workspace, if one is remembered and still exists.
+    /// Called once when the main window opens.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        var lastPath = _recent.Load().FirstOrDefault(Directory.Exists);
+        if (lastPath is null)
+        {
+            return;
+        }
+
+        await RunBusyAsync("Restoring last workspace…", async () =>
+        {
+            var workspace = await _workspaceService.OpenWorkspaceAsync(lastPath);
+            LoadWorkspace(workspace);
+            StatusMessage = $"Reopened {workspace.Name} ({workspace.Collections.Count} collection(s))";
+        });
+    }
+
     // ---- Workspace commands ------------------------------------------------
 
     [RelayCommand]
