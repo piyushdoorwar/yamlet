@@ -7,16 +7,6 @@ using Yamlet.App.Stores;
 
 namespace Yamlet.App.ViewModels;
 
-/// <summary>The left rail sections. Only Collections is fully implemented in the MVP.</summary>
-public enum RailSection
-{
-    Collections,
-    Environments,
-    Globals,
-    History,
-    Settings,
-}
-
 /// <summary>
 /// Root view model for the main window. Owns the workspace, the collection tree, the
 /// active request editor and the top-level commands.
@@ -74,8 +64,44 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private RequestEditorViewModel? _currentEditor;
 
+    /// <summary>
+    /// What the main panel shows: a request editor when a request is selected, or an
+    /// environment variable editor when an environment is opened.
+    /// </summary>
     [ObservableProperty]
-    private RailSection _activeSection = RailSection.Collections;
+    private object? _mainContent;
+
+    // Collapsible sidebar sections (accordion).
+    [ObservableProperty]
+    private bool _collectionsExpanded = true;
+
+    [ObservableProperty]
+    private bool _environmentsExpanded = true;
+
+    [RelayCommand]
+    private void ToggleCollections() => CollectionsExpanded = !CollectionsExpanded;
+
+    [RelayCommand]
+    private void ToggleEnvironments() => EnvironmentsExpanded = !EnvironmentsExpanded;
+
+    /// <summary>
+    /// Opens an environment in the main panel for viewing/editing. Selecting an
+    /// environment also makes it the active one used to resolve {{variables}}.
+    /// </summary>
+    partial void OnSelectedEnvironmentChanged(YamletEnvironment? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        MainContent = new VariableSetEditorViewModel(
+            value.Name,
+            "Environment variables. Use these names inside {{placeholders}}.",
+            value.Variables,
+            () => _workspaceService.SaveEnvironmentAsync(value),
+            msg => StatusMessage = msg);
+    }
 
     [ObservableProperty]
     private string _statusMessage = "Open or create a Yamlet workspace to begin.";
@@ -105,6 +131,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 _requestFileService,
                 request => BuildContext(requestNode.OwningCollection, request),
                 msg => StatusMessage = msg);
+            MainContent = CurrentEditor;
         }
     }
 
@@ -114,11 +141,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             environment: SelectedEnvironment?.Variables,
             collection: collection.Variables,
             request: request.Variables);
-
-    // ---- Rail navigation ---------------------------------------------------
-
-    [RelayCommand]
-    private void SelectSection(RailSection section) => ActiveSection = section;
 
     // ---- Workspace commands ------------------------------------------------
 
@@ -272,8 +294,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             Environments.Add(env);
         }
+
+        // Make the first environment active for variable resolution. This briefly opens
+        // its editor via the change handler; we reset to the empty state immediately after.
         SelectedEnvironment = Environments.FirstOrDefault();
 
+        MainContent = null;
         NewCollectionCommand.NotifyCanExecuteChanged();
     }
 

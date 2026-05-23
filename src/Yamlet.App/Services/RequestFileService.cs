@@ -20,7 +20,7 @@ public sealed class RequestFileService
         var dto = _yaml.Deserialize<RequestDto>(text);
         if (string.IsNullOrWhiteSpace(dto.Name))
         {
-            dto.Name = Path.GetFileNameWithoutExtension(filePath);
+            dto.Name = DeriveNameFromFile(filePath);
         }
         return dto.ToDomain(filePath);
     }
@@ -46,5 +46,20 @@ public sealed class RequestFileService
 
         var dto = RequestDto.FromDomain(request);
         await File.WriteAllTextAsync(request.SourceFilePath, _yaml.Serialize(dto)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Derives a readable request name from its file name, dropping the <c>.yaml</c>
+    /// extension and a trailing <c>.request</c> qualifier (as used by exported files),
+    /// e.g. <c>Get All.request.yaml</c> → <c>Get All</c>.
+    /// </summary>
+    public static string DeriveNameFromFile(string filePath)
+    {
+        var name = Path.GetFileNameWithoutExtension(filePath);
+        if (name.EndsWith(".request", StringComparison.OrdinalIgnoreCase))
+        {
+            name = name[..^".request".Length];
+        }
+        return name;
     }
 }

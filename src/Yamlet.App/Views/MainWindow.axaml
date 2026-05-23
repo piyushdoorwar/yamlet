@@ -10,14 +10,15 @@
         Width="1280" Height="820"
         MinWidth="900" MinHeight="560">
 
-  <Window.Resources>
-    <!-- Maps the active request view model to its editor view. -->
-    <DataTemplate x:Key="EditorTemplate" DataType="vm:RequestEditorViewModel">
+  <Window.DataTemplates>
+    <!-- Main-panel editors, selected by view-model type. -->
+    <DataTemplate DataType="vm:RequestEditorViewModel">
       <views:RequestEditorView />
     </DataTemplate>
-  </Window.Resources>
+    <DataTemplate DataType="vm:VariableSetEditorViewModel">
+      <views:VariableSetEditorView />
+    </DataTemplate>
 
-  <Window.DataTemplates>
     <!-- Tree node templates, selected by node type. -->
     <TreeDataTemplate DataType="vm:CollectionNodeViewModel" ItemsSource="{Binding Children}">
       <StackPanel Orientation="Horizontal" Spacing="6">
@@ -53,138 +54,105 @@
 
   <Grid RowDefinitions="*,Auto">
 
-    <Grid Grid.Row="0" ColumnDefinitions="52,310,Auto,*">
-
-      <!-- Far-left navigation rail -->
-      <Border Grid.Column="0" Background="{StaticResource RailBrush}">
-        <Grid RowDefinitions="Auto,*">
-          <StackPanel Grid.Row="0" Spacing="6" Margin="0,12" HorizontalAlignment="Center">
-            <controls:YamletLogo Width="28" Height="28"
-                                 HorizontalAlignment="Center" Margin="0,0,0,8"
-                                 ToolTip.Tip="Yamlet" />
-            <ToggleButton Classes="rail" ToolTip.Tip="Collections"
-                          IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Collections, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Collections}">
-              <PathIcon Data="{StaticResource IconCollections}" />
-            </ToggleButton>
-            <ToggleButton Classes="rail" ToolTip.Tip="Environments"
-                          IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Environments, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Environments}">
-              <PathIcon Data="{StaticResource IconEnvironment}" />
-            </ToggleButton>
-            <ToggleButton Classes="rail" ToolTip.Tip="Globals"
-                          IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Globals, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Globals}">
-              <PathIcon Data="{StaticResource IconGlobals}" />
-            </ToggleButton>
-            <ToggleButton Classes="rail" ToolTip.Tip="History"
-                          IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=History, Mode=OneWay}"
-                          Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.History}">
-              <PathIcon Data="{StaticResource IconHistory}" />
-            </ToggleButton>
-          </StackPanel>
-          <ToggleButton Grid.Row="1" Classes="rail" VerticalAlignment="Bottom"
-                        Margin="0,0,0,12" HorizontalAlignment="Center" ToolTip.Tip="Settings"
-                        IsChecked="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Settings, Mode=OneWay}"
-                        Command="{Binding SelectSectionCommand}" CommandParameter="{x:Static vm:RailSection.Settings}">
-            <PathIcon Data="{StaticResource IconSettings}" />
-          </ToggleButton>
-        </Grid>
-      </Border>
+    <Grid Grid.Row="0" ColumnDefinitions="320,Auto,*">
 
       <!-- Left sidebar -->
-      <Border Grid.Column="1" Background="{StaticResource SidebarBrush}"
+      <Border Grid.Column="0" Background="{StaticResource SidebarBrush}"
               BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-        <Grid RowDefinitions="Auto,Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
 
           <!-- Workspace bar -->
-          <StackPanel Grid.Row="0" Margin="12,12,12,8" Spacing="8">
-            <TextBlock Classes="heading" Text="WORKSPACE" />
-            <TextBlock Text="{Binding WorkspaceTitle}" TextTrimming="CharacterEllipsis"
-                       TextWrapping="NoWrap" FontSize="12" />
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Content="Open" Command="{Binding OpenWorkspaceCommand}" />
-              <Button Content="New" Classes="accent" Command="{Binding NewWorkspaceCommand}" />
+          <Grid Grid.Row="0" Margin="12,12,12,10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+            <controls:YamletLogo Grid.Row="0" Grid.RowSpan="2" Width="26" Height="26"
+                                 VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Workspace.Name, FallbackValue='No workspace'}"
+                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+              <Button Content="Open" Padding="10,4" Command="{Binding OpenWorkspaceCommand}" />
+              <Button Content="New" Classes="accent" Padding="10,4" Command="{Binding NewWorkspaceCommand}" />
             </StackPanel>
-          </StackPanel>
+          </Grid>
 
-          <!-- Collections section header + add actions -->
-          <Grid Grid.Row="1" Margin="12,6,8,6" ColumnDefinitions="*,Auto"
-                IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Collections}">
-            <TextBlock Classes="heading" Text="COLLECTIONS" VerticalAlignment="Center" />
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
-              <Button Classes="ghost" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection">
-                <PathIcon Data="{StaticResource IconCollections}" />
+          <!-- COLLECTIONS section header -->
+          <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="6,2,8,0">
+            <Button Classes="section" Command="{Binding ToggleCollectionsCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon Width="12" Height="12" Foreground="{DynamicResource TextMutedBrush}"
+                          Data="{Binding CollectionsExpanded, Converter={x:Static controls:ChevronConverter.Instance}}" />
+                <TextBlock Classes="heading" Text="COLLECTIONS" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+              <Button Classes="ghost" Padding="6" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection">
+                <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15" />
               </Button>
-              <Button Classes="ghost" Command="{Binding NewFolderCommand}" ToolTip.Tip="New folder">
-                <PathIcon Data="{StaticResource IconFolder}" />
+              <Button Classes="ghost" Padding="6" Command="{Binding NewFolderCommand}" ToolTip.Tip="New folder">
+                <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15" />
               </Button>
-              <Button Classes="ghost" Command="{Binding NewRequestCommand}" ToolTip.Tip="New request">
-                <Panel>
-                  <PathIcon Data="{StaticResource IconRequest}" />
-                  <PathIcon Data="{StaticResource IconPlus}" Width="9" Height="9"
-                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                            Foreground="{DynamicResource AccentBrush}" />
-                </Panel>
+              <Button Classes="ghost" Padding="6" Command="{Binding NewRequestCommand}" ToolTip.Tip="New request">
+                <PathIcon Data="{StaticResource IconRequest}" Width="15" Height="15" />
               </Button>
             </StackPanel>
           </Grid>
 
-          <!-- Section body -->
-          <Panel Grid.Row="2" Margin="6,0,6,6">
+          <!-- COLLECTIONS content -->
+          <Panel Grid.Row="2" Margin="6,2,6,6" IsVisible="{Binding CollectionsExpanded}">
+            <TextBlock Classes="muted" Margin="10,6" TextWrapping="Wrap" FontSize="12"
+                       IsVisible="{Binding !HasWorkspace}"
+                       Text="No workspace open. Use New to create a Yamlet workspace, or Open to load an existing one." />
+            <TreeView ItemsSource="{Binding CollectionNodes}"
+                      SelectedItem="{Binding SelectedNode}"
+                      IsVisible="{Binding HasWorkspace}"
+                      Background="Transparent" />
+          </Panel>
 
-            <!-- Collections tree -->
-            <Grid IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Collections}">
-              <TextBlock Classes="muted" Margin="8" TextWrapping="Wrap"
+          <!-- ENVIRONMENTS section header -->
+          <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="6,0,8,0"
+                Background="{StaticResource SidebarBrush}">
+            <Button Classes="section" Command="{Binding ToggleEnvironmentsCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon Width="12" Height="12" Foreground="{DynamicResource TextMutedBrush}"
+                          Data="{Binding EnvironmentsExpanded, Converter={x:Static controls:ChevronConverter.Instance}}" />
+                <TextBlock Classes="heading" Text="ENVIRONMENTS" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </Grid>
+
+          <!-- ENVIRONMENTS content -->
+          <Border Grid.Row="4" Margin="6,2,6,8" MaxHeight="220"
+                  IsVisible="{Binding EnvironmentsExpanded}">
+            <Panel>
+              <TextBlock Classes="muted" Margin="10,6" FontSize="12"
                          IsVisible="{Binding !HasWorkspace}"
-                         Text="No workspace open. Use New to create a Yamlet workspace, or Open to load an existing one." />
-              <TreeView ItemsSource="{Binding CollectionNodes}"
-                        SelectedItem="{Binding SelectedNode}"
-                        IsVisible="{Binding HasWorkspace}"
-                        Background="Transparent" />
-            </Grid>
-
-            <!-- Environments -->
-            <StackPanel Spacing="6" Margin="8,4"
-                        IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Environments}">
-              <TextBlock Classes="heading" Text="ENVIRONMENTS" />
+                         Text="Environments appear here once a workspace is open." />
               <ListBox ItemsSource="{Binding Environments}"
                        SelectedItem="{Binding SelectedEnvironment}"
+                       IsVisible="{Binding HasWorkspace}"
                        Background="Transparent">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="models:YamletEnvironment">
-                    <TextBlock Text="{Binding Name}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <PathIcon Data="{StaticResource IconEnvironment}" Width="14" Height="14"
+                                Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                    </StackPanel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
-              <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
-                         Text="The selected environment supplies {{variables}} when sending requests." />
-            </StackPanel>
-
-            <!-- Globals / History / Settings placeholders -->
-            <TextBlock Classes="muted" Margin="8" TextWrapping="Wrap"
-                       IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Globals}"
-                       Text="Globals are workspace-wide variables stored in globals/globals.yaml." />
-            <TextBlock Classes="muted" Margin="8" TextWrapping="Wrap"
-                       IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=History}"
-                       Text="Request history is planned for a future release." />
-            <TextBlock Classes="muted" Margin="8" TextWrapping="Wrap"
-                       IsVisible="{Binding ActiveSection, Converter={x:Static controls:EnumEqualsConverter.Instance}, ConverterParameter=Settings}"
-                       Text="Yamlet runs in dark mode. More settings are coming soon." />
-          </Panel>
+            </Panel>
+          </Border>
         </Grid>
       </Border>
 
-      <GridSplitter Grid.Column="2" Width="1" Background="{StaticResource BorderBrush}"
+      <GridSplitter Grid.Column="1" Width="1" Background="{StaticResource BorderBrush}"
                     ResizeDirection="Columns" />
 
       <!-- Main request/response area -->
-      <Panel Grid.Column="3" Background="{StaticResource BackgroundBrush}">
-        <ContentControl Content="{Binding CurrentEditor}"
-                        ContentTemplate="{StaticResource EditorTemplate}"
-                        IsVisible="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <Panel Grid.Column="2" Background="{StaticResource BackgroundBrush}">
+        <ContentControl Content="{Binding MainContent}"
+                        IsVisible="{Binding MainContent, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
-                    IsVisible="{Binding CurrentEditor, Converter={x:Static ObjectConverters.IsNull}}">
+                    IsVisible="{Binding MainContent, Converter={x:Static ObjectConverters.IsNull}}">
           <controls:YamletLogo Width="56" Height="56" HorizontalAlignment="Center" />
           <TextBlock Classes="muted" HorizontalAlignment="Center"
                      Text="Select a request, or create one to get started." />
@@ -199,8 +167,9 @@
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" FontSize="12" Classes="muted"
                    VerticalAlignment="Center" Text="{Binding StatusMessage}" />
-        <TextBlock Grid.Column="1" FontSize="12" Classes="muted" Text="Yamlet"
-                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" FontSize="12" Classes="muted"
+                   VerticalAlignment="Center"
+                   Text="{Binding SelectedEnvironment.Name, FallbackValue='No environment'}" />
       </Grid>
     </Border>
   </Grid>

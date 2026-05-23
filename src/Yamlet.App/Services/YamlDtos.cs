@@ -11,7 +11,15 @@ public sealed class KeyValueDto
     public string Key { get; set; } = string.Empty;
     public string Value { get; set; } = string.Empty;
     public string? Description { get; set; }
+
+    /// <summary>Yamlet's native flag (defaults to enabled when absent).</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>Alternate flag used by exported files; inverts <see cref="Enabled"/> when present.</summary>
+    public bool? Disabled { get; set; }
+
+    /// <summary>Effective enabled state, honoring whichever flag the file used.</summary>
+    public bool IsEnabled => Disabled.HasValue ? !Disabled.Value : Enabled;
 }
 
 public sealed class AuthDto
@@ -70,6 +78,9 @@ public sealed class BodyDto
     public string Type { get; set; } = "none";
     public string? Raw { get; set; }
 
+    /// <summary>Alternate payload key used by exported files (alias for <see cref="Raw"/>).</summary>
+    public string? Content { get; set; }
+
     public static BodyDto FromDomain(YamletRequestBody b) => new()
     {
         Type = b.Type switch
@@ -91,9 +102,11 @@ public sealed class BodyDto
             "json" => YamletBodyType.Json,
             "form-data" => YamletBodyType.FormData,
             "x-www-form-urlencoded" => YamletBodyType.UrlEncoded,
+            "text" => YamletBodyType.Raw,
+            "xml" => YamletBodyType.Raw,
             _ => YamletBodyType.None,
         },
-        Raw = Raw ?? string.Empty,
+        Raw = Raw ?? Content ?? string.Empty,
     };
 }
 
@@ -105,7 +118,13 @@ public sealed class RequestDto
     public string Method { get; set; } = "GET";
     public string Url { get; set; } = string.Empty;
     public List<KeyValueDto>? QueryParams { get; set; }
-    public List<KeyValueDto>? Headers { get; set; }
+
+    /// <summary>
+    /// Headers may be a list (Yamlet's native form) or a map of name→value (as written
+    /// by some exported files). Typed as <see cref="object"/> so both deserialize, then
+    /// normalized by <see cref="ParseHeaders"/>.
+    /// </summary>
+    public object? Headers { get; set; }
     public List<KeyValueDto>? PathVariables { get; set; }
     public List<KeyValueDto>? Variables { get; set; }
     public AuthDto? Auth { get; set; }
@@ -122,7 +141,7 @@ public sealed class RequestDto
             .ToList(),
         Headers = r.Headers.Count == 0 ? null : r.Headers
             .Select(h => new KeyValueDto { Key = h.Key, Value = h.Value, Description = NullIfEmpty(h.Description), Enabled = h.Enabled })
-            .ToList(),
+            .ToList<KeyValueDto>(),
         PathVariables = r.PathVariables.Count == 0 ? null : r.PathVariables
             .Select(p => new KeyValueDto { Key = p.Key, Value = p.Value, Description = NullIfEmpty(p.Description), Enabled = true })
             .ToList(),
@@ -141,24 +160,67 @@ public sealed class RequestDto
         Url = Url,
         QueryParams = (QueryParams ?? new()).Select(p => new YamletQueryParam
         {
-            Key = p.Key, Value = p.Value, Description = p.Description ?? string.Empty, Enabled = p.Enabled,
+            Key = p.Key, Value = p.Value, Description = p.Description ?? string.Empty, Enabled = p.IsEnabled,
         }).ToList(),
-        Headers = (Headers ?? new()).Select(h => new YamletHeader
-        {
-            Key = h.Key, Value = h.Value, Description = h.Description ?? string.Empty, Enabled = h.Enabled,
-        }).ToList(),
+        Headers = ParseHeaders(Headers),
         PathVariables = (PathVariables ?? new()).Select(p => new YamletPathVariable
         {
             Key = p.Key, Value = p.Value, Description = p.Description ?? string.Empty,
         }).ToList(),
         Variables = (Variables ?? new()).Select(v => new YamletVariable
         {
-            Key = v.Key, Value = v.Value, Enabled = v.Enabled,
+            Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList(),
         Auth = (Auth ?? new AuthDto()).ToDomain(),
         Body = (Body ?? new BodyDto()).ToDomain(),
         SourceFilePath = sourceFilePath,
     };
+
+    /// <summary>
+    /// Normalizes the loosely-typed <c>headers</c> node into header models. Accepts both
+    /// a list of key/value entries and a name→value map.
+    /// </summary>
+    private static List<YamletHeader> ParseHeaders(object? raw)
+    {
+        var result = new List<YamletHeader>();
+
+        switch (raw)
+        {
+            case IDictionary<object, object> map:
+                foreach (var entry in map)
+                {
+                    result.Add(new YamletHeader
+                    {
+                        Key = entry.Key?.ToString() ?? string.Empty,
+                        Value = entry.Value?.ToString() ?? string.Empty,
+                        Enabled = true,
+                    });
+                }
+                break;
+
+            case System.Collections.IEnumerable list and not string:
+                foreach (var item in list)
+                {
+                    if (item is IDictionary<object, object> entry)
+                    {
+                        result.Add(new YamletHeader
+                        {
+                            Key = Lookup(entry, "key"),
+                            Value = Lookup(entry, "value"),
+                            Description = Lookup(entry, "description"),
+                            Enabled = !string.Equals(Lookup(entry, "disabled"), "true", StringComparison.OrdinalIgnoreCase)
+                                      && !string.Equals(Lookup(entry, "enabled"), "false", StringComparison.OrdinalIgnoreCase),
+                        });
+                    }
+                }
+                break;
+        }
+
+        return result;
+    }
+
+    private static string Lookup(IDictionary<object, object> map, string key) =>
+        map.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
 
     private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
 }
@@ -185,7 +247,7 @@ public sealed class CollectionDto
         c.Name = Name;
         c.Variables = (Variables ?? new()).Select(v => new YamletVariable
         {
-            Key = v.Key, Value = v.Value, Enabled = v.Enabled,
+            Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList();
     }
 }
@@ -196,6 +258,9 @@ public sealed class EnvironmentDto
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public List<KeyValueDto>? Variables { get; set; }
+
+    /// <summary>Alternate key used by exported files (alias for <see cref="Variables"/>).</summary>
+    public List<KeyValueDto>? Values { get; set; }
 
     public static EnvironmentDto FromDomain(YamletEnvironment e) => new()
     {
@@ -210,9 +275,9 @@ public sealed class EnvironmentDto
     {
         Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString() : Id,
         Name = Name,
-        Variables = (Variables ?? new()).Select(v => new YamletVariable
+        Variables = (Variables ?? Values ?? new()).Select(v => new YamletVariable
         {
-            Key = v.Key, Value = v.Value, Enabled = v.Enabled,
+            Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList(),
         FilePath = filePath,
     };
@@ -237,6 +302,6 @@ public sealed class GlobalsDto
     public List<YamletVariable> ToDomain() =>
         (Variables ?? new()).Select(v => new YamletVariable
         {
-            Key = v.Key, Value = v.Value, Enabled = v.Enabled,
+            Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList();
 }

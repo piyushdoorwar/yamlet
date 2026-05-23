@@ -7,38 +7,38 @@
 
   <Grid RowDefinitions="Auto,Auto,2*,Auto,1.3*" Margin="14,10,14,12">
 
-    <!-- Breadcrumb -->
-    <TextBlock Grid.Row="0"
-               Classes="muted"
-               FontSize="12"
-               Margin="2,0,0,8"
-               Text="{Binding BreadcrumbPath}" />
+    <!-- Title row: type badge + breadcrumb + editable name, Save on the right -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
+      <Border Classes="typeBadge" Grid.Column="0">
+        <TextBlock Text="HTTP" FontSize="10" FontWeight="Bold"
+                   Foreground="{DynamicResource AccentBrush}" />
+      </Border>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+        <TextBlock Classes="muted" FontSize="13" VerticalAlignment="Center"
+                   Text="{Binding BreadcrumbPrefix}" Margin="0,0,6,0" />
+        <TextBox Classes="title" Text="{Binding Name}" PlaceholderText="Request name"
+                 VerticalAlignment="Center" MinWidth="120" />
+      </StackPanel>
+      <Button Grid.Column="2" MinWidth="64" Command="{Binding SaveCommand}" Content="Save" />
+    </Grid>
 
-    <!-- Request name + method/url/actions -->
-    <StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,10">
-      <TextBox Text="{Binding Name}" PlaceholderText="Request name" FontWeight="SemiBold" />
-      <Grid ColumnDefinitions="120,*,Auto,Auto" >
-        <ComboBox Grid.Column="0"
-                  Margin="0,0,8,0"
-                  ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
-                  SelectedItem="{Binding SelectedMethod}" />
-        <TextBox Grid.Column="1"
-                 Margin="0,0,8,0"
-                 PlaceholderText="Enter request URL  (supports {{variables}})"
-                 Text="{Binding Url}" />
-        <Button Grid.Column="2"
-                Classes="accent"
+    <!-- Method / URL / Send -->
+    <Grid Grid.Row="1" ColumnDefinitions="120,*,Auto" Margin="0,0,0,10">
+      <ComboBox Grid.Column="0"
                 Margin="0,0,8,0"
-                MinWidth="78"
-                Command="{Binding SendCommand}"
-                IsEnabled="{Binding !IsSending}"
-                Content="Send" />
-        <Button Grid.Column="3"
-                MinWidth="64"
-                Command="{Binding SaveCommand}"
-                Content="Save" />
-      </Grid>
-    </StackPanel>
+                ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
+                SelectedItem="{Binding SelectedMethod}" />
+      <TextBox Grid.Column="1"
+               Margin="0,0,8,0"
+               PlaceholderText="Enter request URL  (supports {{variables}})"
+               Text="{Binding Url}" />
+      <Button Grid.Column="2"
+              Classes="accent"
+              MinWidth="96"
+              Command="{Binding SendCommand}"
+              IsEnabled="{Binding !IsSending}"
+              Content="Send" />
+    </Grid>
 
     <!-- Request configuration tabs -->
     <Border Grid.Row="2"
@@ -52,7 +52,13 @@
           <controls:KeyValueGridView DataContext="{Binding Params}" Margin="0,8,0,0" />
         </TabItem>
 
-        <TabItem Header="Authorization">
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Authorization" VerticalAlignment="Center" />
+              <Ellipse Classes="tabdot" IsVisible="{Binding HasAuth}" />
+            </StackPanel>
+          </TabItem.Header>
           <StackPanel Margin="0,10,0,0" Spacing="10" MaxWidth="520" HorizontalAlignment="Left">
             <ComboBox Width="220"
                       HorizontalAlignment="Left"
@@ -89,7 +95,13 @@
           <controls:KeyValueGridView DataContext="{Binding Headers}" Margin="0,8,0,0" />
         </TabItem>
 
-        <TabItem Header="Body">
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Body" VerticalAlignment="Center" />
+              <Ellipse Classes="tabdot" IsVisible="{Binding HasBody}" />
+            </StackPanel>
+          </TabItem.Header>
           <DockPanel Margin="0,10,0,0" LastChildFill="True">
             <ComboBox DockPanel.Dock="Top"
                       Width="220"

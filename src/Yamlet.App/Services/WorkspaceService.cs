@@ -106,7 +106,12 @@ public sealed class WorkspaceService
                 var dto = _yaml.Deserialize<EnvironmentDto>(await File.ReadAllTextAsync(file).ConfigureAwait(false));
                 if (string.IsNullOrWhiteSpace(dto.Name))
                 {
-                    dto.Name = Path.GetFileNameWithoutExtension(file);
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    if (name.EndsWith(".environment", StringComparison.OrdinalIgnoreCase))
+                    {
+                        name = name[..^".environment".Length];
+                    }
+                    dto.Name = name;
                 }
                 result.Add(dto.ToDomain(file));
             }
@@ -117,6 +122,33 @@ public sealed class WorkspaceService
         }
 
         return result;
+    }
+
+    /// <summary>Writes an environment back to its YAML file.</summary>
+    public async Task SaveEnvironmentAsync(YamletEnvironment environment)
+    {
+        if (string.IsNullOrWhiteSpace(environment.FilePath))
+        {
+            throw new InvalidOperationException("Environment has no file path.");
+        }
+
+        var dir = Path.GetDirectoryName(environment.FilePath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        await File.WriteAllTextAsync(environment.FilePath, _yaml.Serialize(EnvironmentDto.FromDomain(environment)))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Writes the workspace globals back to <c>globals/globals.yaml</c>.</summary>
+    public async Task SaveGlobalsAsync(YamletWorkspace workspace)
+    {
+        Directory.CreateDirectory(workspace.GlobalsPath);
+        var file = Path.Combine(workspace.GlobalsPath, GlobalsFileName);
+        await File.WriteAllTextAsync(file, _yaml.Serialize(GlobalsDto.FromDomain(workspace.Globals)))
+            .ConfigureAwait(false);
     }
 
     public async Task<List<YamletVariable>> LoadGlobalsAsync(YamletWorkspace workspace)

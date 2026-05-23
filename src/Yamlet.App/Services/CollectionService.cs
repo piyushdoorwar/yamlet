@@ -71,6 +71,12 @@ public sealed class CollectionService
         var folders = new List<YamletFolder>();
         foreach (var dir in Directory.EnumerateDirectories(parentDir).OrderBy(d => d))
         {
+            // Skip hidden / tooling directories such as ".resources" or ".git".
+            if (Path.GetFileName(dir).StartsWith('.'))
+            {
+                continue;
+            }
+
             var folder = new YamletFolder
             {
                 Name = Path.GetFileName(dir),

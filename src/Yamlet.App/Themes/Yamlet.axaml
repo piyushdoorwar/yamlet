@@ -135,6 +135,49 @@
     <Setter Property="Height" Value="16" />
   </Style>
 
+  <!-- Borderless title textbox used for the request name. -->
+  <Style Selector="TextBox.title">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Padding" Value="2,2" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+  <Style Selector="TextBox.title:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+  </Style>
+
+  <!-- Request type badge ("HTTP"). -->
+  <Style Selector="Border.typeBadge">
+    <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Collapsible sidebar section header. -->
+  <Style Selector="Button.section">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="6,5" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.section:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <!-- Small content-indicator dot for tab headers. -->
+  <Style Selector="Ellipse.tabdot">
+    <Setter Property="Width" Value="6" />
+    <Setter Property="Height" Value="6" />
+    <Setter Property="Fill" Value="#FF53B987" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
   <!-- Method/status badge label. -->
   <Style Selector="Border.badge">
     <Setter Property="CornerRadius" Value="3" />

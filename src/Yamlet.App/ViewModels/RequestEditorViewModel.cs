@@ -64,6 +64,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         _status = status;
 
         BreadcrumbPath = BuildBreadcrumb(node);
+        BreadcrumbPrefix = BuildBreadcrumbPrefix(node);
         LoadFrom(node.Request);
     }
 
@@ -107,6 +108,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
 
     public string BreadcrumbPath { get; }
 
+    /// <summary>The collection/folder path leading to this request, without its own name.</summary>
+    public string BreadcrumbPrefix { get; }
+
     // ---- Derived visibility flags -----------------------------------------
 
     public bool IsBodyEditorVisible =>
@@ -116,14 +120,22 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     public bool IsBasicVisible => SelectedAuthType.Value == YamletAuthType.Basic;
     public bool IsApiKeyVisible => SelectedAuthType.Value == YamletAuthType.ApiKey;
 
-    partial void OnSelectedBodyTypeChanged(LabeledOption<YamletBodyType> value) =>
+    /// <summary>Tab content indicators (small dots shown next to tab headers).</summary>
+    public bool HasAuth => SelectedAuthType.Value != YamletAuthType.None;
+    public bool HasBody => SelectedBodyType.Value != YamletBodyType.None;
+
+    partial void OnSelectedBodyTypeChanged(LabeledOption<YamletBodyType> value)
+    {
         OnPropertyChanged(nameof(IsBodyEditorVisible));
+        OnPropertyChanged(nameof(HasBody));
+    }
 
     partial void OnSelectedAuthTypeChanged(LabeledOption<YamletAuthType> value)
     {
         OnPropertyChanged(nameof(IsBearerVisible));
         OnPropertyChanged(nameof(IsBasicVisible));
         OnPropertyChanged(nameof(IsApiKeyVisible));
+        OnPropertyChanged(nameof(HasAuth));
     }
 
     partial void OnSelectedMethodChanged(string value) => _node.Method = value;
@@ -370,5 +382,18 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         }
         parts.Reverse();
         return string.Join("  ›  ", parts);
+    }
+
+    private static string BuildBreadcrumbPrefix(TreeNodeViewModel node)
+    {
+        var parts = new List<string>();
+        var current = node.Parent;
+        while (current is not null)
+        {
+            parts.Add(current.Name);
+            current = current.Parent;
+        }
+        parts.Reverse();
+        return parts.Count == 0 ? string.Empty : string.Join("  ›  ", parts) + "  ›";
     }
 }

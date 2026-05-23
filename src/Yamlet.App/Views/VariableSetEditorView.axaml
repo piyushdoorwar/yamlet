@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yamlet.App.ViewModels"
+             xmlns:controls="using:Yamlet.App.Controls"
+             x:Class="Yamlet.App.Views.VariableSetEditorView"
+             x:DataType="vm:VariableSetEditorViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="14,12">
+
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel>
+        <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1" Classes="muted" FontSize="12" Margin="0,2,0,0"
+                   Text="{Binding Subtitle}" />
+      </StackPanel>
+      <Button Grid.Column="1" Classes="accent" VerticalAlignment="Top"
+              Content="Save" Command="{Binding SaveCommand}" />
+    </Grid>
+
+    <Border Grid.Row="2" Margin="0,12,0,0"
+            Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="10">
+      <controls:KeyValueGridView DataContext="{Binding Rows}" />
+    </Border>
+
+  </Grid>
+
+</UserControl>
