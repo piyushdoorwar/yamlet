@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yamlet.App.ViewModels"
+             xmlns:controls="using:Yamlet.App.Controls"
+             x:Class="Yamlet.App.Views.RequestEditorView"
+             x:DataType="vm:RequestEditorViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,2*,Auto,1.3*" Margin="14,10,14,12">
+
+    <!-- Breadcrumb -->
+    <TextBlock Grid.Row="0"
+               Classes="muted"
+               FontSize="12"
+               Margin="2,0,0,8"
+               Text="{Binding BreadcrumbPath}" />
+
+    <!-- Request name + method/url/actions -->
+    <StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,10">
+      <TextBox Text="{Binding Name}" PlaceholderText="Request name" FontWeight="SemiBold" />
+      <Grid ColumnDefinitions="120,*,Auto,Auto" >
+        <ComboBox Grid.Column="0"
+                  Margin="0,0,8,0"
+                  ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
+                  SelectedItem="{Binding SelectedMethod}" />
+        <TextBox Grid.Column="1"
+                 Margin="0,0,8,0"
+                 PlaceholderText="Enter request URL  (supports {{variables}})"
+                 Text="{Binding Url}" />
+        <Button Grid.Column="2"
+                Classes="accent"
+                Margin="0,0,8,0"
+                MinWidth="78"
+                Command="{Binding SendCommand}"
+                IsEnabled="{Binding !IsSending}"
+                Content="Send" />
+        <Button Grid.Column="3"
+                MinWidth="64"
+                Command="{Binding SaveCommand}"
+                Content="Save" />
+      </Grid>
+    </StackPanel>
+
+    <!-- Request configuration tabs -->
+    <Border Grid.Row="2"
+            Background="{StaticResource PanelBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="10">
+      <TabControl>
+        <TabItem Header="Params">
+          <controls:KeyValueGridView DataContext="{Binding Params}" Margin="0,8,0,0" />
+        </TabItem>
+
+        <TabItem Header="Authorization">
+          <StackPanel Margin="0,10,0,0" Spacing="10" MaxWidth="520" HorizontalAlignment="Left">
+            <ComboBox Width="220"
+                      HorizontalAlignment="Left"
+                      ItemsSource="{Binding AuthTypes}"
+                      SelectedItem="{Binding SelectedAuthType}" />
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsBearerVisible}">
+              <TextBlock Classes="heading" Text="TOKEN" />
+              <TextBox Text="{Binding BearerToken}" PlaceholderText="Bearer token" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsBasicVisible}">
+              <TextBlock Classes="heading" Text="USERNAME" />
+              <TextBox Text="{Binding BasicUsername}" PlaceholderText="Username" />
+              <TextBlock Classes="heading" Text="PASSWORD" />
+              <TextBox Text="{Binding BasicPassword}" PasswordChar="•" PlaceholderText="Password" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsApiKeyVisible}">
+              <TextBlock Classes="heading" Text="KEY" />
+              <TextBox Text="{Binding ApiKeyName}" PlaceholderText="Header or param name" />
+              <TextBlock Classes="heading" Text="VALUE" />
+              <TextBox Text="{Binding ApiKeyValue}" PlaceholderText="Value" />
+              <TextBlock Classes="heading" Text="ADD TO" />
+              <ComboBox Width="220"
+                        HorizontalAlignment="Left"
+                        ItemsSource="{Binding ApiKeyLocations}"
+                        SelectedItem="{Binding SelectedApiKeyLocation}" />
+            </StackPanel>
+          </StackPanel>
+        </TabItem>
+
+        <TabItem Header="Headers">
+          <controls:KeyValueGridView DataContext="{Binding Headers}" Margin="0,8,0,0" />
+        </TabItem>
+
+        <TabItem Header="Body">
+          <DockPanel Margin="0,10,0,0" LastChildFill="True">
+            <ComboBox DockPanel.Dock="Top"
+                      Width="220"
+                      HorizontalAlignment="Left"
+                      Margin="0,0,0,8"
+                      ItemsSource="{Binding BodyTypes}"
+                      SelectedItem="{Binding SelectedBodyType}" />
+            <TextBox AcceptsReturn="True"
+                     AcceptsTab="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Cascadia Code, Consolas, monospace"
+                     VerticalContentAlignment="Top"
+                     IsVisible="{Binding IsBodyEditorVisible}"
+                     Text="{Binding BodyText}"
+                     PlaceholderText="Request body" />
+          </DockPanel>
+        </TabItem>
+
+        <TabItem Header="Variables">
+          <controls:KeyValueGridView DataContext="{Binding Variables}" Margin="0,8,0,0" />
+        </TabItem>
+
+        <TabItem Header="Settings">
+          <TextBlock Classes="muted"
+                     Margin="0,12,0,0"
+                     Text="Per-request settings arrive in a future release." />
+        </TabItem>
+      </TabControl>
+    </Border>
+
+    <!-- Resizable divider between request and response -->
+    <GridSplitter Grid.Row="3"
+                  Height="6"
+                  HorizontalAlignment="Stretch"
+                  Background="Transparent"
+                  ResizeDirection="Rows" />
+
+    <!-- Response panel -->
+    <Border Grid.Row="4"
+            Background="{StaticResource PanelBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="10">
+      <Grid RowDefinitions="Auto,*">
+
+        <!-- Response summary bar -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*">
+          <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding HasResponse}">
+            <Border Classes="badge"
+                    Background="{Binding ResponseCategory, Converter={x:Static controls:StatusCategoryToBrushConverter.Instance}}">
+              <TextBlock Text="{Binding ResponseStatusText}"
+                         Foreground="#FF15150F"
+                         FontWeight="SemiBold"
+                         FontSize="12" />
+            </Border>
+            <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseDurationText}" />
+            <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseSizeText}" />
+          </StackPanel>
+          <TextBlock Grid.Column="0"
+                     Classes="muted"
+                     Text="Send the request to see the response."
+                     IsVisible="{Binding !HasResponse}" />
+        </Grid>
+
+        <TabControl Grid.Row="1" Margin="0,6,0,0" IsVisible="{Binding HasResponse}">
+          <TabItem Header="Body">
+            <TextBox IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Cascadia Code, Consolas, monospace"
+                     FontSize="12"
+                     VerticalContentAlignment="Top"
+                     Text="{Binding ResponseBody}" />
+          </TabItem>
+          <TabItem Header="Headers">
+            <TextBox IsReadOnly="True"
+                     AcceptsReturn="True"
+                     FontFamily="Cascadia Code, Consolas, monospace"
+                     FontSize="12"
+                     VerticalContentAlignment="Top"
+                     Text="{Binding ResponseHeadersText}" />
+          </TabItem>
+          <TabItem Header="Raw">
+            <TextBox IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"
+                     FontFamily="Cascadia Code, Consolas, monospace"
+                     FontSize="12"
+                     VerticalContentAlignment="Top"
+                     Text="{Binding ResponseRaw}" />
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Border>
+
+  </Grid>
+
+</UserControl>

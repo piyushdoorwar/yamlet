@@ -1,0 +1,51 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Surface palette: layered dark greys typical of developer tooling. -->
+  <Color x:Key="RailColor">#FF141417</Color>
+  <Color x:Key="SidebarColor">#FF1B1B20</Color>
+  <Color x:Key="BackgroundColor">#FF1E1E24</Color>
+  <Color x:Key="PanelColor">#FF26262D</Color>
+  <Color x:Key="PanelAltColor">#FF2B2B33</Color>
+  <Color x:Key="BorderColor">#FF34343C</Color>
+  <Color x:Key="InputColor">#FF1A1A1F</Color>
+
+  <Color x:Key="TextPrimaryColor">#FFE6E6EA</Color>
+  <Color x:Key="TextSecondaryColor">#FF9A9AA6</Color>
+  <Color x:Key="TextMutedColor">#FF6E6E78</Color>
+
+  <!-- Yamlet accent: a warm amber, a nod to the product's egg/omelette namesake. -->
+  <Color x:Key="AccentColor">#FFF2A33C</Color>
+  <Color x:Key="AccentHoverColor">#FFFFB857</Color>
+
+  <!-- HTTP method colors. -->
+  <Color x:Key="MethodGetColor">#FF53B987</Color>
+  <Color x:Key="MethodPostColor">#FFE0B341</Color>
+  <Color x:Key="MethodPutColor">#FF5C9DED</Color>
+  <Color x:Key="MethodPatchColor">#FFA879E6</Color>
+  <Color x:Key="MethodDeleteColor">#FFE5544B</Color>
+  <Color x:Key="MethodOtherColor">#FF8A8A95</Color>
+
+  <!-- Response status colors. -->
+  <Color x:Key="StatusSuccessColor">#FF53B987</Color>
+  <Color x:Key="StatusRedirectColor">#FF5C9DED</Color>
+  <Color x:Key="StatusClientErrorColor">#FFE0B341</Color>
+  <Color x:Key="StatusServerErrorColor">#FFE5544B</Color>
+
+  <!-- Brushes -->
+  <SolidColorBrush x:Key="RailBrush" Color="{StaticResource RailColor}" />
+  <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource SidebarColor}" />
+  <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}" />
+  <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
+  <SolidColorBrush x:Key="PanelAltBrush" Color="{StaticResource PanelAltColor}" />
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+  <SolidColorBrush x:Key="InputBrush" Color="{StaticResource InputColor}" />
+
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+  <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+
+  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+  <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+
+</ResourceDictionary>
