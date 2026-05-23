@@ -21,6 +21,9 @@ public sealed partial class KeyValueRowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _enabled = true;
 
+    [ObservableProperty]
+    private bool _isReadOnly;
+
     public bool IsEmpty =>
         string.IsNullOrWhiteSpace(Key) &&
         string.IsNullOrWhiteSpace(Value) &&

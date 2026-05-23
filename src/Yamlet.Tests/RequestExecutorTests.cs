@@ -219,6 +219,175 @@ public class RequestExecutorTests
     }
 
     [Fact]
+    public async Task Execute_SendsDefaultUserAgentHeader()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+        };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.Equal("Yamlet/1.0.0", handler.LastRequest!.Headers.UserAgent.ToString());
+    }
+
+    [Fact]
+    public async Task Execute_DefaultUserAgentCannotBeOverriddenByRequestHeader()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            Headers =
+            {
+                new YamletHeader { Key = "User-Agent", Value = "Other/2.0", Enabled = true },
+            },
+        };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.Equal("Yamlet/1.0.0", handler.LastRequest!.Headers.UserAgent.ToString());
+    }
+
+    [Fact]
+    public async Task Execute_RunsPreRequestScriptBeforeSending()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "{{baseUrl}}/users",
+            PreRequestScript = """
+pm.variables.set('baseUrl', 'https://script.test');
+pm.request.headers.add({ key: 'X-Script', value: pm.variables.get('baseUrl') });
+""",
+        };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.Equal("https://script.test/users", handler.LastRequest!.RequestUri!.ToString());
+        Assert.True(handler.LastRequest.Headers.TryGetValues("X-Script", out var values));
+        Assert.Equal("https://script.test", Assert.Single(values));
+    }
+
+    [Fact]
+    public async Task Execute_ScriptsCanUseConsole()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            PreRequestScript = """
+console.log('before request');
+console.warn('still fine');
+pm.request.headers.add({ key: 'X-Console', value: 'ok' });
+""",
+        };
+
+        var result = await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.False(result.IsError);
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Console", out var values));
+        Assert.Equal("ok", Assert.Single(values));
+    }
+
+    [Fact]
+    public async Task Execute_EnvironmentSetMutatesEnvironmentVariables()
+    {
+        var (executor, _) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"id\":\"env-123\"}", Encoding.UTF8, "application/json"),
+        });
+        var environment = new List<YamletVariable>();
+        var persisted = false;
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            PostResponseScript = "pm.environment.set('createdId', pm.response.json().id);",
+        };
+        var context = VariableContext.Create(null, environment, null, request.Variables);
+        var scriptVariables = new RequestScriptVariables(
+            context,
+            environment: environment,
+            request: request.Variables,
+            persistAsync: scopes =>
+            {
+                persisted = scopes.Contains(RequestScriptVariableScope.Environment);
+                return Task.CompletedTask;
+            });
+
+        var result = await executor.ExecuteAsync(
+            request,
+            context,
+            collectionAuth: null,
+            scriptVariables,
+            CancellationToken.None);
+
+        Assert.False(result.IsError);
+        var variable = Assert.Single(environment);
+        Assert.Equal("createdId", variable.Key);
+        Assert.Equal("env-123", variable.Value);
+        Assert.True(persisted);
+    }
+
+    [Fact]
+    public async Task Execute_RunsPostResponseScriptAfterResponse()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"id\":5}", Encoding.UTF8, "application/json"),
+        };
+        var (executor, _) = CreateExecutor(response);
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            PostResponseScript = """
+pm.test('status', () => pm.expect(pm.response.code).to.equal(200));
+const body = pm.response.json();
+if (body.id !== 5) {
+  throw new Error('Unexpected response body');
+}
+""",
+        };
+
+        var result = await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.False(result.IsError);
+        Assert.Equal(200, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task Execute_ScriptFailureReturnsErrorAndSkipsSend()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            PreRequestScript = "throw new Error('pre failed');",
+        };
+
+        var result = await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.True(result.IsError);
+        Assert.Contains("pre failed", result.ErrorMessage);
+        Assert.Null(handler.LastRequest);
+    }
+
+    [Fact]
     public async Task Execute_ReturnsErrorResponseOnTransportFailure()
     {
         var executor = new RequestExecutor(

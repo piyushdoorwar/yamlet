@@ -46,7 +46,7 @@ public sealed partial class EditableRowsViewModel : ViewModelBase
     [RelayCommand]
     private void RemoveRow(KeyValueRowViewModel row)
     {
-        if (!Rows.Contains(row))
+        if (row.IsReadOnly || !Rows.Contains(row))
         {
             return;
         }

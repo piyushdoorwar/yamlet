@@ -34,6 +34,7 @@ dotnet test src/Yamlet.Tests              # run unit tests
 
 - .NET 10 / C# (`ImplicitUsings` + `Nullable` enabled)
 - Avalonia UI 12.0.3 (Fluent theme, dark variant) with `Avalonia.Fonts.Inter`
+- AvaloniaEdit 12 via `AvaloniaEdit.TextMate` for code-editor surfaces
 - CommunityToolkit.Mvvm 8.4 (source-generated `ObservableProperty` / `RelayCommand`)
 - YamlDotNet 18 for YAML
 - `System.Net.Http.HttpClient` for execution
@@ -85,6 +86,12 @@ src/
   Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
   are visible, not silently blanked).
+- **Every sent request includes Yamlet's default user agent.** `RequestExecutor` always
+  sends `User-Agent: Yamlet/1.0.0`; the request Headers tab shows it as a locked row,
+  and saved request YAML does not persist or allow overriding that generated header.
+- **Code editor surfaces use `CodeEditorView`.** JSON bodies/responses and scripts use
+  AvaloniaEdit-backed editors with line numbers, Yamlet pastel syntax colors, and JSON
+  beautify where appropriate. Keep new JSON/script text areas on this shared control.
 - **RequestExecutor takes an injected `HttpClient`** so tests use a fake handler.
 
 ## On-disk layout
@@ -111,8 +118,12 @@ names derived from `*.request.yaml` / `*.environment.yaml` filenames, and `$kind
 `scripts` / `tests` / dot-directories ignored.
 
 Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestScript` /
-`PostResponseScript`), shown in the editor's **Scripts** tab, and preserved on save
-(written back under `scripts:` as `preRequest` / `afterResponse`). They are NOT executed.
+`PostResponseScript`), shown in the editor's **Scripts** tab, preserved on save
+(written back under `scripts:` as `preRequest` / `afterResponse`), and executed during
+request sends. Script execution is per request and uses a short-lived JavaScript runtime
+with a compact `pm` surface for variables, request mutation, tests, and response access.
+`pm.environment.set`, `pm.collectionVariables.set`, and `pm.globals.set` mutate the live
+selected environment / collection / globals and persist those scopes after the send.
 
 > **Save caveat:** saving writes Yamlet's canonical format. `description`, `scripts`,
 > params/headers/url/body/auth are preserved; still-unmodeled keys (`tests`, `$kind`,
@@ -149,11 +160,11 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
 ## MVP scope / not implemented
 
 Implemented: workspace create/open, collection/folder/request create, collection auth,
-edit method/URL/params/headers/raw+JSON body/auth, save & load YAML, send via
+edit method/URL/params/headers/raw+JSON body/auth/scripts, save & load YAML, send via
 HttpClient, response (status/duration/size/headers/body/raw), variable resolution,
-environment editing, selected-environment restore.
+pre/post script execution, environment editing, selected-environment restore.
 
-Out of scope (for now): scripts/tests execution, collection runner, OAuth,
-multipart/file upload, `form-data`/`x-www-form-urlencoded` sending (selectable but not
-sent), code snippets, request history, rename/move/delete from the tree, globals UI,
-unknown-field-preserving save.
+Out of scope (for now): collection runner, OAuth, multipart/file upload,
+`form-data`/`x-www-form-urlencoded` sending (selectable but not sent), code snippets,
+request history, rename/move/delete from the tree, globals UI, unknown-field-preserving
+save.

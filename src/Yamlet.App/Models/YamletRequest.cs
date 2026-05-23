@@ -22,10 +22,10 @@ public sealed class YamletRequest
     /// <summary>Optional free-text description of the request (preserved on save).</summary>
     public string Description { get; set; } = string.Empty;
 
-    /// <summary>Script that runs before the request is sent (not executed yet; stored/editable).</summary>
+    /// <summary>Script that runs before the request is sent.</summary>
     public string PreRequestScript { get; set; } = string.Empty;
 
-    /// <summary>Script that runs after a response is received (not executed yet; stored/editable).</summary>
+    /// <summary>Script that runs after a response is received.</summary>
     public string PostResponseScript { get; set; } = string.Empty;
 
     /// <summary>Absolute path of the YAML file backing this request, if saved.</summary>

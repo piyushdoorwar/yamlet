@@ -11,13 +11,18 @@ namespace Yamlet.App.Services;
 /// </summary>
 public sealed class RequestExecutor
 {
+    public const string DefaultUserAgentHeaderName = "User-Agent";
+    public const string DefaultUserAgent = "Yamlet/1.0.0";
+
     private readonly HttpClient _client;
     private readonly VariableResolver _resolver;
+    private readonly RequestScriptRunner _scripts;
 
-    public RequestExecutor(HttpClient client, VariableResolver resolver)
+    public RequestExecutor(HttpClient client, VariableResolver resolver, RequestScriptRunner? scripts = null)
     {
         _client = client;
         _resolver = resolver;
+        _scripts = scripts ?? new RequestScriptRunner();
     }
 
     /// <summary>Creates an executor backed by a default client with a sensible timeout.</summary>
@@ -35,11 +40,29 @@ public sealed class RequestExecutor
         VariableContext context,
         YamletAuth? collectionAuth,
         CancellationToken cancellationToken = default)
+        => await ExecuteAsync(
+            request,
+            context,
+            collectionAuth,
+            RequestScriptVariables.FromContext(context),
+            cancellationToken).ConfigureAwait(false);
+
+    public async Task<YamletResponse> ExecuteAsync(
+        YamletRequest request,
+        VariableContext context,
+        YamletAuth? collectionAuth,
+        RequestScriptVariables scriptVariables,
+        CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            using var message = BuildMessage(request, context, collectionAuth);
+            var activeRequest = CloneRequest(request);
+
+            _scripts.RunPreRequest(activeRequest, scriptVariables);
+            var activeContext = scriptVariables.ToContext();
+
+            using var message = BuildMessage(activeRequest, activeContext, collectionAuth);
             using var response = await _client
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
@@ -47,7 +70,7 @@ public sealed class RequestExecutor
             var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
-            return new YamletResponse
+            var result = new YamletResponse
             {
                 StatusCode = (int)response.StatusCode,
                 ReasonPhrase = response.ReasonPhrase ?? string.Empty,
@@ -57,6 +80,10 @@ public sealed class RequestExecutor
                 Body = DecodeBody(bytes, response.Content.Headers),
                 Headers = CollectHeaders(response),
             };
+
+            _scripts.RunPostResponse(activeRequest, result, scriptVariables);
+            await scriptVariables.PersistAsync().ConfigureAwait(false);
+            return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -69,6 +96,24 @@ public sealed class RequestExecutor
             return YamletResponse.FromError(ex.Message, stopwatch.ElapsedMilliseconds);
         }
     }
+
+    private static YamletRequest CloneRequest(YamletRequest request) => new()
+    {
+        Id = request.Id,
+        Name = request.Name,
+        Method = request.Method,
+        Url = request.Url,
+        Headers = request.Headers.Select(h => h.Clone()).ToList(),
+        QueryParams = request.QueryParams.Select(p => p.Clone()).ToList(),
+        PathVariables = request.PathVariables.Select(p => p.Clone()).ToList(),
+        Body = request.Body.Clone(),
+        Auth = request.Auth.Clone(),
+        Variables = request.Variables.Select(v => v.Clone()).ToList(),
+        Description = request.Description,
+        PreRequestScript = request.PreRequestScript,
+        PostResponseScript = request.PostResponseScript,
+        SourceFilePath = request.SourceFilePath,
+    };
 
     /// <summary>
     /// Builds the outgoing <see cref="HttpRequestMessage"/> from a request and context.
@@ -83,6 +128,7 @@ public sealed class RequestExecutor
         var message = new HttpRequestMessage(new HttpMethod(request.Method.ToUpperInvariant()), url);
 
         ApplyBody(request, context, message);
+        ApplyDefaultHeaders(message);
         ApplyHeaders(request, context, message);
         ApplyAuth(EffectiveAuth(request, collectionAuth), context, message);
 
@@ -117,9 +163,17 @@ public sealed class RequestExecutor
         return baseUrl + separator + query;
     }
 
+    private static void ApplyDefaultHeaders(HttpRequestMessage message)
+    {
+        message.Headers.UserAgent.ParseAdd(DefaultUserAgent);
+    }
+
     private void ApplyHeaders(YamletRequest request, VariableContext context, HttpRequestMessage message)
     {
-        foreach (var header in request.Headers.Where(h => h.Enabled && !string.IsNullOrWhiteSpace(h.Key)))
+        foreach (var header in request.Headers.Where(h =>
+            h.Enabled &&
+            !string.IsNullOrWhiteSpace(h.Key) &&
+            !IsDefaultHeader(h.Key)))
         {
             var key = _resolver.Resolve(header.Key, context);
             var value = _resolver.Resolve(header.Value, context);
@@ -132,6 +186,9 @@ public sealed class RequestExecutor
             }
         }
     }
+
+    private static bool IsDefaultHeader(string key) =>
+        string.Equals(key, DefaultUserAgentHeaderName, StringComparison.OrdinalIgnoreCase);
 
     private void ApplyAuth(YamletAuth auth, VariableContext context, HttpRequestMessage message)
     {

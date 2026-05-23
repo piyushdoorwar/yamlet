@@ -16,6 +16,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private readonly RequestExecutor _executor;
     private readonly RequestFileService _requestFiles;
     private readonly Func<YamletRequest, VariableContext> _contextFactory;
+    private readonly Func<YamletRequest, RequestScriptVariables> _scriptVariablesFactory;
     private readonly Func<YamletAuth?> _collectionAuthFactory;
     private readonly Action<string>? _status;
     private readonly RequestNodeViewModel _node;
@@ -58,6 +59,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         RequestExecutor executor,
         RequestFileService requestFiles,
         Func<YamletRequest, VariableContext> contextFactory,
+        Func<YamletRequest, RequestScriptVariables>? scriptVariablesFactory = null,
         Func<YamletAuth?>? collectionAuthFactory = null,
         Action<string>? status = null)
     {
@@ -65,6 +67,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         _executor = executor;
         _requestFiles = requestFiles;
         _contextFactory = contextFactory;
+        _scriptVariablesFactory = scriptVariablesFactory ?? (request => RequestScriptVariables.FromContext(_contextFactory(request)));
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
         _status = status;
 
@@ -130,6 +133,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     public bool IsBodyEditorVisible =>
         SelectedBodyType.Value is YamletBodyType.Raw or YamletBodyType.Json;
 
+    public bool IsJsonBodyEditor => SelectedBodyType.Value == YamletBodyType.Json;
+    public string BodyEditorLanguage => IsJsonBodyEditor ? "json" : "text";
+
     public bool IsBearerVisible => SelectedAuthType.Value == YamletAuthType.Bearer;
     public bool IsBasicVisible => SelectedAuthType.Value == YamletAuthType.Basic;
     public bool IsApiKeyVisible => SelectedAuthType.Value == YamletAuthType.ApiKey;
@@ -147,6 +153,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     partial void OnSelectedBodyTypeChanged(LabeledOption<YamletBodyType> value)
     {
         OnPropertyChanged(nameof(IsBodyEditorVisible));
+        OnPropertyChanged(nameof(IsJsonBodyEditor));
+        OnPropertyChanged(nameof(BodyEditorLanguage));
         OnPropertyChanged(nameof(HasBody));
     }
 
@@ -187,6 +195,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private string _responseBody = string.Empty;
 
     [ObservableProperty]
+    private string _responseBodyLanguage = "text";
+
+    [ObservableProperty]
+    private bool _isResponseBodyJson;
+
+    [ObservableProperty]
     private string _responseHeadersText = string.Empty;
 
     [ObservableProperty]
@@ -206,9 +220,16 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         {
             Key = p.Key, Value = p.Value, Description = p.Description, Enabled = p.Enabled,
         }));
-        Headers.Load(request.Headers.Select(h => new KeyValueRowViewModel
+        Headers.Load(request.Headers.Where(h => !IsDefaultHeader(h.Key)).Select(h => new KeyValueRowViewModel
         {
             Key = h.Key, Value = h.Value, Description = h.Description, Enabled = h.Enabled,
+        }).Append(new KeyValueRowViewModel
+        {
+            Key = RequestExecutor.DefaultUserAgentHeaderName,
+            Value = RequestExecutor.DefaultUserAgent,
+            Description = "Default header",
+            Enabled = true,
+            IsReadOnly = true,
         }));
         Variables.Load(request.Variables.Select(v => new KeyValueRowViewModel
         {
@@ -243,7 +264,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         {
             Key = r.Key, Value = r.Value, Description = r.Description, Enabled = r.Enabled,
         }).ToList();
-        request.Headers = Headers.NonEmptyRows().Select(r => new YamletHeader
+        request.Headers = Headers.NonEmptyRows().Where(r => !r.IsReadOnly).Select(r => new YamletHeader
         {
             Key = r.Key, Value = r.Value, Description = r.Description, Enabled = r.Enabled,
         }).ToList();
@@ -268,6 +289,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         request.PostResponseScript = PostResponseScript;
         return request;
     }
+
+    private static bool IsDefaultHeader(string key) =>
+        string.Equals(key, RequestExecutor.DefaultUserAgentHeaderName, StringComparison.OrdinalIgnoreCase);
 
     // ---- Commands ----------------------------------------------------------
 
@@ -310,7 +334,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         {
             var context = _contextFactory(request);
             var response = await _executor
-                .ExecuteAsync(request, context, _collectionAuthFactory(), _inflight.Token)
+                .ExecuteAsync(request, context, _collectionAuthFactory(), _scriptVariablesFactory(request), _inflight.Token)
                 .ConfigureAwait(false);
             ApplyResponse(response);
             _status?.Invoke(response.IsError
@@ -334,6 +358,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
             ResponseDurationText = $"{response.DurationMs} ms";
             ResponseSizeText = "—";
             ResponseBody = response.ErrorMessage ?? "Request failed.";
+            ResponseBodyLanguage = "text";
+            IsResponseBodyJson = false;
             ResponseHeadersText = string.Empty;
             ResponseRaw = response.ErrorMessage ?? string.Empty;
             return;
@@ -351,7 +377,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         }
         ResponseHeadersText = headerText.ToString().TrimEnd();
 
-        ResponseBody = TryPrettyJson(response.Body, response.ContentType);
+        IsResponseBodyJson = IsJsonContent(response.Body, response.ContentType);
+        ResponseBodyLanguage = IsResponseBodyJson ? "json" : "text";
+        ResponseBody = IsResponseBodyJson ? TryPrettyJson(response.Body) : response.Body;
 
         var raw = new StringBuilder();
         raw.Append("HTTP ").AppendLine(ResponseStatusText);
@@ -380,10 +408,13 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         return kb < 1024 ? $"{kb:0.#} KB" : $"{kb / 1024d:0.#} MB";
     }
 
-    private static string TryPrettyJson(string body, string contentType)
+    private static bool IsJsonContent(string body, string contentType) =>
+        !string.IsNullOrWhiteSpace(body) &&
+        contentType.Contains("json", StringComparison.OrdinalIgnoreCase);
+
+    private static string TryPrettyJson(string body)
     {
-        if (string.IsNullOrWhiteSpace(body) ||
-            !contentType.Contains("json", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(body))
         {
             return body;
         }

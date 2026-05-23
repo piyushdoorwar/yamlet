@@ -20,6 +20,9 @@ public sealed class VariableContext
 
     public static VariableContext Empty { get; } = new(new(StringComparer.OrdinalIgnoreCase));
 
+    public static VariableContext FromDictionary(IDictionary<string, string> values) =>
+        new(new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase));
+
     /// <summary>
     /// Fluent builder that layers scopes lowest-precedence first. Later layers
     /// overwrite earlier ones, so call order encodes precedence.

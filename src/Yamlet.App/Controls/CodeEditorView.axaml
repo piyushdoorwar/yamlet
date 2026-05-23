@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Yamlet.App.Controls.CodeEditorView"
+             x:Name="Root">
+
+  <Border Background="{DynamicResource InputBrush}"
+          BorderBrush="{DynamicResource BorderBrush}"
+          BorderThickness="1"
+          CornerRadius="8">
+    <DockPanel LastChildFill="True">
+      <Border DockPanel.Dock="Top"
+              Background="{DynamicResource PanelAltBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="6,5"
+              IsVisible="{Binding #Root.AllowBeautify}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0"
+                     Classes="muted"
+                     FontSize="12"
+                     VerticalAlignment="Center"
+                     Text="JSON" />
+          <Button Grid.Column="1"
+                  Padding="10,4"
+                  Click="OnBeautifyClicked"
+                  Content="Beautify" />
+        </Grid>
+      </Border>
+
+      <Grid ColumnDefinitions="Auto,*">
+        <Border Grid.Column="0"
+                Background="{DynamicResource PanelAltBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="8,7">
+          <TextBlock x:Name="LineNumbers"
+                     FontFamily="Cascadia Code, Consolas, monospace"
+                     FontSize="12"
+                     Foreground="{DynamicResource TextMutedBrush}"
+                     TextAlignment="Right" />
+        </Border>
+
+        <TextBox x:Name="EditorBox"
+                 Grid.Column="1"
+                 Text="{Binding #Root.Text, Mode=TwoWay}"
+                 IsReadOnly="{Binding #Root.IsReadOnly}"
+                 AcceptsReturn="True"
+                 AcceptsTab="True"
+                 TextWrapping="NoWrap"
+                 FontFamily="Cascadia Code, Consolas, monospace"
+                 FontSize="12"
+                 Background="Transparent"
+                 BorderThickness="0"
+                 Padding="10,7"
+                 TextChanged="OnEditorTextChanged" />
+      </Grid>
+    </DockPanel>
+  </Border>
+</UserControl>

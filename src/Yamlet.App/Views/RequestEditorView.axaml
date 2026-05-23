@@ -114,14 +114,10 @@
                       Margin="0,0,0,8"
                       ItemsSource="{Binding BodyTypes}"
                       SelectedItem="{Binding SelectedBodyType}" />
-            <TextBox AcceptsReturn="True"
-                     AcceptsTab="True"
-                     TextWrapping="NoWrap"
-                     FontFamily="Cascadia Code, Consolas, monospace"
-                     VerticalContentAlignment="Top"
-                     IsVisible="{Binding IsBodyEditorVisible}"
-                     Text="{Binding BodyText}"
-                     PlaceholderText="Request body" />
+            <controls:CodeEditorView Text="{Binding BodyText}"
+                                     Language="{Binding BodyEditorLanguage}"
+                                     AllowBeautify="{Binding IsJsonBodyEditor}"
+                                     IsVisible="{Binding IsBodyEditorVisible}" />
           </DockPanel>
         </TabItem>
 
@@ -139,19 +135,13 @@
           <Grid Margin="0,10,0,0" RowDefinitions="*,*" >
             <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,6">
               <TextBlock DockPanel.Dock="Top" Classes="heading" Text="PRE-REQUEST SCRIPT" Margin="0,0,0,4" />
-              <TextBox AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                       FontFamily="Cascadia Code, Consolas, monospace" FontSize="12"
-                       VerticalContentAlignment="Top"
-                       PlaceholderText="// Runs before the request is sent (not executed yet)"
-                       Text="{Binding PreRequestScript}" />
+              <controls:CodeEditorView Text="{Binding PreRequestScript}"
+                                       Language="javascript" />
             </DockPanel>
             <DockPanel Grid.Row="1" LastChildFill="True" Margin="0,6,0,0">
               <TextBlock DockPanel.Dock="Top" Classes="heading" Text="POST-RESPONSE SCRIPT" Margin="0,0,0,4" />
-              <TextBox AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap"
-                       FontFamily="Cascadia Code, Consolas, monospace" FontSize="12"
-                       VerticalContentAlignment="Top"
-                       PlaceholderText="// Runs after a response is received (not executed yet)"
-                       Text="{Binding PostResponseScript}" />
+              <controls:CodeEditorView Text="{Binding PostResponseScript}"
+                                       Language="javascript" />
             </DockPanel>
           </Grid>
         </TabItem>
@@ -201,30 +191,20 @@
 
         <TabControl Grid.Row="1" Margin="0,6,0,0" IsVisible="{Binding HasResponse}">
           <TabItem Header="Body">
-            <TextBox IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="NoWrap"
-                     FontFamily="Cascadia Code, Consolas, monospace"
-                     FontSize="12"
-                     VerticalContentAlignment="Top"
-                     Text="{Binding ResponseBody}" />
+            <controls:CodeEditorView Text="{Binding ResponseBody}"
+                                     Language="{Binding ResponseBodyLanguage}"
+                                     AllowBeautify="{Binding IsResponseBodyJson}"
+                                     IsReadOnly="True" />
           </TabItem>
           <TabItem Header="Headers">
-            <TextBox IsReadOnly="True"
-                     AcceptsReturn="True"
-                     FontFamily="Cascadia Code, Consolas, monospace"
-                     FontSize="12"
-                     VerticalContentAlignment="Top"
-                     Text="{Binding ResponseHeadersText}" />
+            <controls:CodeEditorView Text="{Binding ResponseHeadersText}"
+                                     Language="text"
+                                     IsReadOnly="True" />
           </TabItem>
           <TabItem Header="Raw">
-            <TextBox IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="NoWrap"
-                     FontFamily="Cascadia Code, Consolas, monospace"
-                     FontSize="12"
-                     VerticalContentAlignment="Top"
-                     Text="{Binding ResponseRaw}" />
+            <controls:CodeEditorView Text="{Binding ResponseRaw}"
+                                     Language="text"
+                                     IsReadOnly="True" />
           </TabItem>
         </TabControl>
       </Grid>

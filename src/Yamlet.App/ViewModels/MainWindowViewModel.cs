@@ -135,6 +135,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 _executor,
                 _requestFileService,
                 request => BuildContext(requestNode.OwningCollection, request),
+                request => BuildScriptVariables(requestNode.OwningCollection, request),
                 () => EffectiveCollectionAuth(requestNode.OwningCollection),
                 msg => StatusMessage = msg);
             MainContent = CurrentEditor;
@@ -159,6 +160,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             environment: SelectedEnvironment?.Variables,
             collection: collection.Variables,
             request: request.Variables);
+
+    private RequestScriptVariables BuildScriptVariables(YamletCollection collection, YamletRequest request) =>
+        new(
+            BuildContext(collection, request),
+            globals: Workspace?.Globals,
+            environment: SelectedEnvironment?.Variables,
+            collection: collection.Variables,
+            request: request.Variables,
+            persistAsync: scopes => PersistScriptVariableScopesAsync(scopes, collection, request));
+
+    private async Task PersistScriptVariableScopesAsync(
+        IReadOnlySet<RequestScriptVariableScope> scopes,
+        YamletCollection collection,
+        YamletRequest request)
+    {
+        if (Workspace is not null && scopes.Contains(RequestScriptVariableScope.Globals))
+        {
+            await _workspaceService.SaveGlobalsAsync(Workspace);
+        }
+        if (SelectedEnvironment is not null && scopes.Contains(RequestScriptVariableScope.Environment))
+        {
+            await _workspaceService.SaveEnvironmentAsync(SelectedEnvironment);
+        }
+        if (scopes.Contains(RequestScriptVariableScope.Collection))
+        {
+            await _collectionService.SaveCollectionAsync(collection);
+        }
+        if (scopes.Contains(RequestScriptVariableScope.Local))
+        {
+            await _requestFileService.SaveRequestAsync(request);
+        }
+    }
 
     private static YamletAuth? EffectiveCollectionAuth(YamletCollection collection) =>
         collection.Auth.Type != YamletAuthType.None
