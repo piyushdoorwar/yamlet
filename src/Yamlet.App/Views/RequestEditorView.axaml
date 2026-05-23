@@ -49,7 +49,8 @@
               <TextBlock Text="}}" Foreground="{DynamicResource TextMutedBrush}" />
             </StackPanel>
             <TextBlock x:Name="UrlPeekValue" TextWrapping="Wrap"
-                       FontFamily="Cascadia Code, Consolas, monospace" FontSize="12" />
+                       FontFamily="Roboto Mono, Noto Sans Mono, SF Mono, Menlo, Monaco, Consolas, Liberation Mono, DejaVu Sans Mono, monospace"
+                       FontSize="12" />
             <TextBlock x:Name="UrlPeekScope" Classes="muted" FontSize="11" />
           </StackPanel>
         </Border>

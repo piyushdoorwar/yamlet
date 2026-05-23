@@ -13,6 +13,8 @@ namespace Yamlet.App.ViewModels;
 /// </summary>
 public sealed partial class MainWindowViewModel : ViewModelBase
 {
+    private const int MaxVisibleTabs = 5;
+
     private readonly WorkspaceService _workspaceService;
     private readonly CollectionService _collectionService;
     private readonly RequestFileService _requestFileService;
@@ -35,7 +37,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         _dialogs = dialogs;
         _recent = recent;
 
-        OpenTabs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasOpenTabs));
+        OpenTabs.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasOpenTabs));
+            RefreshTabPicker();
+        };
     }
 
     /// <summary>Parameterless constructor for the XAML design-time previewer.</summary>
@@ -58,6 +64,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private YamletEnvironment? _selectedEnvironment;
 
     [ObservableProperty]
+    private YamletEnvironment? _selectedEnvironmentPicker;
+
+    [ObservableProperty]
     private YamletWorkspace? _workspace;
 
     [ObservableProperty]
@@ -69,18 +78,28 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// <summary>Open editor tabs for requests, environments, and collections.</summary>
     public ObservableCollection<OpenTabViewModel> OpenTabs { get; } = new();
 
+    /// <summary>Most recently used tabs shown directly in the tab strip.</summary>
+    public ObservableCollection<OpenTabViewModel> VisibleTabs { get; } = new();
+
+    /// <summary>Older open tabs available from the tab picker.</summary>
+    public ObservableCollection<OpenTabViewModel> OverflowTabs { get; } = new();
+
     /// <summary>The currently active tab; its <see cref="OpenTabViewModel.Content"/> fills the main panel.</summary>
     [ObservableProperty]
     private OpenTabViewModel? _selectedTab;
 
+    [ObservableProperty]
+    private OpenTabViewModel? _selectedOverflowTab;
+
     public bool HasOpenTabs => OpenTabs.Count > 0;
+    public bool HasOverflowTabs => OverflowTabs.Count > 0;
 
     // Collapsible sidebar sections (accordion).
     [ObservableProperty]
     private bool _collectionsExpanded = true;
 
     [ObservableProperty]
-    private bool _environmentsExpanded = true;
+    private bool _environmentsExpanded;
 
     [RelayCommand]
     private void ToggleCollections() => CollectionsExpanded = !CollectionsExpanded;
@@ -92,10 +111,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     /// Opens an environment in the main panel for viewing/editing. Selecting an
     /// environment also makes it the active one used to resolve {{variables}}.
     /// </summary>
+    private bool _selectingEnvironmentFromPicker;
+
     partial void OnSelectedEnvironmentChanged(YamletEnvironment? value)
     {
         if (value is null)
         {
+            SelectedEnvironmentPicker = null;
             return;
         }
 
@@ -104,12 +126,35 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _recent.RememberSelectedEnvironment(Workspace.RootPath, EnvKey(value) ?? value.Id);
         }
 
-        if (_restoring)
+        if (!ReferenceEquals(SelectedEnvironmentPicker, value))
+        {
+            SelectedEnvironmentPicker = value;
+        }
+
+        if (_restoring || _selectingEnvironmentFromPicker)
         {
             return;
         }
 
         OpenEnvironmentTab(value);
+    }
+
+    partial void OnSelectedEnvironmentPickerChanged(YamletEnvironment? value)
+    {
+        if (ReferenceEquals(SelectedEnvironment, value))
+        {
+            return;
+        }
+
+        _selectingEnvironmentFromPicker = true;
+        try
+        {
+            SelectedEnvironment = value;
+        }
+        finally
+        {
+            _selectingEnvironmentFromPicker = false;
+        }
     }
 
     [ObservableProperty]
@@ -150,8 +195,24 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             tab.IsActive = ReferenceEquals(tab, value);
         }
 
+        if (value is not null)
+        {
+            MoveTabToMostRecent(value);
+        }
+
         CurrentEditor = value?.Content as RequestEditorViewModel;
         PersistSession();
+    }
+
+    partial void OnSelectedOverflowTabChanged(OpenTabViewModel? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        SelectedTab = value;
+        SelectedOverflowTab = null;
     }
 
     // ---- Tab management ----------------------------------------------------
@@ -262,13 +323,54 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         var index = OpenTabs.IndexOf(tab);
         OpenTabs.Remove(tab);
+        VisibleTabs.Remove(tab);
+        OverflowTabs.Remove(tab);
 
         if (ReferenceEquals(SelectedTab, tab))
         {
             SelectedTab = OpenTabs.Count == 0 ? null : OpenTabs[Math.Min(index, OpenTabs.Count - 1)];
         }
 
+        RefreshTabPicker();
         PersistSession();
+    }
+
+    private void MoveTabToMostRecent(OpenTabViewModel tab)
+    {
+        VisibleTabs.Remove(tab);
+        OverflowTabs.Remove(tab);
+        VisibleTabs.Insert(0, tab);
+        RefreshTabPicker();
+    }
+
+    private void RefreshTabPicker()
+    {
+        foreach (var tab in OpenTabs.Where(tab => !VisibleTabs.Contains(tab) && !OverflowTabs.Contains(tab)).ToList())
+        {
+            OverflowTabs.Add(tab);
+        }
+
+        foreach (var tab in VisibleTabs.Concat(OverflowTabs).Where(tab => !OpenTabs.Contains(tab)).ToList())
+        {
+            VisibleTabs.Remove(tab);
+            OverflowTabs.Remove(tab);
+        }
+
+        while (VisibleTabs.Count > MaxVisibleTabs)
+        {
+            var oldestVisible = VisibleTabs[^1];
+            VisibleTabs.RemoveAt(VisibleTabs.Count - 1);
+            OverflowTabs.Insert(0, oldestVisible);
+        }
+
+        while (VisibleTabs.Count < MaxVisibleTabs && OverflowTabs.Count > 0)
+        {
+            var newestOverflow = OverflowTabs[0];
+            OverflowTabs.RemoveAt(0);
+            VisibleTabs.Add(newestOverflow);
+        }
+
+        OnPropertyChanged(nameof(HasOverflowTabs));
     }
 
     // ---- Session persistence (open tabs + active tab) ----------------------
@@ -633,6 +735,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             CurrentEditor = null;
             SelectedNode = null;
             OpenTabs.Clear();
+            VisibleTabs.Clear();
+            OverflowTabs.Clear();
             SelectedTab = null;
 
             CollectionNodes.Clear();

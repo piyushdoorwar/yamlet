@@ -61,8 +61,8 @@
 
           <!-- Workspace bar -->
           <Grid Grid.Row="0" Margin="12,12,12,10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
-            <controls:YamletLogo Grid.Row="0" Grid.RowSpan="2" Width="26" Height="26"
-                                 VerticalAlignment="Center" Margin="0,0,10,0" />
+            <controls:YamletLogo Grid.Row="0" Grid.RowSpan="2" Width="34" Height="34"
+                                 VerticalAlignment="Center" Margin="0,0,12,0" />
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Workspace.Name, FallbackValue='No workspace'}"
                        FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
@@ -162,11 +162,47 @@
         <Border Grid.Row="0" Background="{StaticResource RailBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                 IsVisible="{Binding HasOpenTabs}">
-          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <ItemsControl ItemsSource="{Binding OpenTabs}">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <ComboBox Grid.Column="0"
+                      Classes="tabPicker"
+                      Width="42"
+                      MinHeight="0"
+                      Padding="8,7"
+                      ItemsSource="{Binding OverflowTabs}"
+                      SelectedItem="{Binding SelectedOverflowTab, Mode=TwoWay}"
+                      IsVisible="{Binding HasOverflowTabs}"
+                      ToolTip.Tip="Open tabs">
+              <ComboBox.SelectionBoxItemTemplate>
+                <DataTemplate>
+                  <PathIcon Data="{StaticResource IconChevronDown}" Width="13" Height="13"
+                            Foreground="{DynamicResource TextSecondaryBrush}" />
+                </DataTemplate>
+              </ComboBox.SelectionBoxItemTemplate>
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:OpenTabViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding MethodLabel}"
+                               Classes="methodVerb tabMethod"
+                               Foreground="{Binding Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
+                               VerticalAlignment="Center"
+                               IsVisible="{Binding IsRequest}" />
+                    <PathIcon Data="{StaticResource IconEnvironment}" Width="13" Height="13"
+                              Foreground="{DynamicResource TextSecondaryBrush}"
+                              VerticalAlignment="Center" IsVisible="{Binding IsEnvironment}" />
+                    <PathIcon Data="{StaticResource IconCollections}" Width="13" Height="13"
+                              Foreground="{DynamicResource TextSecondaryBrush}"
+                              VerticalAlignment="Center" IsVisible="{Binding IsCollection}" />
+                    <TextBlock Text="{Binding Title}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <ItemsControl Grid.Column="1" ItemsSource="{Binding VisibleTabs}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <StackPanel Orientation="Horizontal" />
+                  <UniformGrid Rows="1" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
@@ -200,7 +236,35 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </ScrollViewer>
+
+            <ComboBox Grid.Column="2"
+                      Classes="tabEnvironmentPicker"
+                      MinWidth="170"
+                      MaxWidth="260"
+                      MinHeight="0"
+                      Padding="12,7"
+                      PlaceholderText="No environment"
+                      ItemsSource="{Binding Environments}"
+                      SelectedItem="{Binding SelectedEnvironmentPicker, Mode=TwoWay}"
+                      ToolTip.Tip="Environment">
+              <ComboBox.SelectionBoxItemTemplate>
+                <DataTemplate x:DataType="models:YamletEnvironment">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.SelectionBoxItemTemplate>
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="models:YamletEnvironment">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <PathIcon Data="{StaticResource IconEnvironment}" Width="13" Height="13"
+                              Foreground="{DynamicResource TextSecondaryBrush}"
+                              VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
         </Border>
 
         <!-- Active tab content / empty state -->
