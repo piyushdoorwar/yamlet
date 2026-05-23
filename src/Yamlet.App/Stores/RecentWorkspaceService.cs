@@ -56,6 +56,32 @@ public sealed class RecentWorkspaceService
         SaveState(state);
     }
 
+    /// <summary>Loads the saved open-tab session for a workspace (empty if none).</summary>
+    public WorkspaceSession LoadSession(string workspaceRootPath)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath))
+        {
+            return new WorkspaceSession();
+        }
+
+        var state = LoadState();
+        return state.SessionByWorkspace.TryGetValue(NormalizePath(workspaceRootPath), out var session)
+            ? session
+            : new WorkspaceSession();
+    }
+
+    public void SaveSession(string workspaceRootPath, WorkspaceSession session)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath))
+        {
+            return;
+        }
+
+        var state = LoadState();
+        state.SessionByWorkspace[NormalizePath(workspaceRootPath)] = session;
+        SaveState(state);
+    }
+
     public void RememberSelectedEnvironment(string workspaceRootPath, string environmentId)
     {
         if (string.IsNullOrWhiteSpace(workspaceRootPath) || string.IsNullOrWhiteSpace(environmentId))
@@ -94,6 +120,7 @@ public sealed class RecentWorkspaceService
             var state = JsonSerializer.Deserialize<CacheState>(json) ?? new CacheState();
             state.RecentWorkspaces ??= new();
             state.SelectedEnvironmentByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
+            state.SessionByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
             return state;
         }
         catch
@@ -149,6 +176,24 @@ public sealed class RecentWorkspaceService
     {
         public List<string> RecentWorkspaces { get; set; } = new();
         public Dictionary<string, string> SelectedEnvironmentByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, WorkspaceSession> SessionByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public bool ResponseSideBySide { get; set; }
     }
+}
+
+/// <summary>The set of editor tabs open for a workspace, plus which one was active.</summary>
+public sealed class WorkspaceSession
+{
+    public List<OpenTabRef> OpenTabs { get; set; } = new();
+    public int ActiveTabIndex { get; set; } = -1;
+}
+
+/// <summary>A persisted reference to one open tab, by kind and a stable disk-derived key.</summary>
+public sealed class OpenTabRef
+{
+    /// <summary>"request", "environment", or "collection".</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Stable identifier: source file path for requests/collections, file path or name for environments.</summary>
+    public string Key { get; set; } = string.Empty;
 }

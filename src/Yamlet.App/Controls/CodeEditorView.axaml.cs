@@ -9,6 +9,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
 
 namespace Yamlet.App.Controls;
@@ -46,9 +47,12 @@ public partial class CodeEditorView : UserControl
     private readonly TextEditor _editor;
     private readonly IBrush _definedBrush;
     private readonly IBrush _undefinedBrush;
+    private readonly JsonFoldingStrategy _foldingStrategy = new();
+    private FoldingManager? _foldingManager;
     private bool _syncing;
     private IVariableSource? _subscribed;
     private string _popupVariable = string.Empty;
+    private string _peekVariable = string.Empty;
 
     public CodeEditorView()
     {
@@ -62,6 +66,9 @@ public partial class CodeEditorView : UserControl
         _editor.TextChanged += OnEditorTextChanged;
         _editor.TextArea.TextView.LineTransformers.Add(new VariableColorizer(VariableState, _definedBrush, _undefinedBrush));
         _editor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        _editor.TextArea.TextView.PointerMoved += OnEditorPointerMoved;
+        _editor.TextArea.TextView.PointerExited += OnEditorPointerExited;
+        UpdateFolding();
     }
 
     public string Text
@@ -122,20 +129,39 @@ public partial class CodeEditorView : UserControl
             }
             _editor.TextArea.TextView.Redraw();
         }
+        else if (change.Property == LanguageProperty)
+        {
+            UpdateFolding();
+        }
     }
 
     private void OnVariablesChanged(object? sender, EventArgs e) => _editor.TextArea.TextView.Redraw();
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
-        if (_syncing)
+        if (!_syncing)
         {
-            return;
+            _syncing = true;
+            SetValue(TextProperty, _editor.Text);
+            _syncing = false;
         }
 
-        _syncing = true;
-        SetValue(TextProperty, _editor.Text);
-        _syncing = false;
+        UpdateFolding();
+    }
+
+    /// <summary>Installs/refreshes JSON code folding when the editor is showing JSON.</summary>
+    private void UpdateFolding()
+    {
+        if (string.Equals(Language, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            _foldingManager ??= FoldingManager.Install(_editor.TextArea);
+            _foldingStrategy.UpdateFoldings(_foldingManager, _editor.Document);
+        }
+        else if (_foldingManager is not null)
+        {
+            FoldingManager.Uninstall(_foldingManager);
+            _foldingManager = null;
+        }
     }
 
     // ---- Variable inspector --------------------------------------------------
@@ -193,8 +219,71 @@ public partial class CodeEditorView : UserControl
         return null;
     }
 
+    private void OnEditorPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (VariableSource is null)
+        {
+            ClosePeek();
+            return;
+        }
+
+        var name = VariableAt(e.GetPosition(_editor.TextArea.TextView));
+        if (name is null)
+        {
+            ClosePeek();
+            return;
+        }
+
+        if (string.Equals(name, _peekVariable, StringComparison.Ordinal) &&
+            this.FindControl<Popup>("VarPeekPopup") is { IsOpen: true })
+        {
+            return;
+        }
+
+        ShowPeek(name);
+    }
+
+    private void OnEditorPointerExited(object? sender, PointerEventArgs e) => ClosePeek();
+
+    private void ShowPeek(string name)
+    {
+        var source = VariableSource;
+        if (source is null)
+        {
+            return;
+        }
+
+        var nameText = this.FindControl<TextBlock>("PeekNameText")!;
+        var valueText = this.FindControl<TextBlock>("PeekValueText")!;
+        var scopeText = this.FindControl<TextBlock>("PeekScopeText")!;
+        var popup = this.FindControl<Popup>("VarPeekPopup")!;
+
+        var defined = source.TryGetValue(name, out var value);
+        nameText.Text = name;
+        nameText.Foreground = defined ? _definedBrush : _undefinedBrush;
+        valueText.Text = defined
+            ? (string.IsNullOrEmpty(value) ? "(empty)" : value)
+            : "Not defined in any active scope.";
+        scopeText.Text = defined ? $"Resolved with {source.TargetScopeName}" : string.Empty;
+
+        // Re-anchor at the new pointer location by toggling open state.
+        popup.IsOpen = false;
+        _peekVariable = name;
+        popup.IsOpen = true;
+    }
+
+    private void ClosePeek()
+    {
+        _peekVariable = string.Empty;
+        if (this.FindControl<Popup>("VarPeekPopup") is { } popup)
+        {
+            popup.IsOpen = false;
+        }
+    }
+
     private void OpenInspector(string name)
     {
+        ClosePeek();
         _popupVariable = name;
 
         var nameText = this.FindControl<TextBlock>("VarNameText")!;

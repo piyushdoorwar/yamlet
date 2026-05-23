@@ -41,6 +41,27 @@
                        Padding="6,7" />
       </DockPanel>
 
+      <!-- Hover peek: shows a {{placeholder}}'s resolved value in the active scope. -->
+      <Popup x:Name="VarPeekPopup" Placement="Pointer" IsHitTestVisible="False">
+        <Border Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10"
+                MaxWidth="340">
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{}{{" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock x:Name="PeekNameText" FontWeight="SemiBold" />
+              <TextBlock Text="}}" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <TextBlock x:Name="PeekValueText" TextWrapping="Wrap"
+                       FontFamily="Cascadia Code, Consolas, monospace" FontSize="12" />
+            <TextBlock x:Name="PeekScopeText" Classes="muted" FontSize="11" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
       <!-- Inline variable inspector, opened by clicking a {{placeholder}}. -->
       <Popup x:Name="VarPopup"
              Placement="Pointer"

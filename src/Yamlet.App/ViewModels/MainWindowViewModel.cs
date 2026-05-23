@@ -101,7 +101,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         if (Workspace is not null)
         {
-            _recent.RememberSelectedEnvironment(Workspace.RootPath, value.Id);
+            _recent.RememberSelectedEnvironment(Workspace.RootPath, EnvKey(value) ?? value.Id);
+        }
+
+        if (_restoring)
+        {
+            return;
         }
 
         OpenEnvironmentTab(value);
@@ -146,6 +151,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         CurrentEditor = value?.Content as RequestEditorViewModel;
+        PersistSession();
     }
 
     // ---- Tab management ----------------------------------------------------
@@ -261,6 +267,132 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             SelectedTab = OpenTabs.Count == 0 ? null : OpenTabs[Math.Min(index, OpenTabs.Count - 1)];
         }
+
+        PersistSession();
+    }
+
+    // ---- Session persistence (open tabs + active tab) ----------------------
+
+    private bool _restoring;
+
+    private static string? EnvKey(YamletEnvironment? environment) =>
+        environment is null ? null : (environment.FilePath ?? environment.Name);
+
+    private static string KindString(OpenTabKind kind) => kind switch
+    {
+        OpenTabKind.Request => "request",
+        OpenTabKind.Environment => "environment",
+        OpenTabKind.Collection => "collection",
+        _ => string.Empty,
+    };
+
+    private static string? TabPersistKey(OpenTabViewModel tab) => tab.Kind switch
+    {
+        OpenTabKind.Request => (tab.Key as RequestNodeViewModel)?.Request.SourceFilePath,
+        OpenTabKind.Environment => EnvKey(tab.Key as YamletEnvironment),
+        OpenTabKind.Collection => (tab.Key as CollectionNodeViewModel)?.Collection.FilePath,
+        _ => null,
+    };
+
+    /// <summary>Saves the current open tabs and active tab for the workspace.</summary>
+    private void PersistSession()
+    {
+        if (_restoring || Workspace is null)
+        {
+            return;
+        }
+
+        var session = new WorkspaceSession();
+        foreach (var tab in OpenTabs)
+        {
+            var key = TabPersistKey(tab);
+            if (key is null)
+            {
+                continue; // unsaved (no file yet) — can't be restored, so skip
+            }
+
+            if (ReferenceEquals(tab, SelectedTab))
+            {
+                session.ActiveTabIndex = session.OpenTabs.Count;
+            }
+
+            session.OpenTabs.Add(new OpenTabRef { Kind = KindString(tab.Kind), Key = key });
+        }
+
+        _recent.SaveSession(Workspace.RootPath, session);
+    }
+
+    /// <summary>Reopens the tabs saved for this workspace and restores the active one.</summary>
+    private void RestoreSession(YamletWorkspace workspace)
+    {
+        var session = _recent.LoadSession(workspace.RootPath);
+        if (session.OpenTabs.Count == 0)
+        {
+            return;
+        }
+
+        var requestNodes = new Dictionary<string, RequestNodeViewModel>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in EnumerateRequestNodes())
+        {
+            if (!string.IsNullOrEmpty(node.Request.SourceFilePath))
+            {
+                requestNodes[node.Request.SourceFilePath!] = node;
+            }
+        }
+
+        foreach (var tabRef in session.OpenTabs)
+        {
+            switch (tabRef.Kind)
+            {
+                case "request":
+                    if (requestNodes.TryGetValue(tabRef.Key, out var requestNode))
+                    {
+                        OpenRequestTab(requestNode);
+                    }
+                    break;
+                case "environment":
+                    var environment = Environments.FirstOrDefault(e =>
+                        string.Equals(EnvKey(e), tabRef.Key, StringComparison.OrdinalIgnoreCase));
+                    if (environment is not null)
+                    {
+                        OpenEnvironmentTab(environment);
+                    }
+                    break;
+                case "collection":
+                    var collectionNode = CollectionNodes.OfType<CollectionNodeViewModel>()
+                        .FirstOrDefault(n => string.Equals(n.Collection.FilePath, tabRef.Key, StringComparison.OrdinalIgnoreCase));
+                    if (collectionNode is not null)
+                    {
+                        OpenCollectionTab(collectionNode);
+                    }
+                    break;
+            }
+        }
+
+        SelectedTab = session.ActiveTabIndex >= 0 && session.ActiveTabIndex < OpenTabs.Count
+            ? OpenTabs[session.ActiveTabIndex]
+            : OpenTabs.FirstOrDefault();
+    }
+
+    private IEnumerable<RequestNodeViewModel> EnumerateRequestNodes()
+    {
+        IEnumerable<RequestNodeViewModel> Walk(TreeNodeViewModel node)
+        {
+            if (node is RequestNodeViewModel request)
+            {
+                yield return request;
+            }
+
+            foreach (var child in node.Children)
+            {
+                foreach (var descendant in Walk(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+
+        return CollectionNodes.SelectMany(Walk);
     }
 
     private VariableContext BuildContext(YamletCollection collection, YamletRequest request) =>
@@ -494,29 +626,43 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private void LoadWorkspace(YamletWorkspace workspace)
     {
-        Workspace = workspace;
-        CurrentEditor = null;
-        SelectedNode = null;
-        OpenTabs.Clear();
-        SelectedTab = null;
-
-        CollectionNodes.Clear();
-        foreach (var collection in workspace.Collections)
+        _restoring = true;
+        try
         {
-            CollectionNodes.Add(BuildCollectionNode(collection));
+            Workspace = workspace;
+            CurrentEditor = null;
+            SelectedNode = null;
+            OpenTabs.Clear();
+            SelectedTab = null;
+
+            CollectionNodes.Clear();
+            foreach (var collection in workspace.Collections)
+            {
+                CollectionNodes.Add(BuildCollectionNode(collection));
+            }
+
+            Environments.Clear();
+            foreach (var env in workspace.Environments)
+            {
+                Environments.Add(env);
+            }
+
+            var cachedEnvironmentKey = _recent.LoadSelectedEnvironmentId(workspace.RootPath);
+            SelectedEnvironment = Environments.FirstOrDefault(e =>
+                    string.Equals(EnvKey(e), cachedEnvironmentKey, StringComparison.OrdinalIgnoreCase)
+                    || e.Id == cachedEnvironmentKey) // accept the legacy id-based key
+                ?? Environments.FirstOrDefault();
+
+            RestoreSession(workspace);
+
+            NewCollectionCommand.NotifyCanExecuteChanged();
+        }
+        finally
+        {
+            _restoring = false;
         }
 
-        Environments.Clear();
-        foreach (var env in workspace.Environments)
-        {
-            Environments.Add(env);
-        }
-
-        var cachedEnvironmentId = _recent.LoadSelectedEnvironmentId(workspace.RootPath);
-        SelectedEnvironment = Environments.FirstOrDefault(e => e.Id == cachedEnvironmentId)
-            ?? Environments.FirstOrDefault();
-
-        NewCollectionCommand.NotifyCanExecuteChanged();
+        PersistSession();
     }
 
     private CollectionNodeViewModel BuildCollectionNode(YamletCollection collection)

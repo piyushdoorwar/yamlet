@@ -29,9 +29,31 @@
                 ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
                 SelectedItem="{Binding SelectedMethod}" />
       <TextBox Grid.Column="1"
+               x:Name="UrlBox"
                Margin="0,0,8,0"
                PlaceholderText="Enter request URL  (supports {{variables}})"
                Text="{Binding Url}" />
+
+      <!-- Hover peek for {{variables}} in the URL, resolved against the active environment. -->
+      <Popup Grid.Column="1" x:Name="UrlPeekPopup" Placement="Pointer" IsHitTestVisible="False">
+        <Border Background="{DynamicResource PanelBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10"
+                MaxWidth="340">
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{}{{" Foreground="{DynamicResource TextMutedBrush}" />
+              <TextBlock x:Name="UrlPeekName" FontWeight="SemiBold" />
+              <TextBlock Text="}}" Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <TextBlock x:Name="UrlPeekValue" TextWrapping="Wrap"
+                       FontFamily="Cascadia Code, Consolas, monospace" FontSize="12" />
+            <TextBlock x:Name="UrlPeekScope" Classes="muted" FontSize="11" />
+          </StackPanel>
+        </Border>
+      </Popup>
       <Button Grid.Column="2"
               Classes="accent"
               MinWidth="96"
