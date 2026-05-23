@@ -137,7 +137,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 request => BuildContext(requestNode.OwningCollection, request),
                 request => BuildScriptVariables(requestNode.OwningCollection, request),
                 () => EffectiveCollectionAuth(requestNode.OwningCollection),
-                msg => StatusMessage = msg);
+                msg => StatusMessage = msg,
+                _recent.LoadResponseSideBySide(),
+                _recent.RememberResponseSideBySide);
             MainContent = CurrentEditor;
         }
         else if (value is CollectionNodeViewModel collectionNode)

@@ -5,7 +5,7 @@
              x:Class="Yamlet.App.Views.RequestEditorView"
              x:DataType="vm:RequestEditorViewModel">
 
-  <Grid RowDefinitions="Auto,Auto,2*,Auto,1.3*" Margin="14,10,14,12">
+  <Grid RowDefinitions="Auto,Auto,*" Margin="14,10,14,12">
 
     <!-- Title row: type badge + breadcrumb + editable name, Save on the right -->
     <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,10">
@@ -40,8 +40,13 @@
               Content="Send" />
     </Grid>
 
+    <!-- Request + response split. Orientation (stacked vs side-by-side) is set in
+         code-behind from the view model's IsSideBySide preference. -->
+    <Grid Grid.Row="2" x:Name="SplitArea" RowDefinitions="2*,Auto,1.3*">
+
     <!-- Request configuration tabs -->
-    <Border Grid.Row="2"
+    <Border x:Name="RequestPanel"
+            Grid.Row="0"
             Background="{StaticResource PanelBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
@@ -155,14 +160,16 @@
     </Border>
 
     <!-- Resizable divider between request and response -->
-    <GridSplitter Grid.Row="3"
+    <GridSplitter x:Name="LayoutSplitter"
+                  Grid.Row="1"
                   Height="6"
                   HorizontalAlignment="Stretch"
                   Background="Transparent"
                   ResizeDirection="Rows" />
 
     <!-- Response panel -->
-    <Border Grid.Row="4"
+    <Border x:Name="ResponsePanel"
+            Grid.Row="2"
             Background="{StaticResource PanelBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
@@ -187,6 +194,26 @@
                      Classes="muted"
                      Text="Send the request to see the response."
                      IsVisible="{Binding !HasResponse}" />
+
+          <!-- Toggle between stacked and side-by-side request/response layout. -->
+          <Button Grid.Column="1"
+                  Classes="ghost"
+                  Padding="6"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center"
+                  Command="{Binding ToggleLayoutCommand}"
+                  ToolTip.Tip="{Binding LayoutToggleTooltip}">
+            <Panel>
+              <PathIcon Data="{StaticResource IconLayoutColumns}"
+                        Width="16" Height="16"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        IsVisible="{Binding !IsSideBySide}" />
+              <PathIcon Data="{StaticResource IconLayoutRows}"
+                        Width="16" Height="16"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        IsVisible="{Binding IsSideBySide}" />
+            </Panel>
+          </Button>
         </Grid>
 
         <TabControl Grid.Row="1" Margin="0,6,0,0" IsVisible="{Binding HasResponse}">
@@ -209,6 +236,8 @@
         </TabControl>
       </Grid>
     </Border>
+
+    </Grid>
 
   </Grid>
 

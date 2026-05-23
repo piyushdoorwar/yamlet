@@ -40,6 +40,11 @@
   <!-- Scripts / code. -->
   <StreamGeometry x:Key="IconScript">M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z</StreamGeometry>
 
+  <!-- Layout: response stacked below request (two horizontal panes). -->
+  <StreamGeometry x:Key="IconLayoutRows">M4,5H20V11H4V5M4,13H20V19H4V13Z</StreamGeometry>
+  <!-- Layout: response beside request (two vertical panes). -->
+  <StreamGeometry x:Key="IconLayoutColumns">M4,5H11V19H4V5M13,5H20V19H13V5Z</StreamGeometry>
+
   <!-- Disclosure chevrons for collapsible sections. -->
   <StreamGeometry x:Key="IconChevronDown">M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z</StreamGeometry>
   <StreamGeometry x:Key="IconChevronRight">M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z</StreamGeometry>

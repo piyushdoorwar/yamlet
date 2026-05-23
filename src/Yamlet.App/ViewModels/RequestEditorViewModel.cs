@@ -19,6 +19,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     private readonly Func<YamletRequest, RequestScriptVariables> _scriptVariablesFactory;
     private readonly Func<YamletAuth?> _collectionAuthFactory;
     private readonly Action<string>? _status;
+    private readonly Action<bool>? _persistLayout;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
 
@@ -61,7 +62,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         Func<YamletRequest, VariableContext> contextFactory,
         Func<YamletRequest, RequestScriptVariables>? scriptVariablesFactory = null,
         Func<YamletAuth?>? collectionAuthFactory = null,
-        Action<string>? status = null)
+        Action<string>? status = null,
+        bool initialSideBySide = false,
+        Action<bool>? persistLayout = null)
     {
         _node = node;
         _executor = executor;
@@ -70,6 +73,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         _scriptVariablesFactory = scriptVariablesFactory ?? (request => RequestScriptVariables.FromContext(_contextFactory(request)));
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
         _status = status;
+        _persistLayout = persistLayout;
+        _isSideBySide = initialSideBySide;
 
         BreadcrumbPath = BuildBreadcrumb(node);
         BreadcrumbPrefix = BuildBreadcrumbPrefix(node);
@@ -170,6 +175,27 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     partial void OnSelectedMethodChanged(string value) => _node.Method = value;
 
     partial void OnNameChanged(string value) => _node.Name = value;
+
+    // ---- Layout ------------------------------------------------------------
+
+    /// <summary>
+    /// When true the response panel sits beside the request (side-by-side columns);
+    /// otherwise it is stacked below it. Persisted as a global UI preference.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSideBySide;
+
+    partial void OnIsSideBySideChanged(bool value)
+    {
+        _persistLayout?.Invoke(value);
+        OnPropertyChanged(nameof(LayoutToggleTooltip));
+    }
+
+    public string LayoutToggleTooltip =>
+        IsSideBySide ? "Stack response below request" : "Show response beside request";
+
+    [RelayCommand]
+    private void ToggleLayout() => IsSideBySide = !IsSideBySide;
 
     // ---- Response state ----------------------------------------------------
 

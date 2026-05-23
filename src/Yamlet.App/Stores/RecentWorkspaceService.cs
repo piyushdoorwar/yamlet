@@ -43,6 +43,19 @@ public sealed class RecentWorkspaceService
             : null;
     }
 
+    /// <summary>
+    /// Whether the request editor shows the response beside the request (side-by-side)
+    /// rather than stacked below it. A global UI preference, not workspace-specific.
+    /// </summary>
+    public bool LoadResponseSideBySide() => LoadState().ResponseSideBySide;
+
+    public void RememberResponseSideBySide(bool sideBySide)
+    {
+        var state = LoadState();
+        state.ResponseSideBySide = sideBySide;
+        SaveState(state);
+    }
+
     public void RememberSelectedEnvironment(string workspaceRootPath, string environmentId)
     {
         if (string.IsNullOrWhiteSpace(workspaceRootPath) || string.IsNullOrWhiteSpace(environmentId))
@@ -136,5 +149,6 @@ public sealed class RecentWorkspaceService
     {
         public List<string> RecentWorkspaces { get; set; } = new();
         public Dictionary<string, string> SelectedEnvironmentByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public bool ResponseSideBySide { get; set; }
     }
 }

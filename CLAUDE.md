@@ -1,4 +1,4 @@
-# CODEX.md
+# CLAUDE.md
 
 Guidance for working in the Yamlet codebase.
 
