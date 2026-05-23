@@ -19,6 +19,15 @@ public sealed class YamletRequest
     public YamletAuth Auth { get; set; } = new();
     public List<YamletVariable> Variables { get; set; } = new();
 
+    /// <summary>Optional free-text description of the request (preserved on save).</summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Script that runs before the request is sent (not executed yet; stored/editable).</summary>
+    public string PreRequestScript { get; set; } = string.Empty;
+
+    /// <summary>Script that runs after a response is received (not executed yet; stored/editable).</summary>
+    public string PostResponseScript { get; set; } = string.Empty;
+
     /// <summary>Absolute path of the YAML file backing this request, if saved.</summary>
     public string? SourceFilePath { get; set; }
 }

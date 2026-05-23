@@ -106,6 +106,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     [ObservableProperty]
     private LabeledOption<ApiKeyLocation> _selectedApiKeyLocation = null!;
 
+    [ObservableProperty]
+    private string _preRequestScript = string.Empty;
+
+    [ObservableProperty]
+    private string _postResponseScript = string.Empty;
+
     public string BreadcrumbPath { get; }
 
     /// <summary>The collection/folder path leading to this request, without its own name.</summary>
@@ -123,6 +129,11 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
     /// <summary>Tab content indicators (small dots shown next to tab headers).</summary>
     public bool HasAuth => SelectedAuthType.Value != YamletAuthType.None;
     public bool HasBody => SelectedBodyType.Value != YamletBodyType.None;
+    public bool HasScripts =>
+        !string.IsNullOrWhiteSpace(PreRequestScript) || !string.IsNullOrWhiteSpace(PostResponseScript);
+
+    partial void OnPreRequestScriptChanged(string value) => OnPropertyChanged(nameof(HasScripts));
+    partial void OnPostResponseScriptChanged(string value) => OnPropertyChanged(nameof(HasScripts));
 
     partial void OnSelectedBodyTypeChanged(LabeledOption<YamletBodyType> value)
     {
@@ -204,6 +215,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
         ApiKeyName = request.Auth.ApiKeyName;
         ApiKeyValue = request.Auth.ApiKeyValue;
         SelectedApiKeyLocation = ApiKeyLocations.First(l => l.Value == request.Auth.ApiKeyIn);
+
+        PreRequestScript = request.PreRequestScript;
+        PostResponseScript = request.PostResponseScript;
     }
 
     /// <summary>Writes the current editor state back into the underlying request model.</summary>
@@ -238,6 +252,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase
             ApiKeyValue = ApiKeyValue,
             ApiKeyIn = SelectedApiKeyLocation.Value,
         };
+        request.PreRequestScript = PreRequestScript;
+        request.PostResponseScript = PostResponseScript;
         return request;
     }
 

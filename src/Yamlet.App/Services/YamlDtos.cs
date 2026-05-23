@@ -110,14 +110,23 @@ public sealed class BodyDto
     };
 }
 
+/// <summary>A pre-request or post-response script entry, e.g. <c>{ type: afterResponse, code: ... }</c>.</summary>
+public sealed class ScriptDto
+{
+    public string Type { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
 /// <summary>On-disk shape of a single request YAML file.</summary>
 public sealed class RequestDto
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string Method { get; set; } = "GET";
     public string Url { get; set; } = string.Empty;
     public List<KeyValueDto>? QueryParams { get; set; }
+    public List<ScriptDto>? Scripts { get; set; }
 
     /// <summary>
     /// Headers may be a list (Yamlet's native form) or a map of name→value (as written
@@ -134,8 +143,10 @@ public sealed class RequestDto
     {
         Id = r.Id,
         Name = r.Name,
+        Description = NullIfEmpty(r.Description),
         Method = r.Method,
         Url = r.Url,
+        Scripts = BuildScripts(r),
         QueryParams = r.QueryParams.Count == 0 ? null : r.QueryParams
             .Select(p => new KeyValueDto { Key = p.Key, Value = p.Value, Description = NullIfEmpty(p.Description), Enabled = p.Enabled })
             .ToList(),
@@ -156,8 +167,11 @@ public sealed class RequestDto
     {
         Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString() : Id,
         Name = Name,
+        Description = Description ?? string.Empty,
         Method = string.IsNullOrWhiteSpace(Method) ? "GET" : Method.ToUpperInvariant(),
         Url = Url,
+        PreRequestScript = ScriptOfKind(isPre: true),
+        PostResponseScript = ScriptOfKind(isPre: false),
         QueryParams = (QueryParams ?? new()).Select(p => new YamletQueryParam
         {
             Key = p.Key, Value = p.Value, Description = p.Description ?? string.Empty, Enabled = p.IsEnabled,
@@ -221,6 +235,46 @@ public sealed class RequestDto
 
     private static string Lookup(IDictionary<object, object> map, string key) =>
         map.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
+
+    /// <summary>
+    /// Joins the code of all script entries whose <c>type</c> matches the requested
+    /// phase. Pre-request types are recognised loosely (<c>preRequest</c>,
+    /// <c>beforeRequest</c>, …); everything else (e.g. <c>afterResponse</c>, <c>test</c>)
+    /// counts as post-response.
+    /// </summary>
+    private string ScriptOfKind(bool isPre)
+    {
+        if (Scripts is null || Scripts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var matches = Scripts
+            .Where(s => IsPreType(s.Type) == isPre && !string.IsNullOrEmpty(s.Code))
+            .Select(s => s.Code);
+
+        return string.Join("\n\n", matches);
+    }
+
+    private static bool IsPreType(string? type)
+    {
+        var t = (type ?? string.Empty).ToLowerInvariant().Replace("-", string.Empty);
+        return t.Contains("pre") || t.Contains("before");
+    }
+
+    private static List<ScriptDto>? BuildScripts(YamletRequest r)
+    {
+        var list = new List<ScriptDto>();
+        if (!string.IsNullOrEmpty(r.PreRequestScript))
+        {
+            list.Add(new ScriptDto { Type = "preRequest", Code = r.PreRequestScript });
+        }
+        if (!string.IsNullOrEmpty(r.PostResponseScript))
+        {
+            list.Add(new ScriptDto { Type = "afterResponse", Code = r.PostResponseScript });
+        }
+        return list.Count == 0 ? null : list;
+    }
 
     private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
 }

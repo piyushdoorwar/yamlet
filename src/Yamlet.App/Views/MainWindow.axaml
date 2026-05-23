@@ -68,8 +68,18 @@
             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Workspace.Name, FallbackValue='No workspace'}"
                        FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
-              <Button Content="Open" Padding="10,4" Command="{Binding OpenWorkspaceCommand}" />
-              <Button Content="New" Classes="accent" Padding="10,4" Command="{Binding NewWorkspaceCommand}" />
+              <Button Padding="10,4" Command="{Binding OpenWorkspaceCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource IconFolderOpen}" Width="14" Height="14" />
+                  <TextBlock Text="Open" />
+                </StackPanel>
+              </Button>
+              <Button Classes="accent" Padding="10,4" Command="{Binding NewWorkspaceCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <PathIcon Data="{StaticResource IconPlus}" Width="14" Height="14" />
+                  <TextBlock Text="New" />
+                </StackPanel>
+              </Button>
             </StackPanel>
           </Grid>
 

@@ -105,9 +105,13 @@ as a map *or* list (`RequestDto.Headers` is `object?`, normalized by `ParseHeade
 names derived from `*.request.yaml` / `*.environment.yaml` filenames, and `$kind` /
 `scripts` / `tests` / dot-directories ignored.
 
-> **Save caveat:** saving writes Yamlet's canonical format and DROPS unmodeled keys
-> (`scripts`, `tests`, `description`, `$kind`). Round-trip fidelity for those is not yet
-> implemented.
+Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestScript` /
+`PostResponseScript`), shown in the editor's **Scripts** tab, and preserved on save
+(written back under `scripts:` as `preRequest` / `afterResponse`). They are NOT executed.
+
+> **Save caveat:** saving writes Yamlet's canonical format. `description`, `scripts`,
+> params/headers/url/body/auth are preserved; still-unmodeled keys (`tests`, `$kind`,
+> and any other tool-specific fields) are DROPPED.
 
 ## Theme conventions
 

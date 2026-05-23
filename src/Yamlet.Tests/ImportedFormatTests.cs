@@ -113,4 +113,40 @@ public class ImportedFormatTests
         Assert.Equal("Get All", RequestFileService.DeriveNameFromFile("/x/Get All.request.yaml"));
         Assert.Equal("Health", RequestFileService.DeriveNameFromFile("/x/Health.yaml"));
     }
+
+    [Fact]
+    public void Scripts_ClassifiedByPhase()
+    {
+        const string yaml = """
+            method: GET
+            url: https://example.com
+            scripts:
+              - type: preRequest
+                code: console.log('before');
+              - type: afterResponse
+                code: pm.test('ok', () => {});
+            """;
+
+        var request = _yaml.Deserialize<RequestDto>(yaml).ToDomain(null);
+
+        Assert.Contains("before", request.PreRequestScript);
+        Assert.Contains("pm.test", request.PostResponseScript);
+    }
+
+    [Fact]
+    public void Scripts_RoundTripThroughDto()
+    {
+        var request = new Yamlet.App.Models.YamletRequest
+        {
+            Name = "X", Method = "POST", Url = "https://example.com",
+            PreRequestScript = "let a = 1;",
+            PostResponseScript = "pm.environment.set('id', 5);",
+        };
+
+        var yaml = _yaml.Serialize(RequestDto.FromDomain(request));
+        var restored = _yaml.Deserialize<RequestDto>(yaml).ToDomain(null);
+
+        Assert.Equal("let a = 1;", restored.PreRequestScript);
+        Assert.Equal("pm.environment.set('id', 5);", restored.PostResponseScript);
+    }
 }
