@@ -1,36 +1,38 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Surface palette: layered dark greys typical of developer tooling. -->
-  <Color x:Key="RailColor">#FF141417</Color>
-  <Color x:Key="SidebarColor">#FF1B1B20</Color>
-  <Color x:Key="BackgroundColor">#FF1E1E24</Color>
-  <Color x:Key="PanelColor">#FF26262D</Color>
-  <Color x:Key="PanelAltColor">#FF2B2B33</Color>
-  <Color x:Key="BorderColor">#FF34343C</Color>
-  <Color x:Key="InputColor">#FF1A1A1F</Color>
+  <!-- Claude-inspired warm dark palette: soft, slightly brown-tinted greys with a
+       warm off-white foreground. The accent is green (Yamlet's twist on Claude's clay). -->
+  <Color x:Key="RailColor">#FF1B1A18</Color>
+  <Color x:Key="SidebarColor">#FF211F1D</Color>
+  <Color x:Key="BackgroundColor">#FF262624</Color>
+  <Color x:Key="PanelColor">#FF2F2E2B</Color>
+  <Color x:Key="PanelAltColor">#FF383631</Color>
+  <Color x:Key="BorderColor">#FF3C3A35</Color>
+  <Color x:Key="InputColor">#FF211F1D</Color>
 
-  <Color x:Key="TextPrimaryColor">#FFE6E6EA</Color>
-  <Color x:Key="TextSecondaryColor">#FF9A9AA6</Color>
-  <Color x:Key="TextMutedColor">#FF6E6E78</Color>
+  <Color x:Key="TextPrimaryColor">#FFF5F4EF</Color>
+  <Color x:Key="TextSecondaryColor">#FFB7B4AA</Color>
+  <Color x:Key="TextMutedColor">#FF8A877D</Color>
 
-  <!-- Yamlet accent: a warm amber, a nod to the product's egg/omelette namesake. -->
-  <Color x:Key="AccentColor">#FFF2A33C</Color>
-  <Color x:Key="AccentHoverColor">#FFFFB857</Color>
+  <!-- Yamlet accent: a warm green standing in for Claude's clay-orange. -->
+  <Color x:Key="AccentColor">#FF4CA877</Color>
+  <Color x:Key="AccentHoverColor">#FF5DBA88</Color>
+  <Color x:Key="AccentForegroundColor">#FF0C1F16</Color>
 
-  <!-- HTTP method colors. -->
-  <Color x:Key="MethodGetColor">#FF53B987</Color>
-  <Color x:Key="MethodPostColor">#FFE0B341</Color>
-  <Color x:Key="MethodPutColor">#FF5C9DED</Color>
-  <Color x:Key="MethodPatchColor">#FFA879E6</Color>
-  <Color x:Key="MethodDeleteColor">#FFE5544B</Color>
-  <Color x:Key="MethodOtherColor">#FF8A8A95</Color>
+  <!-- HTTP method colors: standard mapping, pastel (low-saturation) tones. -->
+  <Color x:Key="MethodGetColor">#FF8FD3A8</Color>
+  <Color x:Key="MethodPostColor">#FFE6CF8A</Color>
+  <Color x:Key="MethodPutColor">#FF9CC0EC</Color>
+  <Color x:Key="MethodPatchColor">#FFC3A9E8</Color>
+  <Color x:Key="MethodDeleteColor">#FFE8A39C</Color>
+  <Color x:Key="MethodOtherColor">#FFB4B2A6</Color>
 
-  <!-- Response status colors. -->
-  <Color x:Key="StatusSuccessColor">#FF53B987</Color>
-  <Color x:Key="StatusRedirectColor">#FF5C9DED</Color>
-  <Color x:Key="StatusClientErrorColor">#FFE0B341</Color>
-  <Color x:Key="StatusServerErrorColor">#FFE5544B</Color>
+  <!-- Response status colors: standard mapping, pastel tones. -->
+  <Color x:Key="StatusSuccessColor">#FF8FD3A8</Color>
+  <Color x:Key="StatusRedirectColor">#FF9CC0EC</Color>
+  <Color x:Key="StatusClientErrorColor">#FFE6CF8A</Color>
+  <Color x:Key="StatusServerErrorColor">#FFE8A39C</Color>
 
   <!-- Brushes -->
   <SolidColorBrush x:Key="RailBrush" Color="{StaticResource RailColor}" />
@@ -47,5 +49,10 @@
 
   <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
   <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+  <SolidColorBrush x:Key="AccentForegroundBrush" Color="{StaticResource AccentForegroundColor}" />
+
+  <!-- Soft accent tint for hover/selection backgrounds (subtle, Claude-like). -->
+  <SolidColorBrush x:Key="AccentSoftBrush" Color="#FF4CA877" Opacity="0.18" />
+  <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource PanelAltColor}" Opacity="0.6" />
 
 </ResourceDictionary>

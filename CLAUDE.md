@@ -115,10 +115,20 @@ Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestSc
 
 ## Theme conventions
 
+The look follows **Claude's aesthetic**: warm dark (slightly brown-tinted) grey
+surfaces, warm off-white text, soft rounded corners (~8–10px), comfortable spacing,
+Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange.**
+
 - Dark only; `RequestedThemeVariant` is forced to Dark in
   [App.axaml.cs](src/Yamlet.App/App.axaml.cs).
 - Colors/brushes live in [Themes/Colors.axaml](src/Yamlet.App/Themes/Colors.axaml)
-  (surfaces, text tiers, amber accent, per-method and per-status colors).
+  (warm surfaces, text tiers, green `AccentBrush` + `AccentSoftBrush`, per-method and
+  per-status colors).
+- **Method (GET/POST/…) and status (2xx/3xx/…) colors are the standard mapping but in
+  PASTEL / low-saturation tones** (soft green/yellow/blue/purple/red — never bright).
+  The source of truth is the two converters in [Controls/](src/Yamlet.App/Controls/)
+  (`MethodToBrushConverter`, `StatusCategoryToBrushConverter`); keep the `Color` entries
+  in Colors.axaml in sync. Badges pair pastel fills with dark text.
 - Shared control styles (compact inputs, buttons, `.accent`/`.ghost`/`.section`/`.title`
   classes, badges, rail icon coloring) live in
   [Themes/Yamlet.axaml](src/Yamlet.App/Themes/Yamlet.axaml).

@@ -21,7 +21,7 @@
             Background="{DynamicResource PanelBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6"
+            CornerRadius="10"
             Padding="10">
       <controls:KeyValueGridView DataContext="{Binding Rows}" />
     </Border>

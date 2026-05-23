@@ -9,12 +9,13 @@ public sealed class MethodToBrushConverter : IValueConverter
 {
     public static readonly MethodToBrushConverter Instance = new();
 
-    private static readonly IBrush Get = Brush("#FF53B987");
-    private static readonly IBrush Post = Brush("#FFE0B341");
-    private static readonly IBrush Put = Brush("#FF5C9DED");
-    private static readonly IBrush Patch = Brush("#FFA879E6");
-    private static readonly IBrush Delete = Brush("#FFE5544B");
-    private static readonly IBrush Other = Brush("#FF8A8A95");
+    // Pastel, low-saturation method colors (paired with dark badge text).
+    private static readonly IBrush Get = Brush("#FF8FD3A8");
+    private static readonly IBrush Post = Brush("#FFE6CF8A");
+    private static readonly IBrush Put = Brush("#FF9CC0EC");
+    private static readonly IBrush Patch = Brush("#FFC3A9E8");
+    private static readonly IBrush Delete = Brush("#FFE8A39C");
+    private static readonly IBrush Other = Brush("#FFB4B2A6");
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         => (value as string)?.ToUpperInvariant() switch

@@ -1,7 +1,8 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Compact, dark-mode styling shared across the app. -->
+  <!-- Claude-inspired dark styling: warm surfaces, soft rounded corners, comfortable
+       spacing, and the Inter typeface. -->
 
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource BackgroundBrush}" />
@@ -18,7 +19,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="FontSize" Value="11" />
     <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="LetterSpacing" Value="0.6" />
+    <Setter Property="LetterSpacing" Value="0.8" />
   </Style>
 
   <Style Selector="TextBlock.muted">
@@ -30,9 +31,9 @@
     <Setter Property="Background" Value="{DynamicResource InputBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="MinHeight" Value="30" />
-    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Padding" Value="10,7" />
   </Style>
   <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
     <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -41,9 +42,9 @@
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource InputBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="MinHeight" Value="30" />
-    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="Padding" Value="10,6" />
   </Style>
 
   <!-- Buttons -->
@@ -52,8 +53,8 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="4" />
-    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="14,7" />
   </Style>
   <Style Selector="Button:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
@@ -63,7 +64,7 @@
   <!-- Accent / primary action button. -->
   <Style Selector="Button.accent">
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-    <Setter Property="Foreground" Value="#FF1A1207" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
@@ -75,11 +76,29 @@
   <Style Selector="Button.ghost">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
     <Setter Property="Padding" Value="8" />
   </Style>
   <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <!-- Rounded, soft hover/selection for the tree and environment list (Claude-like). -->
+  <Style Selector="TreeViewItem">
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="MinHeight" Value="30" />
+  </Style>
+  <Style Selector="ListBoxItem">
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="Margin" Value="0,1" />
+  </Style>
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+  </Style>
+  <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
   </Style>
 
   <!-- Rail navigation button, highlighted when active. -->
@@ -108,7 +127,7 @@
   </Style>
   <Style Selector="TabItem">
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Padding" Value="12,8" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
@@ -151,8 +170,8 @@
   <!-- Request type badge ("HTTP"). -->
   <Style Selector="Border.typeBadge">
     <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
-    <Setter Property="CornerRadius" Value="3" />
-    <Setter Property="Padding" Value="6,2" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="7,3" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
@@ -174,7 +193,7 @@
   <Style Selector="Ellipse.tabdot">
     <Setter Property="Width" Value="6" />
     <Setter Property="Height" Value="6" />
-    <Setter Property="Fill" Value="#FF53B987" />
+    <Setter Property="Fill" Value="#FF8FD3A8" />
     <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 

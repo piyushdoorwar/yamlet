@@ -45,7 +45,7 @@
             Background="{StaticResource PanelBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6"
+            CornerRadius="10"
             Padding="10">
       <TabControl>
         <TabItem Header="Params">
@@ -171,7 +171,7 @@
             Background="{StaticResource PanelBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
-            CornerRadius="6"
+            CornerRadius="10"
             Padding="10">
       <Grid RowDefinitions="Auto,*">
 
