@@ -15,8 +15,18 @@
               Classes="accent"
               MinWidth="80"
               Command="{Binding StartCommand}"
-              IsEnabled="{Binding !IsRunning}"
-              Content="Start run" />
+              IsEnabled="{Binding !IsRunning}">
+        <StackPanel Orientation="Horizontal" Spacing="7">
+          <Viewbox Width="16" Height="16">
+            <Path Data="{StaticResource IconSend}"
+                  Stroke="#FFFFFFFF"
+                  StrokeThickness="2"
+                  StrokeLineCap="Round"
+                  StrokeJoin="Round" />
+          </Viewbox>
+          <TextBlock Text="Start run" />
+        </StackPanel>
+      </Button>
     </Grid>
 
     <Border Grid.Row="1"
