@@ -62,6 +62,8 @@ public partial class CodeEditorView : UserControl
         _undefinedBrush = FindBrush("VariableUndefinedBrush", "#FFE2655A");
 
         _editor = this.FindControl<TextEditor>("EditorBox")!;
+        _editor.Options.EnableHyperlinks = false;
+        _editor.Options.EnableEmailHyperlinks = false;
         _editor.Text = Text ?? string.Empty;
         _editor.TextChanged += OnEditorTextChanged;
         _editor.TextArea.TextView.LineTransformers.Add(new VariableColorizer(VariableState, _definedBrush, _undefinedBrush));
@@ -154,7 +156,11 @@ public partial class CodeEditorView : UserControl
     {
         if (string.Equals(Language, "json", StringComparison.OrdinalIgnoreCase))
         {
-            _foldingManager ??= FoldingManager.Install(_editor.TextArea);
+            if (_foldingManager is null)
+            {
+                _foldingManager = FoldingManager.Install(_editor.TextArea);
+                ThemeFoldingMargin();
+            }
             _foldingStrategy.UpdateFoldings(_foldingManager, _editor.Document);
         }
         else if (_foldingManager is not null)
@@ -162,6 +168,26 @@ public partial class CodeEditorView : UserControl
             FoldingManager.Uninstall(_foldingManager);
             _foldingManager = null;
         }
+    }
+
+    /// <summary>Recolors the fold gutter markers to muted theme tones so they blend in
+    /// rather than showing AvaloniaEdit's default stark boxes.</summary>
+    private void ThemeFoldingMargin()
+    {
+        var margin = _editor.TextArea.LeftMargins.OfType<FoldingMargin>().FirstOrDefault();
+        if (margin is null)
+        {
+            return;
+        }
+
+        var marker = FindBrush("TextMutedBrush", "#FF8A877D");
+        var markerActive = FindBrush("TextSecondaryBrush", "#FFB7B4AA");
+        var fill = FindBrush("PanelBrush", "#FF2F2E2B");
+
+        margin.FoldingMarkerBrush = marker;
+        margin.FoldingMarkerBackgroundBrush = fill;
+        margin.SelectedFoldingMarkerBrush = markerActive;
+        margin.SelectedFoldingMarkerBackgroundBrush = fill;
     }
 
     // ---- Variable inspector --------------------------------------------------

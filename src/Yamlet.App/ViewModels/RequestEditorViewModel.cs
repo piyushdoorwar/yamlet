@@ -384,7 +384,93 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         PreRequestScript = request.PreRequestScript;
         PostResponseScript = request.PostResponseScript;
         RefreshCodeSnippet();
+        SelectedRequestSection = BestInitialRequestSection(request);
     }
+
+    private static string BestInitialRequestSection(YamletRequest request)
+    {
+        if (HasBodyContent(request.Body))
+        {
+            return "Body";
+        }
+
+        if (request.QueryParams.Any(HasKeyValueContent))
+        {
+            return "Params";
+        }
+
+        if (HasAuthContent(request.Auth))
+        {
+            return "Authorization";
+        }
+
+        if (request.Headers.Where(h => !IsDefaultHeader(h.Key)).Any(HasKeyValueContent))
+        {
+            return "Headers";
+        }
+
+        if (request.Variables.Any(v =>
+                !string.IsNullOrWhiteSpace(v.Key) || !string.IsNullOrWhiteSpace(v.Value)))
+        {
+            return "Variables";
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.PreRequestScript) ||
+            !string.IsNullOrWhiteSpace(request.PostResponseScript))
+        {
+            return "Scripts";
+        }
+
+        return "Params";
+    }
+
+    private static bool HasBodyContent(YamletRequestBody body) =>
+        body.Type switch
+        {
+            YamletBodyType.Raw or YamletBodyType.Json => !string.IsNullOrWhiteSpace(body.Raw),
+            YamletBodyType.FormData or YamletBodyType.UrlEncoded => body.Fields.Any(HasBodyFieldContent),
+            _ => false,
+        };
+
+    private static bool HasAuthContent(YamletAuth auth) =>
+        auth.Type switch
+        {
+            YamletAuthType.Bearer => !string.IsNullOrWhiteSpace(auth.Token),
+            YamletAuthType.Basic => !string.IsNullOrWhiteSpace(auth.Username) ||
+                                    !string.IsNullOrWhiteSpace(auth.Password),
+            YamletAuthType.ApiKey => !string.IsNullOrWhiteSpace(auth.ApiKeyName) ||
+                                     !string.IsNullOrWhiteSpace(auth.ApiKeyValue),
+            YamletAuthType.Cookie => !string.IsNullOrWhiteSpace(auth.Cookie),
+            YamletAuthType.OAuth2 => HasOAuth2Content(auth.OAuth2),
+            _ => false,
+        };
+
+    private static bool HasOAuth2Content(YamletOAuth2 oauth) =>
+        !string.IsNullOrWhiteSpace(oauth.AccessToken) ||
+        !string.IsNullOrWhiteSpace(oauth.RefreshToken) ||
+        !string.IsNullOrWhiteSpace(oauth.AccessTokenUrl) ||
+        !string.IsNullOrWhiteSpace(oauth.AuthUrl) ||
+        !string.IsNullOrWhiteSpace(oauth.ClientId) ||
+        !string.IsNullOrWhiteSpace(oauth.ClientSecret) ||
+        !string.IsNullOrWhiteSpace(oauth.Scope) ||
+        !string.IsNullOrWhiteSpace(oauth.RedirectUri) ||
+        !string.IsNullOrWhiteSpace(oauth.Username) ||
+        !string.IsNullOrWhiteSpace(oauth.Password);
+
+    private static bool HasKeyValueContent(YamletQueryParam row) =>
+        !string.IsNullOrWhiteSpace(row.Key) ||
+        !string.IsNullOrWhiteSpace(row.Value) ||
+        !string.IsNullOrWhiteSpace(row.Description);
+
+    private static bool HasKeyValueContent(YamletHeader row) =>
+        !string.IsNullOrWhiteSpace(row.Key) ||
+        !string.IsNullOrWhiteSpace(row.Value) ||
+        !string.IsNullOrWhiteSpace(row.Description);
+
+    private static bool HasBodyFieldContent(YamletBodyField field) =>
+        !string.IsNullOrWhiteSpace(field.Key) ||
+        !string.IsNullOrWhiteSpace(field.Value) ||
+        !string.IsNullOrWhiteSpace(field.Description);
 
     /// <summary>Writes the current editor state back into the underlying request model.</summary>
     private YamletRequest ApplyToModel()

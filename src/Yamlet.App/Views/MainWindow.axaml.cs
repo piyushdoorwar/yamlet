@@ -32,6 +32,11 @@ public partial class MainWindow : Window
         tree.AddHandler(DragDrop.DropEvent, OnTreeDrop);
     }
 
+    private async void OnAboutClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        await new AboutDialog().ShowDialog(this);
+    }
+
     private void OnTreePointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _dragNode = FindNode(e.Source as StyledElement);

@@ -61,7 +61,7 @@ public sealed class RequestExecutor
         string? collectionPreRequestScript = null,
         string? collectionPostResponseScript = null)
     {
-        var stopwatch = Stopwatch.StartNew();
+        Stopwatch? httpStopwatch = null;
         try
         {
             var activeRequest = CloneRequest(request);
@@ -75,18 +75,19 @@ public sealed class RequestExecutor
                 : null;
 
             using var message = BuildMessage(activeRequest, activeContext, collectionAuth, oauthToken);
+            httpStopwatch = Stopwatch.StartNew();
             using var response = await _client
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
 
             var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-            stopwatch.Stop();
+            httpStopwatch.Stop();
 
             var result = new YamletResponse
             {
                 StatusCode = (int)response.StatusCode,
                 ReasonPhrase = response.ReasonPhrase ?? string.Empty,
-                DurationMs = stopwatch.ElapsedMilliseconds,
+                DurationMs = httpStopwatch.ElapsedMilliseconds,
                 SizeBytes = bytes.LongLength,
                 ContentType = response.Content.Headers.ContentType?.ToString() ?? string.Empty,
                 Body = DecodeBody(bytes, response.Content.Headers),
@@ -99,13 +100,13 @@ public sealed class RequestExecutor
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            stopwatch.Stop();
-            return YamletResponse.FromError("Request was cancelled.", stopwatch.ElapsedMilliseconds);
+            httpStopwatch?.Stop();
+            return YamletResponse.FromError("Request was cancelled.", httpStopwatch?.ElapsedMilliseconds ?? 0);
         }
         catch (Exception ex)
         {
-            stopwatch.Stop();
-            return YamletResponse.FromError(ex.Message, stopwatch.ElapsedMilliseconds);
+            httpStopwatch?.Stop();
+            return YamletResponse.FromError(ex.Message, httpStopwatch?.ElapsedMilliseconds ?? 0);
         }
     }
 

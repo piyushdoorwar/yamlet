@@ -158,7 +158,7 @@ public partial class RequestEditorView : UserControl
         if (sideBySide)
         {
             _splitArea.RowDefinitions = new RowDefinitions("*");
-            _splitArea.ColumnDefinitions = new ColumnDefinitions("*,Auto,1.3*");
+            _splitArea.ColumnDefinitions = new ColumnDefinitions("*,Auto,*");
 
             Grid.SetRow(_requestPanel, 0);
             Grid.SetColumn(_requestPanel, 0);
@@ -176,7 +176,7 @@ public partial class RequestEditorView : UserControl
         else
         {
             _splitArea.ColumnDefinitions = new ColumnDefinitions("*");
-            _splitArea.RowDefinitions = new RowDefinitions("2*,Auto,1.3*");
+            _splitArea.RowDefinitions = new RowDefinitions("*,Auto,*");
 
             Grid.SetColumn(_requestPanel, 0);
             Grid.SetRow(_requestPanel, 0);

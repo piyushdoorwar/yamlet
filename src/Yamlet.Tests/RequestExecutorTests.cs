@@ -11,10 +11,15 @@ public class RequestExecutorTests
     private sealed class FakeHandler : HttpMessageHandler
     {
         private readonly HttpResponseMessage _response;
+        private readonly TimeSpan _delay;
         public HttpRequestMessage? LastRequest { get; private set; }
         public string? LastBody { get; private set; }
 
-        public FakeHandler(HttpResponseMessage response) => _response = response;
+        public FakeHandler(HttpResponseMessage response, TimeSpan delay = default)
+        {
+            _response = response;
+            _delay = delay;
+        }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -24,13 +29,19 @@ public class RequestExecutorTests
             {
                 LastBody = await request.Content.ReadAsStringAsync(cancellationToken);
             }
+            if (_delay > TimeSpan.Zero)
+            {
+                await Task.Delay(_delay, cancellationToken);
+            }
             return _response;
         }
     }
 
-    private static (RequestExecutor Executor, FakeHandler Handler) CreateExecutor(HttpResponseMessage response)
+    private static (RequestExecutor Executor, FakeHandler Handler) CreateExecutor(
+        HttpResponseMessage response,
+        TimeSpan delay = default)
     {
-        var handler = new FakeHandler(response);
+        var handler = new FakeHandler(response, delay);
         return (new RequestExecutor(new HttpClient(handler), new VariableResolver()), handler);
     }
 
@@ -353,6 +364,30 @@ pm.request.headers.add({ key: 'X-Console', value: 'ok' });
         Assert.False(result.IsError);
         Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Console", out var values));
         Assert.Equal("ok", Assert.Single(values));
+    }
+
+    [Fact]
+    public async Task Execute_DurationExcludesPreRequestScript()
+    {
+        var (executor, _) = CreateExecutor(
+            new HttpResponseMessage(HttpStatusCode.OK),
+            TimeSpan.FromMilliseconds(40));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test",
+            PreRequestScript = """
+const started = Date.now();
+while (Date.now() - started < 150) {
+}
+""",
+        };
+
+        var result = await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.False(result.IsError);
+        Assert.InRange(result.DurationMs, 30, 140);
     }
 
     [Fact]

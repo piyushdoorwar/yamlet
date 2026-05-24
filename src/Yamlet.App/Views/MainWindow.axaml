@@ -33,7 +33,7 @@
                   Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis" />
-        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,12,0"
                 VerticalAlignment="Center" ToolTip.Tip="Collection actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
                     Foreground="{DynamicResource TextMutedBrush}" />
@@ -66,7 +66,7 @@
                   Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis" />
-        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,12,0"
                 VerticalAlignment="Center" ToolTip.Tip="Folder actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
                     Foreground="{DynamicResource TextMutedBrush}" />
@@ -98,7 +98,7 @@
                    Margin="0,0,8,0" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis" />
-        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,12,0"
                 VerticalAlignment="Center" ToolTip.Tip="Request actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
                     Foreground="{DynamicResource TextMutedBrush}" />
@@ -133,8 +133,15 @@
           <Grid Grid.Row="0" Margin="12,12,12,10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
             <controls:YamletLogo Grid.Row="0" Grid.RowSpan="2" Width="34" Height="34"
                                  VerticalAlignment="Center" Margin="0,0,12,0" />
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WorkspaceHeaderTitle}"
-                       FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+              <TextBlock Grid.Column="0" Text="{Binding WorkspaceHeaderTitle}"
+                         FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="ghost" Padding="4" Click="OnAboutClick"
+                      VerticalAlignment="Center" ToolTip.Tip="About Yamlet">
+                <PathIcon Data="{StaticResource IconInfo}" Width="16" Height="16"
+                          Foreground="{DynamicResource TextMutedBrush}" />
+              </Button>
+            </Grid>
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
               <Button Padding="10,4" Command="{Binding OpenWorkspaceCommand}">
                 <StackPanel Orientation="Horizontal" Spacing="6">

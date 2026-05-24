@@ -31,6 +31,9 @@
   <!-- Plus / add. -->
   <StreamGeometry x:Key="IconPlus">M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z</StreamGeometry>
 
+  <!-- Info / about: "i" in a circle. -->
+  <StreamGeometry x:Key="IconInfo">M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z</StreamGeometry>
+
   <!-- More / overflow. -->
   <StreamGeometry x:Key="IconMoreHorizontal">M6,10A2,2 0 1,1 6,14A2,2 0 0,1 6,10M12,10A2,2 0 1,1 12,14A2,2 0 0,1 12,10M18,10A2,2 0 1,1 18,14A2,2 0 0,1 18,10Z</StreamGeometry>
 

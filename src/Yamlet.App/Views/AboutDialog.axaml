@@ -1,0 +1,72 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Yamlet.App.Controls"
+        x:Class="Yamlet.App.Views.AboutDialog"
+        Title="About Yamlet"
+        Width="380"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        SizeToContent="Height"
+        Background="{DynamicResource BackgroundBrush}">
+
+  <StackPanel Margin="26,22,26,24" Spacing="0">
+
+    <!-- Logo + app name -->
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,0,0,6">
+      <controls:YamletLogo Width="34" Height="34" VerticalAlignment="Center" />
+      <TextBlock Text="Yamlet" FontSize="22" FontWeight="Bold"
+                 Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <TextBlock x:Name="VersionText"
+               HorizontalAlignment="Center"
+               FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,4" />
+    <TextBlock Text="Local-first YAML API client"
+               HorizontalAlignment="Center"
+               FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,0,18" />
+
+    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,14" />
+
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,14">
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Platform"
+                 FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,7" />
+      <TextBlock Grid.Row="0" Grid.Column="1" x:Name="OsText"
+                 FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,7" />
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Architecture"
+                 FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,7" />
+      <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ArchText"
+                 FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,7" />
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text=".NET"
+                 FontSize="12" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,16,0" />
+      <TextBlock Grid.Row="2" Grid.Column="1" x:Name="RuntimeText"
+                 FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+    </Grid>
+
+    <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="0,0,0,14" />
+
+    <!-- Footer links -->
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+      <Button Classes="ghost" Padding="8,5" Click="GitHub_Click" ToolTip.Tip="View source on GitHub">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <PathIcon Width="14" Height="14" Data="{StaticResource IconGlobals}"
+                    Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="GitHub" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Classes="ghost" Padding="8,5" Click="Releases_Click" ToolTip.Tip="Releases &amp; downloads">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <PathIcon Width="14" Height="14" Data="{StaticResource IconHistory}"
+                    Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="Releases" FontSize="12" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+
+    <TextBlock Text="Source available · © 2026 Piyush Doorwar"
+               HorizontalAlignment="Center"
+               FontSize="11" Foreground="{DynamicResource TextMutedBrush}" Margin="0,14,0,0" />
+
+  </StackPanel>
+</Window>
