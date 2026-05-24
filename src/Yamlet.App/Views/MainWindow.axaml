@@ -133,7 +133,7 @@
           <Grid Grid.Row="0" Margin="12,12,12,10" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
             <controls:YamletLogo Grid.Row="0" Grid.RowSpan="2" Width="34" Height="34"
                                  VerticalAlignment="Center" Margin="0,0,12,0" />
-            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Workspace.Name, FallbackValue='No workspace'}"
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WorkspaceHeaderTitle}"
                        FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
               <Button Padding="10,4" Command="{Binding OpenWorkspaceCommand}">
@@ -173,12 +173,19 @@
           <!-- COLLECTIONS content -->
           <Panel Grid.Row="2" Margin="6,2,6,6" IsVisible="{Binding CollectionsExpanded}">
             <TextBlock Classes="muted" Margin="10,6" TextWrapping="Wrap" FontSize="12"
-                       IsVisible="{Binding !HasWorkspace}"
+                       IsVisible="{Binding ShowNoWorkspaceMessage}"
                        Text="No workspace open. Use New to create a Yamlet workspace, or Open to load an existing one." />
+            <StackPanel Margin="10,6" Spacing="8"
+                        IsVisible="{Binding IsRestoringCachedWorkspace}">
+              <TextBlock Classes="muted" FontSize="12"
+                         Text="Loading workspace..." />
+              <ProgressBar Width="150" Height="3" HorizontalAlignment="Left"
+                           IsIndeterminate="True" />
+            </StackPanel>
             <TreeView ItemsSource="{Binding CollectionNodes}"
                       x:Name="CollectionsTree"
                       SelectedItem="{Binding SelectedNode}"
-                      IsVisible="{Binding HasWorkspace}"
+                      IsVisible="{Binding ShowCollectionsTree}"
                       Background="Transparent"
                       DragDrop.AllowDrop="True"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -362,7 +369,14 @@
         <Panel Grid.Row="1">
           <ContentControl Content="{Binding SelectedTab.Content}" IsVisible="{Binding HasOpenTabs}" />
           <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
-                      IsVisible="{Binding !HasOpenTabs}">
+                      IsVisible="{Binding IsRestoringCachedWorkspace}">
+            <controls:YamletLogo Width="56" Height="56" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" HorizontalAlignment="Center"
+                       Text="Loading workspace..." />
+            <ProgressBar Width="180" Height="3" IsIndeterminate="True" />
+          </StackPanel>
+          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10"
+                      IsVisible="{Binding ShowMainEmptyState}">
             <controls:YamletLogo Width="56" Height="56" HorizontalAlignment="Center" />
             <TextBlock Classes="muted" HorizontalAlignment="Center"
                        Text="Select a collection or request to get started." />

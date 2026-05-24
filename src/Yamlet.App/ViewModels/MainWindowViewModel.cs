@@ -40,6 +40,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         OpenTabs.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasOpenTabs));
+            OnPropertyChanged(nameof(ShowMainEmptyState));
             RefreshTabPicker();
         };
     }
@@ -165,6 +166,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public bool HasWorkspace => Workspace is not null;
 
+    [ObservableProperty]
+    private bool _isRestoringCachedWorkspace;
+
+    public bool ShowNoWorkspaceMessage => !HasWorkspace && !IsRestoringCachedWorkspace;
+    public bool ShowCollectionsTree => HasWorkspace && !IsRestoringCachedWorkspace;
+    public bool ShowMainEmptyState => !HasOpenTabs && !IsRestoringCachedWorkspace;
+
+    public string WorkspaceHeaderTitle => IsRestoringCachedWorkspace
+        ? "Opening workspace..."
+        : Workspace?.Name ?? "No workspace";
+
     public string WorkspaceTitle => Workspace is null
         ? "No workspace"
         : $"{Workspace.Name}  ·  {Workspace.RootPath}";
@@ -172,7 +184,18 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     partial void OnWorkspaceChanged(YamletWorkspace? value)
     {
         OnPropertyChanged(nameof(HasWorkspace));
+        OnPropertyChanged(nameof(ShowNoWorkspaceMessage));
+        OnPropertyChanged(nameof(ShowCollectionsTree));
+        OnPropertyChanged(nameof(WorkspaceHeaderTitle));
         OnPropertyChanged(nameof(WorkspaceTitle));
+    }
+
+    partial void OnIsRestoringCachedWorkspaceChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowNoWorkspaceMessage));
+        OnPropertyChanged(nameof(ShowCollectionsTree));
+        OnPropertyChanged(nameof(ShowMainEmptyState));
+        OnPropertyChanged(nameof(WorkspaceHeaderTitle));
     }
 
     partial void OnSelectedNodeChanged(TreeNodeViewModel? value)
@@ -694,12 +717,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await RunBusyAsync("Restoring last workspace…", async () =>
+        IsRestoringCachedWorkspace = true;
+        try
         {
-            var workspace = await _workspaceService.OpenWorkspaceAsync(lastPath);
-            LoadWorkspace(workspace);
-            StatusMessage = $"Reopened {workspace.Name} ({workspace.Collections.Count} collection(s))";
-        });
+            await RunBusyAsync("Restoring last workspace…", async () =>
+            {
+                var workspace = await _workspaceService.OpenWorkspaceAsync(lastPath);
+                LoadWorkspace(workspace);
+                StatusMessage = $"Reopened {workspace.Name} ({workspace.Collections.Count} collection(s))";
+            });
+        }
+        finally
+        {
+            IsRestoringCachedWorkspace = false;
+        }
     }
 
     // ---- Workspace commands ------------------------------------------------
