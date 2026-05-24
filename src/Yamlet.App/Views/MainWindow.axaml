@@ -28,14 +28,11 @@
 
     <!-- Tree node templates, selected by node type. -->
     <TreeDataTemplate DataType="vm:CollectionNodeViewModel" ItemsSource="{Binding Children}">
-      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
-            Width="{Binding #CollectionsTree.Bounds.Width}">
-        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="3"
-                    Margin="{Binding IsExpanded, Converter={x:Static controls:TreeNodeIconMarginConverter.Instance}}">
-          <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15"
-                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-        </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch">
+        <PathIcon Grid.Column="0" Data="{StaticResource IconCollections}" Width="15" Height="15"
+                  Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
         <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
                 VerticalAlignment="Center" ToolTip.Tip="Collection actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
@@ -64,14 +61,11 @@
     </TreeDataTemplate>
 
     <TreeDataTemplate DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
-      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
-            Width="{Binding #CollectionsTree.Bounds.Width}">
-        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="3"
-                    Margin="{Binding IsExpanded, Converter={x:Static controls:TreeNodeIconMarginConverter.Instance}}">
-          <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15"
-                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-        </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch">
+        <PathIcon Grid.Column="0" Data="{StaticResource IconFolder}" Width="15" Height="15"
+                  Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
         <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
                 VerticalAlignment="Center" ToolTip.Tip="Folder actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
@@ -97,15 +91,13 @@
     </TreeDataTemplate>
 
     <DataTemplate DataType="vm:RequestNodeViewModel">
-      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
-            Width="{Binding #CollectionsTree.Bounds.Width}">
-        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="-24,0,0,0">
-          <TextBlock Text="{Binding MethodLabel}"
-                     Classes="methodVerb"
-                     Foreground="{Binding Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
-                     VerticalAlignment="Center" />
-          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-        </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch">
+        <TextBlock Grid.Column="0" Text="{Binding MethodLabel}"
+                   Classes="methodVerb"
+                   Foreground="{Binding Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
+                   Margin="0,0,8,0" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" />
         <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
                 VerticalAlignment="Center" ToolTip.Tip="Request actions">
           <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
@@ -189,6 +181,7 @@
                       IsVisible="{Binding HasWorkspace}"
                       Background="Transparent"
                       DragDrop.AllowDrop="True"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       x:CompileBindings="False">
               <TreeView.Styles>
                 <Style Selector="TreeViewItem">
