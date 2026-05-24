@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Yamlet mark: rounded-square badge with a "Y" lettermark, in the accent green. -->
+  <rect x="11" y="11" width="42" height="42" rx="12" ry="12"
+        fill="none" stroke="#4CA877" stroke-width="3.4"/>
+  <path d="M24 25 L32 34 L40 25 M32 34 L32 45"
+        fill="none" stroke="#4CA877" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

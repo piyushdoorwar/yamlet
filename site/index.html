@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Yamlet is a local-first, dark-mode desktop API client for Git-friendly, YAML-based API collections."
+    />
+    <title>Yamlet</title>
+    <link rel="icon" href="assets/yamlet.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="Yamlet home">
+        <img src="assets/yamlet.svg" alt="" />
+        <span>Yamlet</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a class="icon-link" href="#features">
+          <img src="assets/features.svg" alt="" />
+          <span>Features</span>
+        </a>
+        <a class="icon-link" href="#download">
+          <img src="assets/download.svg" alt="" />
+          <span>Download</span>
+        </a>
+        <a class="icon-link" href="releases/">
+          <img src="assets/releases.svg" alt="" />
+          <span>Releases</span>
+        </a>
+        <a class="icon-link" href="policy/">
+          <img src="assets/policy.svg" alt="" />
+          <span>Privacy</span>
+        </a>
+        <a class="github-link icon-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+          <img src="assets/github.svg" alt="" />
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Local-first API client</p>
+          <h1>Yamlet</h1>
+          <p class="lede">
+            A dark-mode desktop API client for Git-friendly, YAML-based collections. Browse
+            requests in a sidebar, send them with variables and OAuth 2.0, and read responses —
+            everything stored as plain YAML you can commit and diff.
+          </p>
+          <div class="actions">
+            <a class="button primary icon-link" id="downloadLink" href="#download">
+              <img src="assets/download.svg" alt="" />
+              <span>Download latest</span>
+            </a>
+            <a class="button secondary github-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+              <img src="assets/github.svg" alt="" />
+              <span>View source</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="api-preview" aria-label="Yamlet request preview">
+          <div class="window-bar">
+            <div class="mark">
+              <img src="assets/yamlet.svg" alt="" />
+            </div>
+            <span>Yamlet</span>
+            <div class="window-buttons" aria-hidden="true">
+              <i></i><i></i><i></i>
+            </div>
+          </div>
+          <div class="api-body">
+            <div class="api-urlbar">
+              <span class="api-method">GET</span>
+              <span class="api-url">{{base_url}}<em>api/courses</em></span>
+              <span class="api-send">Send</span>
+            </div>
+            <div class="api-response">
+              <div class="api-resp-bar">
+                <span class="api-status">200 OK</span>
+                <span>148 ms</span>
+                <span>1.2 KB</span>
+              </div>
+<pre class="api-json">{
+  <span class="k">"name"</span>: <span class="s">"MPhil in Public Policy"</span>,
+  <span class="k">"institutionName"</span>: <span class="s">"Cambridge University"</span>,
+  <span class="k">"isVisible"</span>: <span class="n">true</span>,
+  <span class="k">"pageSize"</span>: <span class="n">5</span>,
+  <span class="k">"totalItems"</span>: <span class="n">79</span>
+}</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" id="features">
+        <div class="section-heading" data-reveal>
+          <p class="eyebrow">What it does</p>
+          <h2>Your API collections, as plain YAML.</h2>
+        </div>
+        <div class="feature-grid">
+          <article data-reveal>
+            <h3>Git-friendly YAML</h3>
+            <p>Every collection, request and environment is a plain YAML file on disk — review, diff, branch and merge like any other code.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.1s">
+            <h3>Variables &amp; environments</h3>
+            <p>Resolve <code>{{variables}}</code> across request, collection, environment and globals. Hover any placeholder to peek its value, click to edit.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.2s">
+            <h3>OAuth 2.0</h3>
+            <p>Collection-level auth including client-credentials and authorization-code (PKCE) — tokens fetched, cached and attached for you.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.3s">
+            <h3>Scripts &amp; tests</h3>
+            <p>Pre-request and post-response scripts at request and collection scope, with a familiar <code>pm</code> surface for variables, requests and assertions.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.4s">
+            <h3>Tabs &amp; sessions</h3>
+            <p>Work across multiple requests in tabs. Your open tabs, active tab and selected environment are restored when you reopen the app.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.5s">
+            <h3>Collection runner</h3>
+            <p>Run a whole collection or folder in sequence and watch each request's status roll in.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.6s">
+            <h3>JSON editor that helps</h3>
+            <p>A real code editor with line numbers, JSON beautify, code folding and inline variable highlighting on bodies and responses.</p>
+          </article>
+          <article data-reveal style="--reveal-delay: 0.7s">
+            <h3>Imports what you have</h3>
+            <p>Reads collections exported from other tools — map-form variables, list-form auth, scripts and OAuth from a <code>.resources</code> definition.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="download" id="download">
+        <div data-reveal>
+          <p class="eyebrow">Latest release</p>
+          <h2>Get Yamlet for Linux and Windows</h2>
+          <p>
+            Self-contained builds — a Debian package for Linux and an installer for Windows.
+            No separate .NET runtime required.
+          </p>
+        </div>
+
+        <div class="download-container" data-reveal style="--reveal-delay: 0.1s">
+          <p class="download-desc">Download the latest release for your platform:</p>
+          <div class="download-actions" aria-label="Download Yamlet">
+            <a class="button primary large platform-download disabled" id="linuxDownloadLink" aria-disabled="true" aria-label="Download Yamlet for Linux">
+              <img src="assets/ubuntu.svg" alt="" />
+              <span>Download for Linux</span>
+            </a>
+            <a class="button primary large platform-download disabled" id="windowsDownloadLink" aria-disabled="true" aria-label="Download Yamlet for Windows">
+              <img src="assets/windows.svg" alt="" />
+              <span>Download for Windows</span>
+            </a>
+          </div>
+          <p class="download-note">Linux ships as a <code>.deb</code>; Windows as an <code>.exe</code> installer (an <code>.msix</code> package is also available on the <a href="releases/">releases page</a>).</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Yamlet</span>
+      <div class="footer-links">
+        <a class="icon-link" href="releases/">
+          <img src="assets/releases.svg" alt="" />
+          <span>All releases</span>
+        </a>
+        <a class="icon-link" href="policy/">
+          <img src="assets/policy.svg" alt="" />
+          <span>Privacy</span>
+        </a>
+        <a class="github-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+          <img src="assets/github.svg" alt="" />
+          <span>GitHub</span>
+        </a>
+        <button class="footer-support-link icon-link" id="footerSupportBtn">
+          <img src="assets/support.svg" alt="" />
+          <span>Support</span>
+        </button>
+      </div>
+    </footer>
+
+    <!-- Support modal -->
+    <div class="modal-backdrop hidden" id="supportModal" role="dialog" aria-modal="true" aria-labelledby="supportModalTitle">
+      <div class="modal-box">
+        <div class="modal-header">
+          <p class="eyebrow" style="margin:0">Support and issues</p>
+          <button class="modal-close" aria-label="Close support dialog" id="closeSupportModal">✕</button>
+        </div>
+        <h2 id="supportModalTitle" class="modal-title">Need help with Yamlet?</h2>
+        <p class="modal-body">
+          Found a bug or have feedback? Open an issue on GitHub, or send an email and include your OS,
+          Yamlet version, and a short note about what happened.
+        </p>
+        <a class="button secondary large email-link" href="mailto:piyushdoorwar+yamlet@gmail.com">
+          <img src="assets/mail.svg" alt="" />
+          <span>piyushdoorwar+yamlet@gmail.com</span>
+        </a>
+      </div>
+    </div>
+
+    <script src="image-guard.js"></script>
+    <script src="app.js"></script>
+    <script>
+      const supportBtn = document.getElementById("footerSupportBtn");
+      const supportModal = document.getElementById("supportModal");
+      const closeModal = document.getElementById("closeSupportModal");
+      supportBtn.addEventListener("click", () => { supportModal.classList.remove("hidden"); document.body.style.overflow = "hidden"; });
+      closeModal.addEventListener("click", () => { supportModal.classList.add("hidden"); document.body.style.overflow = ""; });
+      supportModal.addEventListener("click", e => { if (e.target === supportModal) { supportModal.classList.add("hidden"); document.body.style.overflow = ""; } });
+      document.addEventListener("keydown", e => { if (e.key === "Escape" && !supportModal.classList.contains("hidden")) { supportModal.classList.add("hidden"); document.body.style.overflow = ""; } });
+    </script>
+  </body>
+</html>
