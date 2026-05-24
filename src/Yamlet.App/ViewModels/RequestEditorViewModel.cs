@@ -276,6 +276,17 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             await _setEnvironmentVariableAsync(name, value).ConfigureAwait(true);
         }
 
+        RefreshVariables();
+    }
+
+    /// <summary>
+    /// Drops the cached variable context and asks editors to re-highlight. Call this when
+    /// variables change <em>outside</em> this editor — e.g. the environment is edited in
+    /// its own tab, or the active environment is switched — so highlight colors update
+    /// without needing to reopen the tab.
+    /// </summary>
+    public void RefreshVariables()
+    {
         _variableCache = null;
         VariablesChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -315,8 +326,11 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     [ObservableProperty]
     private string _responseRaw = string.Empty;
 
+    [ObservableProperty]
+    private string _responseConsole = string.Empty;
+
     /// <summary>Condensed response area: a single dropdown chooses which view is shown.</summary>
-    public IReadOnlyList<string> ResponseViews { get; } = new[] { "Body", "Headers", "Raw" };
+    public IReadOnlyList<string> ResponseViews { get; } = new[] { "Body", "Headers", "Raw", "Console" };
 
     [ObservableProperty]
     private string _selectedResponseView = "Body";
@@ -324,12 +338,14 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     public bool IsResponseBodyView => SelectedResponseView == "Body";
     public bool IsResponseHeadersView => SelectedResponseView == "Headers";
     public bool IsResponseRawView => SelectedResponseView == "Raw";
+    public bool IsResponseConsoleView => SelectedResponseView == "Console";
 
     partial void OnSelectedResponseViewChanged(string value)
     {
         OnPropertyChanged(nameof(IsResponseBodyView));
         OnPropertyChanged(nameof(IsResponseHeadersView));
         OnPropertyChanged(nameof(IsResponseRawView));
+        OnPropertyChanged(nameof(IsResponseConsoleView));
     }
 
     // ---- Load / map --------------------------------------------------------
@@ -606,6 +622,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             IsResponseBodyJson = false;
             ResponseHeadersText = string.Empty;
             ResponseRaw = response.ErrorMessage ?? string.Empty;
+            ResponseConsole = response.ConsoleText;
             return;
         }
 
@@ -631,8 +648,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         raw.AppendLine();
         raw.Append(response.Body);
         ResponseRaw = raw.ToString();
+        ResponseConsole = response.ConsoleText;
     }
-
     private static string CategoryFor(int statusCode) => statusCode switch
     {
         >= 200 and < 300 => "success",

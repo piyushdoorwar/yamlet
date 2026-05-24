@@ -14,6 +14,9 @@ public sealed class YamletResponse
     public List<YamletHeader> Headers { get; set; } = new();
     public string Body { get; set; } = string.Empty;
 
+    /// <summary>Readable console snapshot of the exact resolved request and response.</summary>
+    public string ConsoleText { get; set; } = string.Empty;
+
     /// <summary>Content-Type of the response body, when reported by the server.</summary>
     public string ContentType { get; set; } = string.Empty;
 

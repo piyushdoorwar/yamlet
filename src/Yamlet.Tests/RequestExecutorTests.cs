@@ -208,6 +208,38 @@ public class RequestExecutorTests
     }
 
     [Fact]
+    public async Task Execute_ReturnsConsoleSnapshotWithResolvedRequestAndResponse()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"ok\":true}", Encoding.UTF8, "application/json"),
+        };
+        var (executor, _) = CreateExecutor(response);
+
+        var request = new YamletRequest
+        {
+            Method = "POST",
+            Url = "{{baseUrl}}/users",
+            Headers = { new YamletHeader { Key = "X-Trace", Value = "{{traceId}}", Enabled = true } },
+            Body = new YamletRequestBody { Type = YamletBodyType.Json, Raw = "{\"name\":\"{{name}}\"}" },
+        };
+        var context = VariableContext.Create(null, null, new List<YamletVariable>
+        {
+            new() { Key = "baseUrl", Value = "https://api.test", Enabled = true },
+            new() { Key = "traceId", Value = "abc", Enabled = true },
+            new() { Key = "name", Value = "Yamlet", Enabled = true },
+        }, null);
+
+        var result = await executor.ExecuteAsync(request, context);
+
+        Assert.Contains("POST https://api.test/users", result.ConsoleText);
+        Assert.Contains("X-Trace: abc", result.ConsoleText);
+        Assert.Contains("{\"name\":\"Yamlet\"}", result.ConsoleText);
+        Assert.Contains("HTTP 200 OK", result.ConsoleText);
+        Assert.Contains("{\"ok\":true}", result.ConsoleText);
+    }
+
+    [Fact]
     public async Task Execute_SendsUrlEncodedBody()
     {
         var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));

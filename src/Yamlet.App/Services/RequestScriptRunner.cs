@@ -72,6 +72,12 @@ public sealed class RequestScriptRunner
     {
         var engine = new Engine(options => options.TimeoutInterval(ScriptTimeout));
 
+        // Resolves {{placeholders}} (including dynamic $variables) against the live scopes
+        // at call time, so pm.variables.replaceIn('{{$randomFirstName}}') works in scripts.
+        var resolver = new VariableResolver();
+        engine.SetValue("__replaceIn", (Func<string, string>)(template =>
+            resolver.Resolve(template, variables.ToContext())));
+
         engine.SetValue("__getVariable", (Func<string, string?>)(variables.GetLocal));
         engine.SetValue("__setVariable", (Action<string, string>)(variables.SetLocal));
         engine.SetValue("__unsetVariable", (Action<string>)(variables.UnsetLocal));
@@ -147,7 +153,8 @@ const __variables = {
   get: key => __getVariable(String(key)),
   set: (key, value) => __setVariable(String(key), __toText(value)),
   unset: key => __unsetVariable(String(key)),
-  has: key => __getVariable(String(key)) !== null
+  has: key => __getVariable(String(key)) !== null,
+  replaceIn: template => __replaceIn(__toText(template))
 };
 const __environmentVariables = {
   get: key => __getEnvironmentVariable(String(key)),
@@ -168,6 +175,7 @@ const __globalVariables = {
   has: key => __getGlobalVariable(String(key)) !== null
 };
 const pm = {
+  replaceIn: template => __replaceIn(__toText(template)),
   variables: __variables,
   environment: __environmentVariables,
   collectionVariables: __collectionVariables,

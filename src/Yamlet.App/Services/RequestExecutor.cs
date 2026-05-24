@@ -62,6 +62,7 @@ public sealed class RequestExecutor
         string? collectionPostResponseScript = null)
     {
         Stopwatch? httpStopwatch = null;
+        string consoleText = string.Empty;
         try
         {
             var activeRequest = CloneRequest(request);
@@ -75,6 +76,7 @@ public sealed class RequestExecutor
                 : null;
 
             using var message = BuildMessage(activeRequest, activeContext, collectionAuth, oauthToken);
+            consoleText = await BuildConsoleRequestTextAsync(message, cancellationToken).ConfigureAwait(false);
             httpStopwatch = Stopwatch.StartNew();
             using var response = await _client
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
@@ -93,6 +95,7 @@ public sealed class RequestExecutor
                 Body = DecodeBody(bytes, response.Content.Headers),
                 Headers = CollectHeaders(response),
             };
+            result.ConsoleText = BuildConsoleText(consoleText, result);
 
             _scripts.RunPostResponse(activeRequest, result, scriptVariables, collectionPostResponseScript);
             await scriptVariables.PersistAsync().ConfigureAwait(false);
@@ -101,12 +104,16 @@ public sealed class RequestExecutor
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             httpStopwatch?.Stop();
-            return YamletResponse.FromError("Request was cancelled.", httpStopwatch?.ElapsedMilliseconds ?? 0);
+            var result = YamletResponse.FromError("Request was cancelled.", httpStopwatch?.ElapsedMilliseconds ?? 0);
+            result.ConsoleText = BuildConsoleText(consoleText, result);
+            return result;
         }
         catch (Exception ex)
         {
             httpStopwatch?.Stop();
-            return YamletResponse.FromError(ex.Message, httpStopwatch?.ElapsedMilliseconds ?? 0);
+            var result = YamletResponse.FromError(ex.Message, httpStopwatch?.ElapsedMilliseconds ?? 0);
+            result.ConsoleText = BuildConsoleText(consoleText, result);
+            return result;
         }
     }
 
@@ -396,6 +403,90 @@ public sealed class RequestExecutor
         catch (ArgumentException)
         {
             return Encoding.UTF8.GetString(bytes);
+        }
+    }
+
+    private static async Task<string> BuildConsoleRequestTextAsync(
+        HttpRequestMessage message,
+        CancellationToken cancellationToken)
+    {
+        var sb = new StringBuilder();
+        sb.Append(message.Method.Method).Append(' ').AppendLine(message.RequestUri?.ToString() ?? string.Empty);
+        sb.AppendLine();
+        sb.AppendLine("Request Headers");
+        AppendHeaders(sb, message.Headers.Select(h => (h.Key, Value: string.Join(", ", h.Value))));
+
+        if (message.Content is not null)
+        {
+            var contentHeaders = message.Content.Headers
+                .Select(h => (h.Key, Value: string.Join(", ", h.Value)))
+                .ToList();
+            if (contentHeaders.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Content Headers");
+                AppendHeaders(sb, contentHeaders);
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("Request Body");
+            if (message.Content is StreamContent or MultipartContent)
+            {
+                sb.AppendLine("[stream body omitted]");
+            }
+            else
+            {
+                var body = await message.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                sb.AppendLine(string.IsNullOrEmpty(body) ? "[empty]" : body);
+            }
+        }
+        else
+        {
+            sb.AppendLine();
+            sb.AppendLine("Request Body");
+            sb.AppendLine("[empty]");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string BuildConsoleText(string requestText, YamletResponse response)
+    {
+        var sb = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(requestText))
+        {
+            sb.AppendLine(requestText);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("Response");
+        if (response.IsError)
+        {
+            sb.Append("Error: ").AppendLine(response.ErrorMessage ?? "Request failed.");
+            return sb.ToString().TrimEnd();
+        }
+
+        sb.Append("HTTP ").Append(response.StatusCode).Append(' ').AppendLine(response.ReasonPhrase);
+        sb.AppendLine("Response Headers");
+        AppendHeaders(sb, response.Headers.Select(h => (h.Key, h.Value)));
+        sb.AppendLine();
+        sb.AppendLine("Response Body");
+        sb.AppendLine(string.IsNullOrEmpty(response.Body) ? "[empty]" : response.Body);
+        return sb.ToString().TrimEnd();
+    }
+
+    private static void AppendHeaders(StringBuilder sb, IEnumerable<(string Key, string Value)> headers)
+    {
+        var any = false;
+        foreach (var (key, value) in headers)
+        {
+            any = true;
+            sb.Append("  ").Append(key).Append(": ").AppendLine(value);
+        }
+
+        if (!any)
+        {
+            sb.AppendLine("  [none]");
         }
     }
 

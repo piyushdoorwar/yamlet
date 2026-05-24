@@ -61,7 +61,7 @@ src/
                    VariableSetEditorViewModel, RunnerViewModel, OpenTabViewModel,
                    tree node VMs, EditableRowsViewModel
     Views/         Avalonia XAML: MainWindow, RequestEditorView, CollectionSettingsView,
-                   VariableSetEditorView, InputDialog
+                   VariableSetEditorView, InputDialog, AboutDialog
     Controls/      CodeEditorView (+ IVariableSource, JsonFoldingStrategy), KeyValueGridView,
                    YamletLogo, value converters
     Themes/        Colors.axaml, Icons.axaml, Yamlet.axaml (styles)
@@ -90,6 +90,10 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
 - **Sidebar is a single accordion** (COLLECTIONS + ENVIRONMENTS), not an icon rail.
   Globals/History/Settings were intentionally removed from the UI. Selecting an
   environment both opens its editor and makes it the active one for variable resolution.
+  The workspace header carries an **info button** (`IconInfo`) that opens
+  [AboutDialog](src/Yamlet.App/Views/AboutDialog.axaml) — a modal showing the app version
+  (`AssemblyInformationalVersion`), OS/architecture/.NET, and GitHub/Releases links
+  (opened via `Process.Start(UseShellExecute)`).
 - **App cache is user-local JSON, not workspace YAML.** `RecentWorkspaceService` stores,
   under the user's app-data directory: recent workspace paths, and per workspace — the
   selected environment, the open tabs + active tab (a `WorkspaceSession`), and the
@@ -101,6 +105,16 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
   are visible, not silently blanked).
+- **Dynamic variables** (Postman-style `$guid`, `$timestamp`, `$random*`, …) are our own
+  implementation in [DynamicVariables.cs](src/Yamlet.App/Services/DynamicVariables.cs) — no
+  faker dependency. `VariableResolver` falls back to `DynamicVariables.TryGenerate` when a
+  `{{$name}}` placeholder isn't a user variable, so **user variables always win** and each
+  occurrence generates a **fresh** value (matching Postman). Scripts get
+  `pm.variables.replaceIn('{{$randomFirstName}}')` (and `pm.replaceIn`) wired in
+  [RequestScriptRunner.cs](src/Yamlet.App/Services/RequestScriptRunner.cs). In
+  `CodeEditorView`, typing `$` pops an autocomplete list of the full catalog; dynamic
+  placeholders highlight as defined (amber) and hover-peek shows their description +
+  example instead of the editable inspector (they aren't settable).
 - **Every sent request includes Yamlet's default user agent.** `RequestExecutor` always
   sends `User-Agent: Yamlet/1.0.0`; the request Headers tab shows it as a locked row,
   and saved request YAML does not persist or allow overriding that generated header.
@@ -176,6 +190,15 @@ Conventions / gotchas:
   `packaging/windows/Assets/*.png` MSIX tiles. Regenerate them if the mark changes.
 - Build output lands under `artifacts/` (gitignored).
 
+### Marketing site (GitHub Pages)
+
+A static site lives in [site/](site/) (home / releases / privacy pages, warm-dark + green
+theme matching the app; green buttons keep **white** text). It's deployed by
+[.github/workflows/static.yml](.github/workflows/static.yml) and the releases page is
+generated from GitHub releases by
+[.github/scripts/generate-site-releases.js](.github/scripts/generate-site-releases.js)
+into `releases.json`.
+
 ## Imported-format compatibility (important)
 
 Real workspaces are often exported from another tool and differ from Yamlet's native
@@ -227,7 +250,13 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
   method, without a box. Status labels keep pastel fills with dark text.
 - Shared control styles (compact inputs, buttons, `.accent`/`.ghost`/`.section`/`.title`
   classes, badges, rail icon coloring) live in
-  [Themes/Yamlet.axaml](src/Yamlet.App/Themes/Yamlet.axaml).
+  [Themes/Yamlet.axaml](src/Yamlet.App/Themes/Yamlet.axaml). **Scrollbars are thin
+  (~9px) with green (`AccentBrush`) thumbs app-wide** — styled there, not per-view. The
+  collections tree disables horizontal scrolling and trims long names with an ellipsis
+  (no horizontal scrollbar); tree rows show a soft-green (`AccentSoftBrush`) hover and a
+  solid-green selected state.
+- **The Send action is an SVG paper-plane** (`IconSend`), rendered as a *stroked* `Path`
+  (white stroke), not a filled `PathIcon` — its geometry is outline-based.
 - **In `Styles` files, reference theme brushes with `DynamicResource`, not
   `StaticResource`** — a `Styles` file can't resolve `StaticResource` against
   `Application.Resources` at build time (it throws at startup). `StaticResource` is fine
@@ -246,7 +275,8 @@ multipart text and file fields, request **and** collection-level scripts, save &
 YAML (incl. exported `.resources/definition.yaml`), top-level unknown YAML key
 preservation, send via HttpClient, condensed response (status/duration/size +
 Body/Headers/Raw dropdown), generated cURL snippets, per-request send history, variable
-resolution with inline `{{}}` highlighting / hover-peek / click-edit, JSON code folding,
+resolution with inline `{{}}` highlighting / hover-peek / click-edit, Postman-style
+dynamic variables (`$guid`/`$timestamp`/`$random*`) with `$`-triggered autocomplete, JSON code folding,
 environment editing, multiple **tabs** with session restore (open tabs + active tab +
 environment + response layout), collection/folder **runner** tabs, tree rename/move/
 duplicate/delete actions, and `.deb`/`.exe`/`.msix` packaging.

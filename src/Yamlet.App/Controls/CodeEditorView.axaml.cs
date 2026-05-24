@@ -8,9 +8,12 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using AvaloniaEdit;
+using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Editing;
 using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
+using Yamlet.App.Services;
 
 namespace Yamlet.App.Controls;
 
@@ -48,13 +51,18 @@ public partial class CodeEditorView : UserControl
     public static readonly StyledProperty<IVariableSource?> VariableSourceProperty =
         AvaloniaProperty.Register<CodeEditorView, IVariableSource?>(nameof(VariableSource));
 
+    /// <summary>How a <c>{{placeholder}}</c> should be colored.</summary>
+    private enum VarHighlight { None, Defined, Empty, Undefined }
+
     private readonly TextEditor _editor;
     private readonly IBrush _definedBrush;
+    private readonly IBrush _emptyBrush;
     private readonly IBrush _undefinedBrush;
     private readonly IBrush _jsonKeyBrush;
     private readonly IBrush _jsonValueBrush;
     private readonly JsonFoldingStrategy _foldingStrategy = new();
     private FoldingManager? _foldingManager;
+    private CompletionWindow? _completionWindow;
     private bool _syncing;
     private IVariableSource? _subscribed;
     private string _popupVariable = string.Empty;
@@ -65,6 +73,7 @@ public partial class CodeEditorView : UserControl
         AvaloniaXamlLoader.Load(this);
 
         _definedBrush = FindBrush("VariableDefinedBrush", "#FFE0A458");
+        _emptyBrush = FindBrush("TextMutedBrush", "#FF8A877D");
         _undefinedBrush = FindBrush("VariableUndefinedBrush", "#FFE2655A");
         _jsonKeyBrush = FindBrush("JsonKeyBrush", "#FF9CC0EC");
         _jsonValueBrush = FindBrush("JsonValueBrush", "#FF8FD3A8");
@@ -78,10 +87,11 @@ public partial class CodeEditorView : UserControl
             new JsonSyntaxColorizer(() => string.Equals(Language, "json", StringComparison.OrdinalIgnoreCase),
                 _jsonKeyBrush,
                 _jsonValueBrush));
-        _editor.TextArea.TextView.LineTransformers.Add(new VariableColorizer(VariableState, _definedBrush, _undefinedBrush));
+        _editor.TextArea.TextView.LineTransformers.Add(new VariableColorizer(VariableState, _definedBrush, _emptyBrush, _undefinedBrush));
         _editor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         _editor.TextArea.TextView.PointerMoved += OnEditorPointerMoved;
         _editor.TextArea.TextView.PointerExited += OnEditorPointerExited;
+        _editor.TextArea.TextEntered += OnEditorTextEntered;
         UpdateFolding();
     }
 
@@ -205,15 +215,22 @@ public partial class CodeEditorView : UserControl
 
     // ---- Variable inspector --------------------------------------------------
 
-    private bool? VariableState(string name)
+    private VarHighlight VariableState(string name)
     {
         var source = VariableSource;
-        if (source is null)
+        if (source is not null && source.TryGetValue(name, out var value))
         {
-            return null;
+            // Resolves, but the value is empty → grey, so blank variables are visible.
+            return string.IsNullOrEmpty(value) ? VarHighlight.Empty : VarHighlight.Defined;
         }
 
-        return source.TryGetValue(name, out _);
+        // Dynamic variables ($guid, $random*, …) always resolve at send time → amber.
+        if (DynamicVariables.IsDynamic(name))
+        {
+            return VarHighlight.Defined;
+        }
+
+        return source is null ? VarHighlight.None : VarHighlight.Undefined;
     }
 
     private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -225,6 +242,12 @@ public partial class CodeEditorView : UserControl
 
         var name = VariableAt(e.GetPosition(_editor.TextArea.TextView));
         if (name is null)
+        {
+            return;
+        }
+
+        // Dynamic variables ($guid, $random*) are generated, not settable — no inspector.
+        if (Yamlet.App.Services.DynamicVariables.IsDynamic(name) && !VariableSource.TryGetValue(name, out _))
         {
             return;
         }
@@ -260,12 +283,6 @@ public partial class CodeEditorView : UserControl
 
     private void OnEditorPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (VariableSource is null)
-        {
-            ClosePeek();
-            return;
-        }
-
         var name = VariableAt(e.GetPosition(_editor.TextArea.TextView));
         if (name is null)
         {
@@ -287,8 +304,13 @@ public partial class CodeEditorView : UserControl
     private void ShowPeek(string name)
     {
         var source = VariableSource;
-        if (source is null)
+        var defined = source is not null && source.TryGetValue(name, out _);
+        var dynamic = !defined ? Yamlet.App.Services.DynamicVariables.Find(name) : null;
+
+        // Nothing to show: not a user variable, not a dynamic one.
+        if (!defined && dynamic is null)
         {
+            ClosePeek();
             return;
         }
 
@@ -297,13 +319,22 @@ public partial class CodeEditorView : UserControl
         var scopeText = this.FindControl<TextBlock>("PeekScopeText")!;
         var popup = this.FindControl<Popup>("VarPeekPopup")!;
 
-        var defined = source.TryGetValue(name, out var value);
         nameText.Text = name;
-        nameText.Foreground = defined ? _definedBrush : _undefinedBrush;
-        valueText.Text = defined
-            ? (string.IsNullOrEmpty(value) ? "(empty)" : value)
-            : "Not defined in any active scope.";
-        scopeText.Text = defined ? $"Resolved with {source.TargetScopeName}" : string.Empty;
+
+        if (defined)
+        {
+            source!.TryGetValue(name, out var value);
+            var empty = string.IsNullOrEmpty(value);
+            nameText.Foreground = empty ? _emptyBrush : _definedBrush;
+            valueText.Text = empty ? "(empty)" : value;
+            scopeText.Text = $"Resolved with {source.TargetScopeName}";
+        }
+        else
+        {
+            nameText.Foreground = _definedBrush;
+            valueText.Text = dynamic!.Description;
+            scopeText.Text = $"Dynamic variable — generated each use (e.g. {dynamic.Example})";
+        }
 
         // Re-anchor at the new pointer location by toggling open state.
         popup.IsOpen = false;
@@ -333,7 +364,9 @@ public partial class CodeEditorView : UserControl
 
         var defined = VariableSource!.TryGetValue(name, out var value);
         nameText.Text = name;
-        nameText.Foreground = defined ? _definedBrush : _undefinedBrush;
+        nameText.Foreground = defined
+            ? (string.IsNullOrEmpty(value) ? _emptyBrush : _definedBrush)
+            : _undefinedBrush;
         statusText.Text = defined ? "Defined — current value:" : "Not defined in any active scope yet.";
         valueBox.Text = defined ? value : string.Empty;
         scopeText.Text = $"Saves to: {VariableSource.TargetScopeName}";
@@ -358,6 +391,60 @@ public partial class CodeEditorView : UserControl
 
     private void OnVarCancelClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
         this.FindControl<Popup>("VarPopup")!.IsOpen = false;
+
+    // ---- Dynamic-variable autocomplete --------------------------------------
+
+    /// <summary>
+    /// Pops a completion list of Postman-style dynamic variables when the user types
+    /// <c>$</c> (typically inside <c>{{ }}</c>). Typing more characters filters the list;
+    /// accepting one inserts the variable name after the <c>$</c>.
+    /// </summary>
+    private void OnEditorTextEntered(object? sender, TextInputEventArgs e)
+    {
+        if (IsReadOnly || e.Text != "$" || _completionWindow is not null)
+        {
+            return;
+        }
+
+        var window = new CompletionWindow(_editor.TextArea)
+        {
+            CloseAutomatically = true,
+            CloseWhenCaretAtBeginning = true,
+        };
+
+        foreach (var dynamic in DynamicVariables.All)
+        {
+            window.CompletionList.CompletionData.Add(new DynamicVariableCompletion(dynamic));
+        }
+
+        window.Closed += (_, _) => _completionWindow = null;
+        _completionWindow = window;
+        window.Show();
+    }
+
+    /// <summary>One row in the dynamic-variable completion popup.</summary>
+    private sealed class DynamicVariableCompletion : ICompletionData
+    {
+        private readonly DynamicVariable _variable;
+
+        public DynamicVariableCompletion(DynamicVariable variable) => _variable = variable;
+
+        // Text excludes the leading "$" (already typed), so accepting inserts the rest.
+        public string Text => _variable.Name.TrimStart('$');
+
+        public IImage? Image => null;
+
+        public object Content => _variable.Name;
+
+        public object Description => string.IsNullOrEmpty(_variable.Example)
+            ? _variable.Description
+            : $"{_variable.Description}\nExample: {_variable.Example}";
+
+        public double Priority => 0;
+
+        public void Complete(TextArea textArea, ISegment completionSegment, EventArgs insertionRequestEventArgs) =>
+            textArea.Document.Replace(completionSegment, Text);
+    }
 
     // ---- Beautify ------------------------------------------------------------
 
@@ -467,17 +554,20 @@ public partial class CodeEditorView : UserControl
         }
     }
 
-    /// <summary>Colors {{placeholder}} spans amber (defined) or red (undefined).</summary>
+    /// <summary>Colors {{placeholder}} spans: amber (defined), grey (resolves but empty),
+    /// or red (undefined).</summary>
     private sealed class VariableColorizer : DocumentColorizingTransformer
     {
-        private readonly Func<string, bool?> _state;
+        private readonly Func<string, VarHighlight> _state;
         private readonly IBrush _defined;
+        private readonly IBrush _empty;
         private readonly IBrush _undefined;
 
-        public VariableColorizer(Func<string, bool?> state, IBrush defined, IBrush undefined)
+        public VariableColorizer(Func<string, VarHighlight> state, IBrush defined, IBrush empty, IBrush undefined)
         {
             _state = state;
             _defined = defined;
+            _empty = empty;
             _undefined = undefined;
         }
 
@@ -486,13 +576,19 @@ public partial class CodeEditorView : UserControl
             var text = CurrentContext.Document.GetText(line);
             foreach (Match match in PlaceholderPattern.Matches(text))
             {
-                var state = _state(match.Groups[1].Value);
-                if (state is null)
+                var brush = _state(match.Groups[1].Value) switch
+                {
+                    VarHighlight.Defined => _defined,
+                    VarHighlight.Empty => _empty,
+                    VarHighlight.Undefined => _undefined,
+                    _ => null,
+                };
+
+                if (brush is null)
                 {
                     continue;
                 }
 
-                var brush = state.Value ? _defined : _undefined;
                 ChangeLinePart(
                     line.Offset + match.Index,
                     line.Offset + match.Index + match.Length,

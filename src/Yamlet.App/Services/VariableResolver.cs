@@ -89,7 +89,19 @@ public sealed class VariableResolver
         return PlaceholderPattern.Replace(input, match =>
         {
             var key = match.Groups[1].Value;
-            return context.TryGet(key, out var value) ? value : match.Value;
+            if (context.TryGet(key, out var value))
+            {
+                return value;
+            }
+
+            // User variables win; fall back to Postman-style dynamic variables ($guid,
+            // $timestamp, $random*) — each occurrence generates a fresh value.
+            if (DynamicVariables.TryGenerate(key, out var generated))
+            {
+                return generated;
+            }
+
+            return match.Value;
         });
     }
 }

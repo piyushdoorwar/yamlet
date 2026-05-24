@@ -283,6 +283,10 @@
                                    Language="text"
                                    IsReadOnly="True"
                                    IsVisible="{Binding IsResponseRawView}" />
+          <controls:CodeEditorView Text="{Binding ResponseConsole}"
+                                   Language="text"
+                                   IsReadOnly="True"
+                                   IsVisible="{Binding IsResponseConsoleView}" />
         </Panel>
       </Grid>
     </Border>

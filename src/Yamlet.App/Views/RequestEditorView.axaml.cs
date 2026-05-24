@@ -164,6 +164,7 @@ public partial class RequestEditorView : UserControl
         {
             "Headers" => viewModel.ResponseHeadersText,
             "Raw" => viewModel.ResponseRaw,
+            "Console" => viewModel.ResponseConsole,
             _ => viewModel.ResponseBody,
         };
 
