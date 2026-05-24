@@ -11,6 +11,8 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>Yamlet.App</RootNamespace>
     <AssemblyName>Yamlet.App</AssemblyName>
+    <!-- Windows .exe icon (ignored when publishing for non-Windows RIDs). -->
+    <ApplicationIcon>../../packaging/windows/yamlet.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
