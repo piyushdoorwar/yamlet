@@ -10,6 +10,7 @@ public enum OpenTabKind
     Request,
     Environment,
     Collection,
+    Runner,
 }
 
 /// <summary>
@@ -21,6 +22,8 @@ public sealed partial class OpenTabViewModel : ViewModelBase
 {
     private readonly Action<OpenTabViewModel> _activate;
     private readonly Action<OpenTabViewModel> _close;
+    private readonly Action<OpenTabViewModel> _closeOthers;
+    private readonly Action _closeAll;
 
     public OpenTabViewModel(
         object key,
@@ -29,6 +32,8 @@ public sealed partial class OpenTabViewModel : ViewModelBase
         string title,
         Action<OpenTabViewModel> activate,
         Action<OpenTabViewModel> close,
+        Action<OpenTabViewModel> closeOthers,
+        Action closeAll,
         string method = "GET")
     {
         Key = key;
@@ -38,6 +43,8 @@ public sealed partial class OpenTabViewModel : ViewModelBase
         _method = method;
         _activate = activate;
         _close = close;
+        _closeOthers = closeOthers;
+        _closeAll = closeAll;
     }
 
     /// <summary>Identity used to find an already-open tab (the node or environment).</summary>
@@ -60,6 +67,7 @@ public sealed partial class OpenTabViewModel : ViewModelBase
     public bool IsRequest => Kind == OpenTabKind.Request;
     public bool IsEnvironment => Kind == OpenTabKind.Environment;
     public bool IsCollection => Kind == OpenTabKind.Collection;
+    public bool IsRunner => Kind == OpenTabKind.Runner;
 
     public string MethodLabel => FormatMethod(Method);
 
@@ -76,4 +84,10 @@ public sealed partial class OpenTabViewModel : ViewModelBase
 
     [RelayCommand]
     private void Close() => _close(this);
+
+    [RelayCommand]
+    private void CloseOthers() => _closeOthers(this);
+
+    [RelayCommand]
+    private void CloseAll() => _closeAll();
 }

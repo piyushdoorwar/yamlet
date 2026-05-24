@@ -1,3 +1,4 @@
+using YamlDotNet.Serialization;
 using Yamlet.App.Models;
 
 namespace Yamlet.App.Services;
@@ -33,6 +34,9 @@ public sealed class AuthDto
     public string? In { get; set; }
     public string? Cookie { get; set; }
 
+    /// <summary>OAuth2 settings, written under <c>credentials:</c> (as exported files do).</summary>
+    public OAuth2CredentialsDto? Credentials { get; set; }
+
     public static AuthDto FromDomain(YamletAuth a) => new()
     {
         Type = a.Type switch
@@ -41,6 +45,7 @@ public sealed class AuthDto
             YamletAuthType.Basic => "basic",
             YamletAuthType.ApiKey => "apikey",
             YamletAuthType.Cookie => "cookie",
+            YamletAuthType.OAuth2 => "oauth2",
             _ => "noauth",
         },
         Token = NullIfEmpty(a.Token),
@@ -52,6 +57,7 @@ public sealed class AuthDto
         In = a.Type == YamletAuthType.ApiKey
             ? (a.ApiKeyIn == ApiKeyLocation.Query ? "query" : "header")
             : null,
+        Credentials = a.Type == YamletAuthType.OAuth2 ? OAuth2CredentialsDto.FromDomain(a.OAuth2) : null,
     };
 
     public YamletAuth ToDomain() => new()
@@ -63,6 +69,7 @@ public sealed class AuthDto
             "apikey" => YamletAuthType.ApiKey,
             "api-key" => YamletAuthType.ApiKey,
             "cookie" => YamletAuthType.Cookie,
+            "oauth2" => YamletAuthType.OAuth2,
             "inherit" => YamletAuthType.Inherit,
             "inherited" => YamletAuthType.Inherit,
             "noauth" => YamletAuthType.None,
@@ -78,6 +85,93 @@ public sealed class AuthDto
         ApiKeyIn = string.Equals(In, "query", StringComparison.OrdinalIgnoreCase)
             ? ApiKeyLocation.Query
             : ApiKeyLocation.Header,
+        OAuth2 = Credentials?.ToDomain() ?? new YamletOAuth2(),
+    };
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
+}
+
+/// <summary>
+/// On-disk shape of an OAuth2 <c>credentials</c> block. Mixes camelCase and snake_case
+/// keys (as exported files do), so snake_case fields carry explicit aliases.
+/// </summary>
+public sealed class OAuth2CredentialsDto
+{
+    public string? TokenType { get; set; }
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public string? AccessTokenUrl { get; set; }
+    public string? AuthUrl { get; set; }
+    public string? ClientId { get; set; }
+    public string? ClientSecret { get; set; }
+    public string? Scope { get; set; }
+    public string? TokenName { get; set; }
+    public string? ChallengeAlgorithm { get; set; }
+    public string? AddTokenTo { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+
+    [YamlMember(Alias = "grant_type")]
+    public string? GrantType { get; set; }
+
+    [YamlMember(Alias = "redirect_uri")]
+    public string? RedirectUri { get; set; }
+
+    [YamlMember(Alias = "client_authentication")]
+    public string? ClientAuthentication { get; set; }
+
+    public static OAuth2CredentialsDto FromDomain(YamletOAuth2 o) => new()
+    {
+        TokenType = NullIfEmpty(o.HeaderPrefix),
+        AccessToken = NullIfEmpty(o.AccessToken),
+        RefreshToken = NullIfEmpty(o.RefreshToken),
+        AccessTokenUrl = NullIfEmpty(o.AccessTokenUrl),
+        AuthUrl = NullIfEmpty(o.AuthUrl),
+        ClientId = NullIfEmpty(o.ClientId),
+        ClientSecret = NullIfEmpty(o.ClientSecret),
+        Scope = NullIfEmpty(o.Scope),
+        ChallengeAlgorithm = NullIfEmpty(o.ChallengeAlgorithm),
+        Username = NullIfEmpty(o.Username),
+        Password = NullIfEmpty(o.Password),
+        AddTokenTo = o.AddTokenTo == OAuth2TokenLocation.Query ? "queryParams" : "header",
+        ClientAuthentication = o.ClientAuthentication == OAuth2ClientAuthentication.Body ? "body" : "header",
+        GrantType = o.GrantType switch
+        {
+            OAuth2GrantType.AuthorizationCode => "authorization_code",
+            OAuth2GrantType.Password => "password_credentials",
+            _ => "client_credentials",
+        },
+        RedirectUri = NullIfEmpty(o.RedirectUri),
+    };
+
+    public YamletOAuth2 ToDomain() => new()
+    {
+        GrantType = (GrantType ?? "client_credentials").ToLowerInvariant() switch
+        {
+            "authorization_code" => OAuth2GrantType.AuthorizationCode,
+            "password_credentials" => OAuth2GrantType.Password,
+            "password" => OAuth2GrantType.Password,
+            _ => OAuth2GrantType.ClientCredentials,
+        },
+        AccessToken = AccessToken ?? string.Empty,
+        RefreshToken = RefreshToken ?? string.Empty,
+        HeaderPrefix = string.IsNullOrWhiteSpace(TokenType) ? "Bearer" : TokenType!,
+        AccessTokenUrl = AccessTokenUrl ?? string.Empty,
+        AuthUrl = AuthUrl ?? string.Empty,
+        ClientId = ClientId ?? string.Empty,
+        ClientSecret = ClientSecret ?? string.Empty,
+        Scope = Scope ?? string.Empty,
+        RedirectUri = RedirectUri ?? string.Empty,
+        Username = Username ?? string.Empty,
+        Password = Password ?? string.Empty,
+        AddTokenTo = string.Equals(AddTokenTo, "queryParams", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(AddTokenTo, "query", StringComparison.OrdinalIgnoreCase)
+            ? OAuth2TokenLocation.Query
+            : OAuth2TokenLocation.Header,
+        ClientAuthentication = string.Equals(ClientAuthentication, "body", StringComparison.OrdinalIgnoreCase)
+            ? OAuth2ClientAuthentication.Body
+            : OAuth2ClientAuthentication.BasicHeader,
+        ChallengeAlgorithm = string.IsNullOrWhiteSpace(ChallengeAlgorithm) ? "S256" : ChallengeAlgorithm!,
     };
 
     private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
@@ -88,8 +182,13 @@ public sealed class BodyDto
     public string Type { get; set; } = "none";
     public string? Raw { get; set; }
 
-    /// <summary>Alternate payload key used by exported files (alias for <see cref="Raw"/>).</summary>
-    public string? Content { get; set; }
+    /// <summary>
+    /// Alternate payload key used by exported files. For raw/JSON bodies this is the
+    /// string payload (alias for <see cref="Raw"/>); for <c>form-data</c> /
+    /// <c>x-www-form-urlencoded</c> bodies it is a list of field entries. Typed as
+    /// <see cref="object"/> so both scalar and list shapes deserialize.
+    /// </summary>
+    public object? Content { get; set; }
 
     public static BodyDto FromDomain(YamletRequestBody b) => new()
     {
@@ -101,7 +200,12 @@ public sealed class BodyDto
             YamletBodyType.UrlEncoded => "x-www-form-urlencoded",
             _ => "none",
         },
-        Raw = string.IsNullOrEmpty(b.Raw) ? null : b.Raw,
+        Raw = b.Type is YamletBodyType.FormData or YamletBodyType.UrlEncoded
+            ? null
+            : string.IsNullOrEmpty(b.Raw) ? null : b.Raw,
+        Content = b.Type is YamletBodyType.FormData or YamletBodyType.UrlEncoded
+            ? b.Fields.Where(f => !string.IsNullOrWhiteSpace(f.Key)).Select(FormFieldDto.FromDomain).ToList()
+            : null,
     };
 
     public YamletRequestBody ToDomain() => new()
@@ -111,20 +215,148 @@ public sealed class BodyDto
             "raw" => YamletBodyType.Raw,
             "json" => YamletBodyType.Json,
             "form-data" => YamletBodyType.FormData,
+            "formdata" => YamletBodyType.FormData,
             "x-www-form-urlencoded" => YamletBodyType.UrlEncoded,
+            "urlencoded" => YamletBodyType.UrlEncoded,
             "text" => YamletBodyType.Raw,
             "xml" => YamletBodyType.Raw,
             _ => YamletBodyType.None,
         },
-        Raw = Raw ?? Content ?? string.Empty,
+        Raw = Raw ?? (Content as string) ?? string.Empty,
+        Fields = ParseFields(Content),
     };
+
+    private static List<YamletBodyField> ParseFields(object? raw)
+    {
+        var result = new List<YamletBodyField>();
+        if (raw is not System.Collections.IEnumerable list || raw is string)
+        {
+            return result;
+        }
+
+        foreach (var item in list)
+        {
+            if (item is IDictionary<object, object> map)
+            {
+                result.Add(FormFieldDto.FromMap(map).ToDomain());
+            }
+        }
+
+        return result;
+    }
 }
 
-/// <summary>A pre-request or post-response script entry, e.g. <c>{ type: afterResponse, code: ... }</c>.</summary>
+public sealed class FormFieldDto
+{
+    public string Type { get; set; } = "text";
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public string? Description { get; set; }
+    public bool Enabled { get; set; } = true;
+    public bool? Disabled { get; set; }
+
+    /// <summary>File paths from imported form-data bodies.</summary>
+    public object? Src { get; set; }
+
+    public bool IsEnabled => Disabled.HasValue ? !Disabled.Value : Enabled;
+
+    public static FormFieldDto FromDomain(YamletBodyField f) => new()
+    {
+        Type = f.IsFile ? "file" : "text",
+        Key = f.Key,
+        Value = f.IsFile ? null : NullIfEmpty(f.Value),
+        Description = NullIfEmpty(f.Description),
+        Enabled = f.Enabled,
+        Src = f.IsFile ? new[] { TrimFilePrefix(f.Value) } : null,
+    };
+
+    public YamletBodyField ToDomain() => new()
+    {
+        Key = Key,
+        Value = string.Equals(Type, "file", StringComparison.OrdinalIgnoreCase)
+            ? FirstSrc(Src)
+            : Value ?? string.Empty,
+        Description = Description ?? (string.Equals(Type, "file", StringComparison.OrdinalIgnoreCase) ? "file" : string.Empty),
+        Enabled = IsEnabled,
+        IsFile = string.Equals(Type, "file", StringComparison.OrdinalIgnoreCase),
+    };
+
+    public static FormFieldDto FromMap(IDictionary<object, object> map) => new()
+    {
+        Type = Lookup(map, "type", "text"),
+        Key = Lookup(map, "key"),
+        Value = Lookup(map, "value"),
+        Description = Lookup(map, "description"),
+        Enabled = !string.Equals(Lookup(map, "enabled"), "false", StringComparison.OrdinalIgnoreCase),
+        Disabled = bool.TryParse(Lookup(map, "disabled"), out var disabled) ? disabled : null,
+        Src = map.TryGetValue("src", out var src) ? src : null,
+    };
+
+    private static string FirstSrc(object? src)
+    {
+        if (src is System.Collections.IEnumerable list and not string)
+        {
+            foreach (var item in list)
+            {
+                return item?.ToString() ?? string.Empty;
+            }
+        }
+
+        return src?.ToString() ?? string.Empty;
+    }
+
+    private static string Lookup(IDictionary<object, object> map, string key, string fallback = "") =>
+        map.TryGetValue(key, out var value) ? value?.ToString() ?? fallback : fallback;
+
+    private static string TrimFilePrefix(string value) =>
+        value.StartsWith('@') ? value[1..] : value;
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
+}
+
+/// <summary>
+/// A pre-request or post-response script entry, e.g. <c>{ type: afterResponse, code: ... }</c>.
+/// The <c>type</c> is recognised loosely so both Yamlet (<c>preRequest</c>/<c>afterResponse</c>)
+/// and exported (<c>http:beforeRequest</c>/<c>http:afterResponse</c>) forms work.
+/// </summary>
 public sealed class ScriptDto
 {
     public string Type { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+
+    public static bool IsPreType(string? type)
+    {
+        var t = (type ?? string.Empty).ToLowerInvariant().Replace("-", string.Empty);
+        return t.Contains("pre") || t.Contains("before");
+    }
+
+    /// <summary>Joins the code of all entries matching the requested phase.</summary>
+    public static string JoinByPhase(IEnumerable<ScriptDto>? scripts, bool isPre)
+    {
+        if (scripts is null)
+        {
+            return string.Empty;
+        }
+
+        return string.Join("\n\n", scripts
+            .Where(s => IsPreType(s.Type) == isPre && !string.IsNullOrEmpty(s.Code))
+            .Select(s => s.Code));
+    }
+
+    /// <summary>Builds the script list to persist from a pre/post code pair.</summary>
+    public static List<ScriptDto>? Build(string pre, string post)
+    {
+        var list = new List<ScriptDto>();
+        if (!string.IsNullOrEmpty(pre))
+        {
+            list.Add(new ScriptDto { Type = "preRequest", Code = pre });
+        }
+        if (!string.IsNullOrEmpty(post))
+        {
+            list.Add(new ScriptDto { Type = "afterResponse", Code = post });
+        }
+        return list.Count == 0 ? null : list;
+    }
 }
 
 /// <summary>On-disk shape of a single request YAML file.</summary>
@@ -246,45 +478,10 @@ public sealed class RequestDto
     private static string Lookup(IDictionary<object, object> map, string key) =>
         map.TryGetValue(key, out var value) ? value?.ToString() ?? string.Empty : string.Empty;
 
-    /// <summary>
-    /// Joins the code of all script entries whose <c>type</c> matches the requested
-    /// phase. Pre-request types are recognised loosely (<c>preRequest</c>,
-    /// <c>beforeRequest</c>, …); everything else (e.g. <c>afterResponse</c>, <c>test</c>)
-    /// counts as post-response.
-    /// </summary>
-    private string ScriptOfKind(bool isPre)
-    {
-        if (Scripts is null || Scripts.Count == 0)
-        {
-            return string.Empty;
-        }
+    private string ScriptOfKind(bool isPre) => ScriptDto.JoinByPhase(Scripts, isPre);
 
-        var matches = Scripts
-            .Where(s => IsPreType(s.Type) == isPre && !string.IsNullOrEmpty(s.Code))
-            .Select(s => s.Code);
-
-        return string.Join("\n\n", matches);
-    }
-
-    private static bool IsPreType(string? type)
-    {
-        var t = (type ?? string.Empty).ToLowerInvariant().Replace("-", string.Empty);
-        return t.Contains("pre") || t.Contains("before");
-    }
-
-    private static List<ScriptDto>? BuildScripts(YamletRequest r)
-    {
-        var list = new List<ScriptDto>();
-        if (!string.IsNullOrEmpty(r.PreRequestScript))
-        {
-            list.Add(new ScriptDto { Type = "preRequest", Code = r.PreRequestScript });
-        }
-        if (!string.IsNullOrEmpty(r.PostResponseScript))
-        {
-            list.Add(new ScriptDto { Type = "afterResponse", Code = r.PostResponseScript });
-        }
-        return list.Count == 0 ? null : list;
-    }
+    private static List<ScriptDto>? BuildScripts(YamletRequest r) =>
+        ScriptDto.Build(r.PreRequestScript, r.PostResponseScript);
 
     private static string? NullIfEmpty(string s) => string.IsNullOrEmpty(s) ? null : s;
 }
@@ -296,6 +493,7 @@ public sealed class CollectionDto
     public string Name { get; set; } = string.Empty;
     public List<KeyValueDto>? Variables { get; set; }
     public AuthDto? Auth { get; set; }
+    public List<ScriptDto>? Scripts { get; set; }
 
     public static CollectionDto FromDomain(YamletCollection c) => new()
     {
@@ -305,17 +503,92 @@ public sealed class CollectionDto
         Variables = c.Variables.Count == 0 ? null : c.Variables
             .Select(v => new KeyValueDto { Key = v.Key, Value = v.Value, Enabled = v.Enabled })
             .ToList(),
+        Scripts = ScriptDto.Build(c.PreRequestScript, c.PostResponseScript),
     };
+
+    /// <summary>
+    /// Applies this metadata onto a collection. Merge-friendly: only fields actually
+    /// present override what's already there, so a <c>collection.yaml</c> can sit
+    /// alongside an exported <c>.resources/definition.yaml</c> without wiping it.
+    /// </summary>
+    public void ApplyTo(YamletCollection c)
+    {
+        if (!string.IsNullOrWhiteSpace(Id))
+        {
+            c.Id = Id;
+        }
+        if (!string.IsNullOrWhiteSpace(Name))
+        {
+            c.Name = Name;
+        }
+        if (Auth is not null)
+        {
+            c.Auth = Auth.ToDomain();
+        }
+        if (Variables is { Count: > 0 })
+        {
+            c.Variables = Variables.Select(v => new YamletVariable
+            {
+                Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
+            }).ToList();
+        }
+
+        var pre = ScriptDto.JoinByPhase(Scripts, isPre: true);
+        var post = ScriptDto.JoinByPhase(Scripts, isPre: false);
+        if (!string.IsNullOrEmpty(pre))
+        {
+            c.PreRequestScript = pre;
+        }
+        if (!string.IsNullOrEmpty(post))
+        {
+            c.PostResponseScript = post;
+        }
+    }
+}
+
+/// <summary>
+/// On-disk shape of an exported collection's <c>.resources/definition.yaml</c>: a
+/// collection's variables (as a name→value map), auth (as a list of schemes), and
+/// collection-scope scripts. Read as a metadata source for collections that lack a
+/// native <c>collection.yaml</c> (or to supply collection-level scripts).
+/// </summary>
+public sealed class CollectionDefinitionDto
+{
+    public string? Name { get; set; }
+    public Dictionary<string, string>? Variables { get; set; }
+    public List<AuthDto>? Auth { get; set; }
+    public List<ScriptDto>? Scripts { get; set; }
 
     public void ApplyTo(YamletCollection c)
     {
-        c.Id = string.IsNullOrWhiteSpace(Id) ? c.Id : Id;
-        c.Name = Name;
-        c.Auth = Auth is null ? new YamletAuth { Type = YamletAuthType.None } : Auth.ToDomain();
-        c.Variables = (Variables ?? new()).Select(v => new YamletVariable
+        if (!string.IsNullOrWhiteSpace(Name))
         {
-            Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
-        }).ToList();
+            c.Name = Name;
+        }
+        if (Variables is { Count: > 0 })
+        {
+            c.Variables = Variables.Select(kv => new YamletVariable
+            {
+                Key = kv.Key, Value = kv.Value ?? string.Empty, Enabled = true,
+            }).ToList();
+        }
+
+        var auth = Auth?.FirstOrDefault();
+        if (auth is not null)
+        {
+            c.Auth = auth.ToDomain();
+        }
+
+        var pre = ScriptDto.JoinByPhase(Scripts, isPre: true);
+        var post = ScriptDto.JoinByPhase(Scripts, isPre: false);
+        if (!string.IsNullOrEmpty(pre))
+        {
+            c.PreRequestScript = pre;
+        }
+        if (!string.IsNullOrEmpty(post))
+        {
+            c.PostResponseScript = post;
+        }
     }
 }
 

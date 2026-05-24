@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yamlet.App.ViewModels"
+             xmlns:controls="using:Yamlet.App.Controls"
              x:Class="Yamlet.App.Views.CollectionSettingsView"
              x:DataType="vm:CollectionSettingsViewModel">
 
@@ -31,24 +32,110 @@
             </StackPanel>
           </TabItem.Header>
 
-          <StackPanel Margin="0,10,0,0" Spacing="12" MaxWidth="560" HorizontalAlignment="Left">
-            <TextBox Text="{Binding Name}" PlaceholderText="Collection name" />
+          <ScrollViewer>
+            <StackPanel Margin="0,10,0,0" Spacing="12" MaxWidth="560" HorizontalAlignment="Left">
+              <TextBox Text="{Binding Name}" PlaceholderText="Collection name" />
 
-            <ComboBox Width="220"
-                      HorizontalAlignment="Left"
-                      ItemsSource="{Binding AuthTypes}"
-                      SelectedItem="{Binding SelectedAuthType}" />
+              <ComboBox Width="260"
+                        HorizontalAlignment="Left"
+                        ItemsSource="{Binding AuthTypes}"
+                        SelectedItem="{Binding SelectedAuthType}" />
 
-            <StackPanel Spacing="6" IsVisible="{Binding IsBearerVisible}">
-              <TextBlock Classes="heading" Text="TOKEN" />
-              <TextBox Text="{Binding BearerToken}" PlaceholderText="Bearer token" />
+              <StackPanel Spacing="6" IsVisible="{Binding IsBearerVisible}">
+                <TextBlock Classes="heading" Text="TOKEN" />
+                <TextBox Text="{Binding BearerToken}" PlaceholderText="Bearer token" />
+              </StackPanel>
+
+              <StackPanel Spacing="6" IsVisible="{Binding IsCookieVisible}">
+                <TextBlock Classes="heading" Text="COOKIE" />
+                <TextBox Text="{Binding Cookie}" PlaceholderText="name=value; other=value" />
+              </StackPanel>
+
+              <!-- OAuth 2.0 -->
+              <StackPanel Spacing="10" IsVisible="{Binding IsOAuth2Visible}">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="GRANT TYPE" />
+                  <ComboBox Width="260" HorizontalAlignment="Left"
+                            ItemsSource="{Binding GrantTypes}"
+                            SelectedItem="{Binding SelectedGrantType}" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="ACCESS TOKEN URL" />
+                  <TextBox Text="{Binding AccessTokenUrl}" PlaceholderText="https://issuer/oauth2/token" />
+                </StackPanel>
+
+                <StackPanel Spacing="6" IsVisible="{Binding IsAuthCodeGrant}">
+                  <TextBlock Classes="heading" Text="AUTH URL" />
+                  <TextBox Text="{Binding AuthUrl}" PlaceholderText="https://issuer/oauth2/authorize" />
+                  <TextBlock Classes="heading" Text="REDIRECT URI" Margin="0,4,0,0" />
+                  <TextBox Text="{Binding RedirectUri}" PlaceholderText="http://127.0.0.1:7878/callback" />
+                </StackPanel>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="CLIENT ID" />
+                  <TextBox Text="{Binding ClientId}" PlaceholderText="Client ID (supports {{variables}})" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="CLIENT SECRET" />
+                  <TextBox Text="{Binding ClientSecret}" PasswordChar="•"
+                           PlaceholderText="Client secret (supports {{variables}})" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="SCOPE" />
+                  <TextBox Text="{Binding Scope}" PlaceholderText="space-separated scopes" />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="*,12,*">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock Classes="heading" Text="CLIENT AUTH" />
+                    <ComboBox HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding ClientAuthentications}"
+                              SelectedItem="{Binding SelectedClientAuthentication}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="6">
+                    <TextBlock Classes="heading" Text="ADD TOKEN TO" />
+                    <ComboBox HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding TokenLocations}"
+                              SelectedItem="{Binding SelectedTokenLocation}" />
+                  </StackPanel>
+                </Grid>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="heading" Text="ACCESS TOKEN" />
+                  <TextBox Text="{Binding AccessToken}"
+                           PlaceholderText="Obtained automatically, or paste one" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button Classes="accent" Content="Get New Access Token"
+                          Command="{Binding GetTokenCommand}"
+                          IsEnabled="{Binding !IsAcquiringToken}" />
+                  <TextBlock Classes="muted" VerticalAlignment="Center"
+                             Text="{Binding TokenStatus}" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
             </StackPanel>
+          </ScrollViewer>
+        </TabItem>
 
-            <StackPanel Spacing="6" IsVisible="{Binding IsCookieVisible}">
-              <TextBlock Classes="heading" Text="COOKIE" />
-              <TextBox Text="{Binding Cookie}" PlaceholderText="name=value; other=value" />
+        <TabItem>
+          <TabItem.Header>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Scripts" VerticalAlignment="Center" />
+              <Ellipse Classes="tabdot" IsVisible="{Binding HasScripts}" />
             </StackPanel>
-          </StackPanel>
+          </TabItem.Header>
+          <Grid Margin="0,10,0,0" RowDefinitions="*,*">
+            <DockPanel Grid.Row="0" LastChildFill="True" Margin="0,0,0,6">
+              <TextBlock DockPanel.Dock="Top" Classes="heading" Text="PRE-REQUEST SCRIPT (runs before every request)" Margin="0,0,0,4" />
+              <controls:CodeEditorView Text="{Binding PreRequestScript}" Language="javascript" />
+            </DockPanel>
+            <DockPanel Grid.Row="1" LastChildFill="True" Margin="0,6,0,0">
+              <TextBlock DockPanel.Dock="Top" Classes="heading" Text="POST-RESPONSE SCRIPT (runs after every response)" Margin="0,0,0,4" />
+              <controls:CodeEditorView Text="{Binding PostResponseScript}" Language="javascript" />
+            </DockPanel>
+          </Grid>
         </TabItem>
       </TabControl>
     </Border>

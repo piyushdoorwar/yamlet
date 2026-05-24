@@ -130,33 +130,15 @@ dotnet test src/Yamlet.Tests
 
 ---
 
-## Current limitations
+## Current status
 
-The MVP intentionally leaves the following out of scope:
+Yamlet now includes request and collection-level scripts, collection/folder runner tabs,
+OAuth2 auth, multipart form-data and x-www-form-urlencoded sending, generated cURL
+snippets, per-request send history, environment editing, tree rename/move/duplicate/delete
+actions, and top-level unknown YAML key preservation on save.
 
-- Script and test execution (pre-request / post-response)
-- Collection runner
-- OAuth flows and cookie management
-- Multipart / file-upload bodies (only raw and JSON bodies are sent)
-- `form-data` and `x-www-form-urlencoded` bodies are selectable and persisted but not
-  yet sent
-- Generated code snippets
-- Request history (the History rail section is a placeholder)
-- Renaming/moving/deleting tree items from the UI
-- Editing environments and globals from the UI (they are loaded and used at send time)
-- Team, cloud, or remote sync; mock servers; API documentation generation
-
----
-
-## Roadmap
-
-- Edit environments and globals in-app
-- Rename, move, and delete collections, folders, and requests
-- Request history with replay
-- Full body support (`form-data`, `x-www-form-urlencoded`, file uploads)
-- Authorization inheritance from folders and collections
-- Pre-request and post-response scripting
-- A collection runner
+Still intentionally out of product scope: team/cloud sync, mock servers, hosted API docs,
+and collaboration features.
 
 ---
 

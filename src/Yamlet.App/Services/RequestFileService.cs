@@ -45,7 +45,12 @@ public sealed class RequestFileService
         }
 
         var dto = RequestDto.FromDomain(request);
-        await File.WriteAllTextAsync(request.SourceFilePath, _yaml.Serialize(dto)).ConfigureAwait(false);
+        var original = File.Exists(request.SourceFilePath)
+            ? await File.ReadAllTextAsync(request.SourceFilePath).ConfigureAwait(false)
+            : null;
+        await File.WriteAllTextAsync(
+            request.SourceFilePath,
+            _yaml.SerializePreservingUnknownTopLevel(dto, original)).ConfigureAwait(false);
     }
 
     /// <summary>

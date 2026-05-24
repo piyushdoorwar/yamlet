@@ -28,6 +28,9 @@ YAML on disk.
 dotnet build                              # build solution (Yamlet.slnx)
 dotnet run --project src/Yamlet.App       # launch the app
 dotnet test src/Yamlet.Tests              # run unit tests
+
+VERSION=1.2.3 ./scripts/build-linux.sh    # build the Linux .deb (Linux host)
+pwsh ./scripts/build-windows.ps1          # build the Windows .exe + .msix (Windows host)
 ```
 
 ## Tech stack
@@ -50,16 +53,21 @@ src/
                    Header, QueryParam, RequestBody, Auth, Environment, Variable, Response)
     Services/      Disk + logic: WorkspaceService, CollectionService, RequestFileService,
                    YamlSerializationService, YamlDtos (on-disk shapes + mapping),
-                   VariableResolver, RequestExecutor, DialogService, PathNaming
-    Stores/        RecentWorkspaceService (JSON app cache: recent workspaces +
-                   selected environment per workspace)
-    ViewModels/    MVVM: MainWindowViewModel, RequestEditorViewModel,
-                   VariableSetEditorViewModel, tree node VMs, EditableRowsViewModel
-    Views/         Avalonia XAML: MainWindow, RequestEditorView, VariableSetEditorView,
-                   InputDialog
-    Controls/      KeyValueGridView, YamletLogo, value converters
+                   VariableResolver, RequestExecutor, RequestScriptRunner/Variables,
+                   OAuth2TokenService, OAuth2BrowserFlow, DialogService, PathNaming
+    Stores/        RecentWorkspaceService (JSON app cache: recent workspaces, per-workspace
+                   selected environment + open-tab session + response-layout preference)
+    ViewModels/    MVVM: MainWindowViewModel, RequestEditorViewModel, CollectionSettingsViewModel,
+                   VariableSetEditorViewModel, RunnerViewModel, OpenTabViewModel,
+                   tree node VMs, EditableRowsViewModel
+    Views/         Avalonia XAML: MainWindow, RequestEditorView, CollectionSettingsView,
+                   VariableSetEditorView, InputDialog
+    Controls/      CodeEditorView (+ IVariableSource, JsonFoldingStrategy), KeyValueGridView,
+                   YamletLogo, value converters
     Themes/        Colors.axaml, Icons.axaml, Yamlet.axaml (styles)
   Yamlet.Tests/    xUnit tests
+packaging/         .deb assets + windows/ (Inno Setup .iss, AppxManifest, tiles, .ico)
+scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
 ```
 
 ## Key architectural decisions
@@ -71,17 +79,24 @@ src/
 - **No DI container.** The object graph is wired by hand in
   [App.axaml.cs](src/Yamlet.App/App.axaml.cs) `ComposeRoot()`. `DialogService` is attached
   to the window afterward (it needs a `Window` for pickers/dialogs).
-- **MainContent switching.** `MainWindowViewModel.MainContent` holds a
-  `RequestEditorViewModel` (request selected), `CollectionSettingsViewModel`
-  (collection selected), or `VariableSetEditorViewModel` (environment opened). The
-  main panel is a `ContentControl` with implicit `DataTemplate`s mapping VM type → view.
+- **Tabbed work area.** `MainWindowViewModel` owns `OpenTabs` (an
+  `ObservableCollection<OpenTabViewModel>`) with a `SelectedTab`; each tab wraps a content
+  VM — `RequestEditorViewModel`, `CollectionSettingsViewModel`, `VariableSetEditorViewModel`,
+  or the collection `RunnerViewModel`. Selecting a request/collection/environment opens
+  (or re-activates) its tab; tabs dedupe by a stable key and can be closed. The active
+  tab's `Content` fills a `ContentControl` with implicit `DataTemplate`s mapping VM type →
+  view. `CurrentEditor` mirrors the active tab when it's a request editor (e.g. the
+  status-bar stacked/side-by-side response layout toggle binds to it).
 - **Sidebar is a single accordion** (COLLECTIONS + ENVIRONMENTS), not an icon rail.
   Globals/History/Settings were intentionally removed from the UI. Selecting an
   environment both opens its editor and makes it the active one for variable resolution.
-- **App cache is user-local JSON, not workspace YAML.** `RecentWorkspaceService` stores
-  recently opened workspace paths and the selected environment ID per workspace under
-  the user's app-data directory. The selected environment is restored when the workspace
-  is reopened, with a first-environment fallback if the cached ID no longer exists.
+- **App cache is user-local JSON, not workspace YAML.** `RecentWorkspaceService` stores,
+  under the user's app-data directory: recent workspace paths, and per workspace — the
+  selected environment, the open tabs + active tab (a `WorkspaceSession`), and the
+  stacked-vs-side-by-side response layout preference. Open tabs and the selected
+  environment are keyed by **stable disk paths** (request/collection source files,
+  environment file/name) so the session restores across restarts; missing targets are
+  skipped, with a first-environment fallback.
 - **Variable precedence** (highest first): request → collection → environment → globals.
   Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
@@ -89,9 +104,27 @@ src/
 - **Every sent request includes Yamlet's default user agent.** `RequestExecutor` always
   sends `User-Agent: Yamlet/1.0.0`; the request Headers tab shows it as a locked row,
   and saved request YAML does not persist or allow overriding that generated header.
-- **Code editor surfaces use `CodeEditorView`.** JSON bodies/responses and scripts use
-  AvaloniaEdit-backed editors with line numbers, Yamlet pastel syntax colors, and JSON
-  beautify where appropriate. Keep new JSON/script text areas on this shared control.
+- **Code editor surfaces use `CodeEditorView`** — an AvaloniaEdit `TextEditor` (not a
+  plain TextBox) with line numbers, JSON beautify, and **JSON code folding**. It renders
+  API-client-style `{{variable}}` highlighting (amber when the placeholder resolves in the
+  active scopes, red when undefined) with **hover-to-peek** the value and **click-to-edit**
+  (writes to the active environment), via the `IVariableSource` the request editor
+  implements. The URL box gets the same hover peek. Keep new JSON/script text areas on
+  this shared control. The response panel is condensed: a Body/Headers/Raw dropdown on one
+  summary line.
+- **Collection auth incl. OAuth 2.0.** A collection's auth applies to requests whose auth
+  is `Inherit`. `YamletAuth.OAuth2` supports **client-credentials** (token fetched + cached
+  from the token endpoint by [OAuth2TokenService](src/Yamlet.App/Services/OAuth2TokenService.cs),
+  attached as a Bearer header or `access_token` query per `addTokenTo`) and
+  **authorization-code with PKCE** (interactive via
+  [OAuth2BrowserFlow](src/Yamlet.App/Services/OAuth2BrowserFlow.cs): system browser + a
+  loopback `HttpListener` redirect). Credential fields resolve `{{variables}}` at send
+  time; the "Get New Access Token" button in collection settings drives acquisition. Token
+  HTTP uses the executor's injected `HttpClient`, so it's testable.
+- **Collection-level scripts** (`YamletCollection.PreRequestScript` / `PostResponseScript`)
+  run around every request via `RequestScriptRunner` — collection pre before the request's
+  pre, collection post after. Collection-script errors are swallowed (a failing test
+  assertion must not fail the send); request-script errors still abort the send.
 - **RequestExecutor takes an injected `HttpClient`** so tests use a fake handler.
 
 ## On-disk layout
@@ -107,15 +140,61 @@ globals/globals.yaml
 `WorkspaceService.ResolveRoot` treats the picked folder as the root if it already
 contains `collections/`+`environments/`, else uses a `yamlet/` subfolder.
 
+## Packaging / distribution
+
+Three installable artifacts, all built by CI in
+[.github/workflows/build-artifacts.yml](.github/workflows/build-artifacts.yml) on push
+to `main`, manual dispatch, and `v*` tags (tags also attach the files to a GitHub
+release). Every build is **self-contained** (`dotnet publish --self-contained`), so the
+target machine needs no separate .NET runtime.
+
+- **Linux `.deb`** — [scripts/build-linux.sh](scripts/build-linux.sh): publishes
+  `linux-x64`, assembles it under `/opt/yamlet` with a `/usr/bin/yamlet` launcher, a
+  `.desktop` entry and icon, then packages with `dpkg-deb`. Output:
+  `yamlet_<version>_amd64.deb`.
+- **Windows installer `.exe`** — [scripts/build-windows.ps1](scripts/build-windows.ps1)
+  publishes `win-x64` and compiles an installer with Inno Setup
+  ([packaging/windows/yamlet.iss](packaging/windows/yamlet.iss); ISCC is preinstalled on
+  the `windows-latest` runner). Output: `yamlet_<version>_win-x64_setup.exe`.
+- **Windows `.msix`** — the same script's `New-MsixPackage` stages
+  [packaging/windows/AppxManifest.xml](packaging/windows/AppxManifest.xml) plus the tile
+  PNGs in `packaging/windows/Assets/` into the publish output and runs `MakeAppx pack`
+  (from the Windows SDK). Output: `yamlet_<version>_win-x64.msix`.
+
+Conventions / gotchas:
+
+- **Version** flows via the `VERSION` env var (Linux) / `-p:Version` and is derived by
+  the workflow from the tag (`v1.2.3` → `1.2.3`), the dispatch input, or `0.0.0-dev`.
+  MSIX requires a numeric `X.X.X.X` identity version, so any pre-release suffix is
+  stripped (`1.2.3-beta` → `1.2.3.0`).
+- The **`.msix` is produced unsigned** (`MakeAppx pack` only). Sign it before
+  distributing outside the Store; `AppxManifest.xml`'s `Publisher` (`CN=…`) must match
+  the signing certificate's subject.
+- **Brand artwork is generated, not hand-drawn**, from the YamletLogo green "Y" mark:
+  [packaging/windows/yamlet.ico](packaging/windows/yamlet.ico) (the `.exe` icon, wired
+  via `<ApplicationIcon>` in the csproj — ignored on non-Windows publishes) and the
+  `packaging/windows/Assets/*.png` MSIX tiles. Regenerate them if the mark changes.
+- Build output lands under `artifacts/` (gitignored).
+
 ## Imported-format compatibility (important)
 
 Real workspaces are often exported from another tool and differ from Yamlet's native
 shape. The reader accepts both — see
 [imported-yaml-format-compat]: environments `values:`≈`variables:`, rows `disabled:`
-(inverse of `enabled:`, via `KeyValueDto.IsEnabled`), bodies `content:`≈`raw:`, headers
-as a map *or* list (`RequestDto.Headers` is `object?`, normalized by `ParseHeaders`),
-names derived from `*.request.yaml` / `*.environment.yaml` filenames, and `$kind` /
-`scripts` / `tests` / dot-directories ignored.
+(inverse of `enabled:`, via `KeyValueDto.IsEnabled`), scalar body `content:`≈`raw:`,
+list-valued `content:` for `form-data`/`x-www-form-urlencoded` maps to Yamlet form fields,
+headers as a map *or* list
+(`RequestDto.Headers` is `object?`, normalized by `ParseHeaders`), names derived from
+`*.request.yaml` / `*.environment.yaml` filenames, and unknown top-level keys preserved
+when saving.
+
+A collection's metadata may live in a native `collection.yaml` **or** an exported
+`.resources/definition.yaml` (`CollectionDefinitionDto`): collection `variables` as a
+name→value **map**, `auth` as a **list** of schemes (incl. `oauth2` with a `credentials:`
+block → `OAuth2CredentialsDto`), and collection-scope `scripts`. When both files exist the
+definition is applied first and `collection.yaml` overrides only what it specifies
+(merge-friendly `ApplyTo`), so a collection with only `.resources/` still loads its name,
+variables, OAuth2 auth and scripts.
 
 Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestScript` /
 `PostResponseScript`), shown in the editor's **Scripts** tab, preserved on save
@@ -125,9 +204,9 @@ with a compact `pm` surface for variables, request mutation, tests, and response
 `pm.environment.set`, `pm.collectionVariables.set`, and `pm.globals.set` mutate the live
 selected environment / collection / globals and persist those scopes after the send.
 
-> **Save caveat:** saving writes Yamlet's canonical format. `description`, `scripts`,
-> params/headers/url/body/auth are preserved; still-unmodeled keys (`tests`, `$kind`,
-> and any other tool-specific fields) are DROPPED.
+> **Save behavior:** saving writes Yamlet's canonical format for modeled fields, while
+> preserving unknown top-level YAML keys from the original file (for example `$kind` or
+> `tests`). Unknown nested keys inside modeled blocks may still be normalized away.
 
 ## Theme conventions
 
@@ -158,14 +237,19 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
   `StatusCategoryToBrushConverter`); the VM exposes a status *category* string so it
   stays UI-free.
 
-## MVP scope / not implemented
+## Implemented scope
 
-Implemented: workspace create/open, collection/folder/request create, collection auth,
-edit method/URL/params/headers/raw+JSON body/auth/scripts, save & load YAML, send via
-HttpClient, response (status/duration/size/headers/body/raw), variable resolution,
-pre/post script execution, environment editing, selected-environment restore.
+Implemented: workspace create/open, collection/folder/request create, collection auth
+including **OAuth 2.0** (client-credentials + authorization-code/PKCE), edit
+method/URL/params/headers/body/auth, raw/JSON/form-data/x-www-form-urlencoded sending,
+multipart text and file fields, request **and** collection-level scripts, save & load
+YAML (incl. exported `.resources/definition.yaml`), top-level unknown YAML key
+preservation, send via HttpClient, condensed response (status/duration/size +
+Body/Headers/Raw dropdown), generated cURL snippets, per-request send history, variable
+resolution with inline `{{}}` highlighting / hover-peek / click-edit, JSON code folding,
+environment editing, multiple **tabs** with session restore (open tabs + active tab +
+environment + response layout), collection/folder **runner** tabs, tree rename/move/
+duplicate/delete actions, and `.deb`/`.exe`/`.msix` packaging.
 
-Out of scope (for now): collection runner, OAuth, multipart/file upload,
-`form-data`/`x-www-form-urlencoded` sending (selectable but not sent), code snippets,
-request history, rename/move/delete from the tree, globals UI, unknown-field-preserving
-save.
+Still intentionally out of product scope: team/cloud sync, mock servers, hosted API docs,
+and collaboration features.

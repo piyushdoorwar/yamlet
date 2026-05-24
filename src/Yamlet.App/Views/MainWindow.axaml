@@ -5,6 +5,7 @@
         xmlns:controls="using:Yamlet.App.Controls"
         xmlns:models="using:Yamlet.App.Models"
         x:Class="Yamlet.App.Views.MainWindow"
+        x:Name="RootWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Yamlet"
         Width="1280" Height="820"
@@ -21,32 +22,109 @@
     <DataTemplate DataType="vm:CollectionSettingsViewModel">
       <views:CollectionSettingsView />
     </DataTemplate>
+    <DataTemplate DataType="vm:RunnerViewModel">
+      <views:RunnerView />
+    </DataTemplate>
 
     <!-- Tree node templates, selected by node type. -->
     <TreeDataTemplate DataType="vm:CollectionNodeViewModel" ItemsSource="{Binding Children}">
-      <StackPanel Orientation="Horizontal" Spacing="6">
-        <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15"
-                  Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-      </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
+            Width="{Binding #CollectionsTree.Bounds.Width}">
+        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="3"
+                    Margin="{Binding IsExpanded, Converter={x:Static controls:TreeNodeIconMarginConverter.Instance}}">
+          <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15"
+                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+                VerticalAlignment="Center" ToolTip.Tip="Collection actions">
+          <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
+                    Foreground="{DynamicResource TextMutedBrush}" />
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="Rename"
+                        Command="{Binding #RootWindow.DataContext.RenameNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Add Folder"
+                        Command="{Binding #RootWindow.DataContext.NewFolderForNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Add Request"
+                        Command="{Binding #RootWindow.DataContext.NewRequestForNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Run Collection"
+                        Command="{Binding #RootWindow.DataContext.RunNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Delete Collection"
+                        Command="{Binding #RootWindow.DataContext.DeleteNodeCommand}"
+                        CommandParameter="{Binding}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
     </TreeDataTemplate>
 
     <TreeDataTemplate DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
-      <StackPanel Orientation="Horizontal" Spacing="6">
-        <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15"
-                  Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-      </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
+            Width="{Binding #CollectionsTree.Bounds.Width}">
+        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="3"
+                    Margin="{Binding IsExpanded, Converter={x:Static controls:TreeNodeIconMarginConverter.Instance}}">
+          <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15"
+                    Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+                VerticalAlignment="Center" ToolTip.Tip="Folder actions">
+          <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
+                    Foreground="{DynamicResource TextMutedBrush}" />
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="Rename"
+                        Command="{Binding #RootWindow.DataContext.RenameNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Add Request"
+                        Command="{Binding #RootWindow.DataContext.NewRequestForNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Run Folder"
+                        Command="{Binding #RootWindow.DataContext.RunNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Delete Folder"
+                        Command="{Binding #RootWindow.DataContext.DeleteNodeCommand}"
+                        CommandParameter="{Binding}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
     </TreeDataTemplate>
 
     <DataTemplate DataType="vm:RequestNodeViewModel">
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <TextBlock Text="{Binding MethodLabel}"
-                   Classes="methodVerb"
-                   Foreground="{Binding Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
-                   VerticalAlignment="Center" />
-        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
-      </StackPanel>
+      <Grid Classes="treeNodeRow" ColumnDefinitions="Auto,*,Auto" Background="Transparent" HorizontalAlignment="Stretch"
+            Width="{Binding #CollectionsTree.Bounds.Width}">
+        <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="-24,0,0,0">
+          <TextBlock Text="{Binding MethodLabel}"
+                     Classes="methodVerb"
+                     Foreground="{Binding Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
+                     VerticalAlignment="Center" />
+          <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="ghost nodeMenu" Margin="8,0,0,0"
+                VerticalAlignment="Center" ToolTip.Tip="Request actions">
+          <PathIcon Data="{StaticResource IconMoreHorizontal}" Width="14" Height="14"
+                    Foreground="{DynamicResource TextMutedBrush}" />
+          <Button.Flyout>
+            <MenuFlyout>
+              <MenuItem Header="Rename"
+                        Command="{Binding #RootWindow.DataContext.RenameNodeCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Duplicate"
+                        Command="{Binding #RootWindow.DataContext.DuplicateRequestCommand}"
+                        CommandParameter="{Binding}" />
+              <MenuItem Header="Delete Request"
+                        Command="{Binding #RootWindow.DataContext.DeleteRequestCommand}"
+                        CommandParameter="{Binding}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
     </DataTemplate>
   </Window.DataTemplates>
 
@@ -91,14 +169,11 @@
               </StackPanel>
             </Button>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
-              <Button Classes="ghost" Padding="6" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection">
-                <PathIcon Data="{StaticResource IconCollections}" Width="15" Height="15" />
+              <Button Classes="ghost" Padding="4" Command="{Binding CollapseCollectionsCommand}" ToolTip.Tip="Collapse all">
+                <PathIcon Data="{StaticResource IconCollapseAll}" Width="13" Height="13" />
               </Button>
-              <Button Classes="ghost" Padding="6" Command="{Binding NewFolderCommand}" ToolTip.Tip="New folder">
-                <PathIcon Data="{StaticResource IconFolder}" Width="15" Height="15" />
-              </Button>
-              <Button Classes="ghost" Padding="6" Command="{Binding NewRequestCommand}" ToolTip.Tip="New request">
-                <PathIcon Data="{StaticResource IconRequest}" Width="15" Height="15" />
+              <Button Classes="ghost" Padding="4" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New collection">
+                <PathIcon Data="{StaticResource IconPlus}" Width="13" Height="13" />
               </Button>
             </StackPanel>
           </Grid>
@@ -109,9 +184,18 @@
                        IsVisible="{Binding !HasWorkspace}"
                        Text="No workspace open. Use New to create a Yamlet workspace, or Open to load an existing one." />
             <TreeView ItemsSource="{Binding CollectionNodes}"
+                      x:Name="CollectionsTree"
                       SelectedItem="{Binding SelectedNode}"
                       IsVisible="{Binding HasWorkspace}"
-                      Background="Transparent" />
+                      Background="Transparent"
+                      DragDrop.AllowDrop="True"
+                      x:CompileBindings="False">
+              <TreeView.Styles>
+                <Style Selector="TreeViewItem">
+                  <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                </Style>
+              </TreeView.Styles>
+            </TreeView>
           </Panel>
 
           <!-- ENVIRONMENTS section header -->
@@ -208,7 +292,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:OpenTabViewModel">
                   <Border Classes="tab" Classes.active="{Binding IsActive}">
-                    <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
                       <Button Grid.Column="0" Classes="tabbody" Command="{Binding ActivateCommand}">
                         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
                           <TextBlock Text="{Binding MethodLabel}"
@@ -222,11 +306,25 @@
                           <PathIcon Data="{StaticResource IconCollections}" Width="13" Height="13"
                                     Foreground="{DynamicResource TextSecondaryBrush}"
                                     VerticalAlignment="Center" IsVisible="{Binding IsCollection}" />
+                          <PathIcon Data="{StaticResource IconRunner}" Width="13" Height="13"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    VerticalAlignment="Center" IsVisible="{Binding IsRunner}" />
                           <TextBlock Text="{Binding Title}" VerticalAlignment="Center"
                                      TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                       </Button>
-                      <Button Grid.Column="1" Classes="ghost" Padding="4" Margin="2,0,6,0"
+                      <Button Grid.Column="1" Classes="ghost tabMenu" Padding="4" Margin="0"
+                              VerticalAlignment="Center" ToolTip.Tip="Tab options">
+                        <PathIcon Data="{StaticResource IconChevronDown}" Width="10" Height="10"
+                                  Foreground="{DynamicResource TextMutedBrush}" />
+                        <Button.Flyout>
+                          <MenuFlyout>
+                            <MenuItem Header="Close Other Tabs" Command="{Binding CloseOthersCommand}" />
+                            <MenuItem Header="Close All Tabs" Command="{Binding CloseAllCommand}" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
+                      <Button Grid.Column="2" Classes="ghost" Padding="4" Margin="0,0,6,0"
                               VerticalAlignment="Center" Command="{Binding CloseCommand}" ToolTip.Tip="Close">
                         <PathIcon Data="{StaticResource IconClose}" Width="10" Height="10"
                                   Foreground="{DynamicResource TextMutedBrush}" />

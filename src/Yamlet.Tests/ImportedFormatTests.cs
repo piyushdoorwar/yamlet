@@ -72,6 +72,38 @@ public class ImportedFormatTests
     }
 
     [Fact]
+    public void Body_FormDataWithListContent_LoadsWithoutFailing()
+    {
+        // form-data bodies write `content` as a list of field entries (file/text), not
+        // a scalar. The request should load those fields into Yamlet's form model.
+        const string yaml = """
+            $kind: http-request
+            method: POST
+            url: "{{base_url}}api/documents"
+            body:
+              type: formdata
+              content:
+                - type: file
+                  key: file
+                  src:
+                    - upload.txt
+                - type: text
+                  key: domain
+                  value: ccs
+            """;
+
+        var request = _yaml.Deserialize<RequestDto>(yaml).ToDomain(null);
+
+        Assert.Equal("POST", request.Method);
+        Assert.Equal("{{base_url}}api/documents", request.Url);
+        Assert.Equal(Yamlet.App.Models.YamletBodyType.FormData, request.Body.Type);
+        Assert.Equal(string.Empty, request.Body.Raw);
+        Assert.Equal(2, request.Body.Fields.Count);
+        Assert.Contains(request.Body.Fields, f => f.Key == "file" && f.Value == "upload.txt" && f.IsFile);
+        Assert.Contains(request.Body.Fields, f => f.Key == "domain" && f.Value == "ccs" && !f.IsFile);
+    }
+
+    [Fact]
     public void Headers_ReadFromMap()
     {
         const string yaml = """
@@ -105,6 +137,51 @@ public class ImportedFormatTests
 
         Assert.Single(request.Headers);
         Assert.Equal("Accept", request.Headers[0].Key);
+    }
+
+    [Fact]
+    public void CollectionDefinition_ReadsOAuth2VariablesAndScripts()
+    {
+        // Shape of an exported collection's .resources/definition.yaml: variables as a
+        // map, auth as a list with an oauth2 credentials block, collection-scope scripts.
+        const string yaml = """
+            $kind: collection
+            variables:
+              aws_m2m_clientId: "abc"
+              accessToken: ""
+            scripts:
+              - type: http:beforeRequest
+                code: console.log('pre');
+                language: text/javascript
+              - type: http:afterResponse
+                code: pm.test('ok', () => {});
+                language: text/javascript
+            auth:
+              - id: x
+                type: oauth2
+                name: oauth2 auth
+                credentials:
+                  accessTokenUrl: https://issuer/oauth2/token
+                  clientId: "{{aws_m2m_clientId}}"
+                  clientSecret: "{{secret}}"
+                  scope: ccs-api/read
+                  grant_type: client_credentials
+                  addTokenTo: header
+                  client_authentication: header
+            """;
+
+        var definition = _yaml.Deserialize<CollectionDefinitionDto>(yaml);
+        var collection = new Yamlet.App.Models.YamletCollection();
+        definition.ApplyTo(collection);
+
+        Assert.Equal(Yamlet.App.Models.YamletAuthType.OAuth2, collection.Auth.Type);
+        Assert.Equal(Yamlet.App.Models.OAuth2GrantType.ClientCredentials, collection.Auth.OAuth2.GrantType);
+        Assert.Equal("https://issuer/oauth2/token", collection.Auth.OAuth2.AccessTokenUrl);
+        Assert.Equal("{{aws_m2m_clientId}}", collection.Auth.OAuth2.ClientId);
+        Assert.Equal("ccs-api/read", collection.Auth.OAuth2.Scope);
+        Assert.Contains(collection.Variables, v => v.Key == "aws_m2m_clientId" && v.Value == "abc");
+        Assert.Contains("console.log('pre')", collection.PreRequestScript);
+        Assert.Contains("pm.test", collection.PostResponseScript);
     }
 
     [Fact]

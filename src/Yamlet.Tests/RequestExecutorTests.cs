@@ -197,6 +197,62 @@ public class RequestExecutorTests
     }
 
     [Fact]
+    public async Task Execute_SendsUrlEncodedBody()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "POST",
+            Url = "https://api.test",
+            Body = new YamletRequestBody
+            {
+                Type = YamletBodyType.UrlEncoded,
+                Fields =
+                {
+                    new() { Key = "name", Value = "{{who}}", Enabled = true },
+                    new() { Key = "skip", Value = "no", Enabled = false },
+                },
+            },
+        };
+        var context = VariableContext.Create(
+            null, null, new List<YamletVariable> { new() { Key = "who", Value = "yamlet user", Enabled = true } }, null);
+
+        await executor.ExecuteAsync(request, context);
+
+        Assert.Equal("application/x-www-form-urlencoded", handler.LastRequest!.Content!.Headers.ContentType!.MediaType);
+        Assert.Equal("name=yamlet+user", handler.LastBody);
+    }
+
+    [Fact]
+    public async Task Execute_SendsMultipartFormDataWithTextField()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "POST",
+            Url = "https://api.test",
+            Body = new YamletRequestBody
+            {
+                Type = YamletBodyType.FormData,
+                Fields =
+                {
+                    new() { Key = "domain", Value = "{{domain}}", Enabled = true },
+                },
+            },
+        };
+        var context = VariableContext.Create(
+            null, null, new List<YamletVariable> { new() { Key = "domain", Value = "ccs", Enabled = true } }, null);
+
+        await executor.ExecuteAsync(request, context);
+
+        Assert.StartsWith("multipart/form-data", handler.LastRequest!.Content!.Headers.ContentType!.MediaType);
+        Assert.Contains("name=domain", handler.LastBody);
+        Assert.Contains("ccs", handler.LastBody);
+    }
+
+    [Fact]
     public async Task Execute_DisabledHeaderIsNotSent()
     {
         var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
@@ -405,5 +461,138 @@ if (body.id !== 5) {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
             => throw new HttpRequestException("boom");
+    }
+
+    /// <summary>A fake handler that routes by request URI and records every request.</summary>
+    private sealed class RoutingHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _route;
+        public List<HttpRequestMessage> Requests { get; } = new();
+
+        public RoutingHandler(Func<HttpRequestMessage, HttpResponseMessage> route) => _route = route;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(_route(request));
+        }
+    }
+
+    [Fact]
+    public async Task Execute_OAuth2ClientCredentials_FetchesTokenAndAttachesBearer()
+    {
+        var handler = new RoutingHandler(req =>
+            req.RequestUri!.AbsoluteUri.Contains("/oauth2/token")
+                ? new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(
+                        "{\"access_token\":\"tok-123\",\"token_type\":\"Bearer\",\"expires_in\":3600}",
+                        Encoding.UTF8, "application/json"),
+                }
+                : new HttpResponseMessage(HttpStatusCode.OK));
+        var executor = new RequestExecutor(new HttpClient(handler), new VariableResolver());
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test/courses",
+            Auth = new YamletAuth { Type = YamletAuthType.Inherit },
+        };
+        var collectionAuth = new YamletAuth
+        {
+            Type = YamletAuthType.OAuth2,
+            OAuth2 = new YamletOAuth2
+            {
+                GrantType = OAuth2GrantType.ClientCredentials,
+                AccessTokenUrl = "https://issuer.test/oauth2/token",
+                ClientId = "{{cid}}",
+                ClientSecret = "{{secret}}",
+                Scope = "ccs-api/read",
+                ClientAuthentication = OAuth2ClientAuthentication.BasicHeader,
+                AddTokenTo = OAuth2TokenLocation.Header,
+            },
+        };
+        var context = VariableContext.Create(null, null, new List<YamletVariable>
+        {
+            new() { Key = "cid", Value = "client-1", Enabled = true },
+            new() { Key = "secret", Value = "shh", Enabled = true },
+        }, null);
+
+        await executor.ExecuteAsync(request, context, collectionAuth);
+
+        var tokenReq = handler.Requests.First(r => r.RequestUri!.AbsoluteUri.Contains("/oauth2/token"));
+        Assert.Equal(HttpMethod.Post, tokenReq.Method);
+        Assert.Equal("Basic", tokenReq.Headers.Authorization!.Scheme);
+        Assert.Equal(
+            Convert.ToBase64String(Encoding.UTF8.GetBytes("client-1:shh")),
+            tokenReq.Headers.Authorization.Parameter);
+
+        var apiReq = handler.Requests.First(r => r.RequestUri!.AbsoluteUri.Contains("api.test"));
+        Assert.Equal("Bearer tok-123", apiReq.Headers.GetValues("Authorization").Single());
+    }
+
+    [Fact]
+    public async Task Execute_OAuth2_AttachesStoredTokenAsQueryParam()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest
+        {
+            Method = "GET",
+            Url = "https://api.test/data",
+            Auth = new YamletAuth
+            {
+                Type = YamletAuthType.OAuth2,
+                OAuth2 = new YamletOAuth2
+                {
+                    GrantType = OAuth2GrantType.AuthorizationCode,
+                    AccessToken = "stored-xyz",
+                    AddTokenTo = OAuth2TokenLocation.Query,
+                },
+            },
+        };
+
+        await executor.ExecuteAsync(request, VariableContext.Empty);
+
+        Assert.Contains("access_token=stored-xyz", handler.LastRequest!.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task Execute_RunsCollectionScriptsAroundRequest()
+    {
+        var (executor, handler) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest { Method = "GET", Url = "https://api.test" };
+        var context = VariableContext.Empty;
+        var scriptVariables = RequestScriptVariables.FromContext(context);
+
+        var result = await executor.ExecuteAsync(
+            request, context, collectionAuth: null, scriptVariables, CancellationToken.None,
+            collectionPreRequestScript: "pm.request.headers.add({ key: 'X-Collection', value: 'yes' });",
+            collectionPostResponseScript: "pm.test('ok', () => pm.expect(pm.response.code).to.be.within(200, 299));");
+
+        // Collection pre-request script applied a header...
+        Assert.True(handler.LastRequest!.Headers.TryGetValues("X-Collection", out var values));
+        Assert.Equal("yes", Assert.Single(values));
+        // ...and the collection post-response test ran without turning the send into an error.
+        Assert.False(result.IsError);
+    }
+
+    [Fact]
+    public async Task Execute_CollectionTestFailureDoesNotFailTheSend()
+    {
+        var (executor, _) = CreateExecutor(new HttpResponseMessage(HttpStatusCode.OK));
+
+        var request = new YamletRequest { Method = "GET", Url = "https://api.test" };
+        var context = VariableContext.Empty;
+        var scriptVariables = RequestScriptVariables.FromContext(context);
+
+        var result = await executor.ExecuteAsync(
+            request, context, collectionAuth: null, scriptVariables, CancellationToken.None,
+            collectionPostResponseScript: "pm.test('always fails', () => pm.expect(1).to.equal(2));");
+
+        Assert.False(result.IsError);
+        Assert.Equal(200, result.StatusCode);
     }
 }

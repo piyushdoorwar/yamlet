@@ -15,6 +15,12 @@ public sealed class YamletCollection
     public List<YamletVariable> Variables { get; set; } = new();
     public YamletAuth Auth { get; set; } = new() { Type = YamletAuthType.None };
 
+    /// <summary>Script run before every request in the collection (collection scope).</summary>
+    public string PreRequestScript { get; set; } = string.Empty;
+
+    /// <summary>Script run after every response in the collection (collection scope).</summary>
+    public string PostResponseScript { get; set; } = string.Empty;
+
     /// <summary>Absolute path of the collection's root directory, if saved.</summary>
     public string? DirectoryPath { get; set; }
 

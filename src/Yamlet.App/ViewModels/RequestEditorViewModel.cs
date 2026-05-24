@@ -1,4 +1,5 @@
 using System.Text;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Yamlet.App.Controls;
@@ -19,6 +20,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     private readonly Func<YamletRequest, VariableContext> _contextFactory;
     private readonly Func<YamletRequest, RequestScriptVariables> _scriptVariablesFactory;
     private readonly Func<YamletAuth?> _collectionAuthFactory;
+    private readonly Func<(string Pre, string Post)> _collectionScriptsFactory;
     private readonly Action<string>? _status;
     private readonly Action<bool>? _persistLayout;
     private readonly Func<string, string, Task>? _setEnvironmentVariableAsync;
@@ -55,9 +57,24 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         new LabeledOption<ApiKeyLocation>("Query Param", ApiKeyLocation.Query),
     };
 
+    public IReadOnlyList<string> RequestSections { get; } = new[]
+    {
+        "Params",
+        "Authorization",
+        "Headers",
+        "Body",
+        "Variables",
+        "Code",
+        "Scripts",
+        "History",
+        "Settings",
+    };
+
     public EditableRowsViewModel Params { get; } = new();
     public EditableRowsViewModel Headers { get; } = new();
     public EditableRowsViewModel Variables { get; } = new();
+    public EditableRowsViewModel BodyFields { get; } = new();
+    public ObservableCollection<string> RequestHistory { get; } = new();
 
     public RequestEditorViewModel(
         RequestNodeViewModel node,
@@ -70,7 +87,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         bool initialSideBySide = false,
         Action<bool>? persistLayout = null,
         Func<string, string, Task>? setEnvironmentVariableAsync = null,
-        Func<string?>? activeEnvironmentName = null)
+        Func<string?>? activeEnvironmentName = null,
+        Func<(string Pre, string Post)>? collectionScriptsFactory = null)
     {
         _node = node;
         _executor = executor;
@@ -78,6 +96,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         _contextFactory = contextFactory;
         _scriptVariablesFactory = scriptVariablesFactory ?? (request => RequestScriptVariables.FromContext(_contextFactory(request)));
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
+        _collectionScriptsFactory = collectionScriptsFactory ?? (() => (string.Empty, string.Empty));
         _status = status;
         _persistLayout = persistLayout;
         _setEnvironmentVariableAsync = setEnvironmentVariableAsync;
@@ -136,6 +155,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     [ObservableProperty]
     private string _postResponseScript = string.Empty;
 
+    [ObservableProperty]
+    private string _codeSnippet = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedRequestSection = "Params";
+
     public string BreadcrumbPath { get; }
 
     /// <summary>The collection/folder path leading to this request, without its own name.</summary>
@@ -145,6 +170,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     public bool IsBodyEditorVisible =>
         SelectedBodyType.Value is YamletBodyType.Raw or YamletBodyType.Json;
+    public bool IsBodyFieldsVisible =>
+        SelectedBodyType.Value is YamletBodyType.FormData or YamletBodyType.UrlEncoded;
 
     public bool IsJsonBodyEditor => SelectedBodyType.Value == YamletBodyType.Json;
     public string BodyEditorLanguage => IsJsonBodyEditor ? "json" : "text";
@@ -160,12 +187,36 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     public bool HasScripts =>
         !string.IsNullOrWhiteSpace(PreRequestScript) || !string.IsNullOrWhiteSpace(PostResponseScript);
 
+    public bool IsParamsSection => SelectedRequestSection == "Params";
+    public bool IsAuthorizationSection => SelectedRequestSection == "Authorization";
+    public bool IsHeadersSection => SelectedRequestSection == "Headers";
+    public bool IsBodySection => SelectedRequestSection == "Body";
+    public bool IsVariablesSection => SelectedRequestSection == "Variables";
+    public bool IsCodeSection => SelectedRequestSection == "Code";
+    public bool IsScriptsSection => SelectedRequestSection == "Scripts";
+    public bool IsHistorySection => SelectedRequestSection == "History";
+    public bool IsSettingsSection => SelectedRequestSection == "Settings";
+
     partial void OnPreRequestScriptChanged(string value) => OnPropertyChanged(nameof(HasScripts));
     partial void OnPostResponseScriptChanged(string value) => OnPropertyChanged(nameof(HasScripts));
+
+    partial void OnSelectedRequestSectionChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsParamsSection));
+        OnPropertyChanged(nameof(IsAuthorizationSection));
+        OnPropertyChanged(nameof(IsHeadersSection));
+        OnPropertyChanged(nameof(IsBodySection));
+        OnPropertyChanged(nameof(IsVariablesSection));
+        OnPropertyChanged(nameof(IsCodeSection));
+        OnPropertyChanged(nameof(IsScriptsSection));
+        OnPropertyChanged(nameof(IsHistorySection));
+        OnPropertyChanged(nameof(IsSettingsSection));
+    }
 
     partial void OnSelectedBodyTypeChanged(LabeledOption<YamletBodyType> value)
     {
         OnPropertyChanged(nameof(IsBodyEditorVisible));
+        OnPropertyChanged(nameof(IsBodyFieldsVisible));
         OnPropertyChanged(nameof(IsJsonBodyEditor));
         OnPropertyChanged(nameof(BodyEditorLanguage));
         OnPropertyChanged(nameof(HasBody));
@@ -313,6 +364,13 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
         SelectedBodyType = BodyTypes.First(b => b.Value == request.Body.Type);
         BodyText = request.Body.Raw;
+        BodyFields.Load(request.Body.Fields.Select(f => new KeyValueRowViewModel
+        {
+            Key = f.Key,
+            Value = f.IsFile && !f.Value.StartsWith('@') ? "@" + f.Value : f.Value,
+            Description = f.Description,
+            Enabled = f.Enabled,
+        }));
 
         SelectedAuthType = AuthTypes.First(a => a.Value == request.Auth.Type);
         BearerToken = request.Auth.Token;
@@ -325,6 +383,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
         PreRequestScript = request.PreRequestScript;
         PostResponseScript = request.PostResponseScript;
+        RefreshCodeSnippet();
     }
 
     /// <summary>Writes the current editor state back into the underlying request model.</summary>
@@ -348,7 +407,20 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             Key = r.Key, Value = r.Value, Enabled = r.Enabled,
         }).ToList();
 
-        request.Body = new YamletRequestBody { Type = SelectedBodyType.Value, Raw = BodyText };
+        request.Body = new YamletRequestBody
+        {
+            Type = SelectedBodyType.Value,
+            Raw = BodyText,
+            Fields = BodyFields.NonEmptyRows().Select(r => new YamletBodyField
+            {
+                Key = r.Key,
+                Value = r.Value,
+                Description = r.Description,
+                Enabled = r.Enabled,
+                IsFile = string.Equals(r.Description.Trim(), "file", StringComparison.OrdinalIgnoreCase)
+                         || r.Value.StartsWith('@'),
+            }).ToList(),
+        };
         request.Auth = new YamletAuth
         {
             Type = SelectedAuthType.Value,
@@ -362,6 +434,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         };
         request.PreRequestScript = PreRequestScript;
         request.PostResponseScript = PostResponseScript;
+        RefreshCodeSnippet();
         return request;
     }
 
@@ -386,6 +459,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     }
 
     [RelayCommand]
+    private void RefreshCodeSnippet() => CodeSnippet = BuildCurlSnippet();
+
+    [RelayCommand]
     private async Task SendAsync()
     {
         if (IsSending)
@@ -408,10 +484,17 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         try
         {
             var context = _contextFactory(request);
+            var (collectionPre, collectionPost) = _collectionScriptsFactory();
             var response = await _executor
-                .ExecuteAsync(request, context, _collectionAuthFactory(), _scriptVariablesFactory(request), _inflight.Token)
+                .ExecuteAsync(request, context, _collectionAuthFactory(), _scriptVariablesFactory(request),
+                    _inflight.Token, collectionPre, collectionPost)
                 .ConfigureAwait(false);
             ApplyResponse(response);
+            RequestHistory.Insert(
+                0,
+                response.IsError
+                    ? $"{DateTime.Now:HH:mm:ss}  {request.Method} {request.Url}  Error  {response.DurationMs} ms"
+                    : $"{DateTime.Now:HH:mm:ss}  {request.Method} {request.Url}  {response.StatusCode}  {response.DurationMs} ms");
             _status?.Invoke(response.IsError
                 ? $"Request failed: {response.ErrorMessage}"
                 : $"{response.StatusCode} {response.ReasonPhrase} · {response.DurationMs} ms");
@@ -506,6 +589,53 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             return body;
         }
     }
+
+    private string BuildCurlSnippet()
+    {
+        var sb = new StringBuilder();
+        sb.Append("curl");
+        sb.Append(" -X ").Append(SelectedMethod);
+        sb.Append(" ").Append(ShellQuote(Url));
+
+        foreach (var header in Headers.NonEmptyRows().Where(r => !r.IsReadOnly && r.Enabled))
+        {
+            sb.Append(" \\\n  -H ").Append(ShellQuote($"{header.Key}: {header.Value}"));
+        }
+
+        switch (SelectedBodyType.Value)
+        {
+            case YamletBodyType.Raw:
+            case YamletBodyType.Json:
+                if (!string.IsNullOrEmpty(BodyText))
+                {
+                    if (SelectedBodyType.Value == YamletBodyType.Json
+                        && !Headers.NonEmptyRows().Any(h => string.Equals(h.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        sb.Append(" \\\n  -H ").Append(ShellQuote("Content-Type: application/json"));
+                    }
+                    sb.Append(" \\\n  --data ").Append(ShellQuote(BodyText));
+                }
+                break;
+            case YamletBodyType.UrlEncoded:
+                foreach (var field in BodyFields.NonEmptyRows().Where(r => r.Enabled))
+                {
+                    sb.Append(" \\\n  --data-urlencode ").Append(ShellQuote($"{field.Key}={field.Value}"));
+                }
+                break;
+            case YamletBodyType.FormData:
+                foreach (var field in BodyFields.NonEmptyRows().Where(r => r.Enabled))
+                {
+                    var value = field.Value.StartsWith('@') ? field.Value : field.Value;
+                    sb.Append(" \\\n  -F ").Append(ShellQuote($"{field.Key}={value}"));
+                }
+                break;
+        }
+
+        return sb.ToString();
+    }
+
+    private static string ShellQuote(string value) =>
+        "'" + value.Replace("'", "'\"'\"'") + "'";
 
     private static string BuildBreadcrumb(TreeNodeViewModel node)
     {

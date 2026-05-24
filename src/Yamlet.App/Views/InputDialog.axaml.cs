@@ -8,6 +8,12 @@ namespace Yamlet.App.Views;
 /// <summary>A minimal modal text prompt returning the entered string, or null on cancel.</summary>
 public partial class InputDialog : Window
 {
+    private TextBlock PromptTextControl => this.FindControl<TextBlock>("PromptText")
+        ?? throw new InvalidOperationException("InputDialog is missing PromptText.");
+
+    private TextBox InputBoxControl => this.FindControl<TextBox>("InputBox")
+        ?? throw new InvalidOperationException("InputDialog is missing InputBox.");
+
     // Parameterless constructor required by the XAML loader / designer.
     public InputDialog() => InitializeComponent();
 
@@ -15,13 +21,13 @@ public partial class InputDialog : Window
     {
         InitializeComponent();
         Title = title;
-        PromptText.Text = prompt;
-        InputBox.Text = defaultValue;
+        PromptTextControl.Text = prompt;
+        InputBoxControl.Text = defaultValue;
 
         Opened += (_, _) =>
         {
-            InputBox.SelectAll();
-            InputBox.Focus();
+            InputBoxControl.SelectAll();
+            InputBoxControl.Focus();
         };
 
         KeyDown += (_, e) =>
@@ -37,7 +43,7 @@ public partial class InputDialog : Window
 
     private void OnOk(object? sender, RoutedEventArgs e)
     {
-        var text = InputBox.Text?.Trim();
+        var text = InputBoxControl.Text?.Trim();
         Close(string.IsNullOrWhiteSpace(text) ? null : text);
     }
 

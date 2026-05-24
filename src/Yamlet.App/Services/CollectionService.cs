@@ -53,6 +53,17 @@ public sealed class CollectionService
             Name = Path.GetFileName(directory),
         };
 
+        // Exported tools store collection metadata (variables, auth incl. OAuth2,
+        // collection-scope scripts) under .resources/definition.yaml. Apply it first so a
+        // native collection.yaml, if present, can override the parts it specifies.
+        var definitionPath = Path.Combine(directory, ".resources", "definition.yaml");
+        if (File.Exists(definitionPath))
+        {
+            var definition = _yaml.Deserialize<CollectionDefinitionDto>(
+                await File.ReadAllTextAsync(definitionPath).ConfigureAwait(false));
+            definition.ApplyTo(collection);
+        }
+
         var metadataPath = Path.Combine(directory, MetadataFileName);
         collection.FilePath = metadataPath;
         if (File.Exists(metadataPath))
@@ -180,7 +191,12 @@ public sealed class CollectionService
         collection.FilePath = Path.Combine(collection.DirectoryPath, MetadataFileName);
 
         var dto = CollectionDto.FromDomain(collection);
-        await File.WriteAllTextAsync(collection.FilePath, _yaml.Serialize(dto)).ConfigureAwait(false);
+        var original = File.Exists(collection.FilePath)
+            ? await File.ReadAllTextAsync(collection.FilePath).ConfigureAwait(false)
+            : null;
+        await File.WriteAllTextAsync(
+            collection.FilePath,
+            _yaml.SerializePreservingUnknownTopLevel(dto, original)).ConfigureAwait(false);
 
         EnsureFolderDirectories(collection.Folders);
     }

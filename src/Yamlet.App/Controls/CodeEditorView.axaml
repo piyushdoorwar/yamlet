@@ -14,7 +14,7 @@
                 Background="{DynamicResource PanelAltBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="6,5"
+                Padding="6,4"
                 IsVisible="{Binding #Root.AllowBeautify}">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Grid.Column="0"
@@ -33,13 +33,13 @@
                        ShowLineNumbers="True"
                        IsReadOnly="{Binding #Root.IsReadOnly}"
                        FontFamily="Roboto Mono, Noto Sans Mono, SF Mono, Menlo, Monaco, Consolas, Liberation Mono, DejaVu Sans Mono, monospace"
-                       FontSize="13"
+                       FontSize="12"
                        FontWeight="Regular"
                        Background="Transparent"
                        Foreground="{DynamicResource TextPrimaryBrush}"
                        HorizontalScrollBarVisibility="Auto"
                        VerticalScrollBarVisibility="Auto"
-                       Padding="6,7" />
+                       Padding="6,5" />
       </DockPanel>
 
       <!-- Hover peek: shows a {{placeholder}}'s resolved value in the active scope. -->

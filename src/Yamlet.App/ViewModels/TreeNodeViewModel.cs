@@ -19,7 +19,7 @@ public abstract partial class TreeNodeViewModel : ViewModelBase
     public ObservableCollection<TreeNodeViewModel> Children { get; } = new();
 
     /// <summary>The parent node, or null for top-level collection nodes.</summary>
-    public TreeNodeViewModel? Parent { get; init; }
+    public TreeNodeViewModel? Parent { get; set; }
 }
 
 /// <summary>A collection node. Children are its folders and direct requests.</summary>
@@ -32,15 +32,15 @@ public sealed class CollectionNodeViewModel : TreeNodeViewModel
 public sealed class FolderNodeViewModel : TreeNodeViewModel
 {
     public required YamletFolder Folder { get; init; }
-    public required YamletCollection OwningCollection { get; init; }
+    public required YamletCollection OwningCollection { get; set; }
 }
 
 /// <summary>A request leaf node, carrying its HTTP method for compact display.</summary>
 public sealed partial class RequestNodeViewModel : TreeNodeViewModel
 {
     public required YamletRequest Request { get; init; }
-    public required YamletCollection OwningCollection { get; init; }
-    public YamletFolder? ParentFolder { get; init; }
+    public required YamletCollection OwningCollection { get; set; }
+    public YamletFolder? ParentFolder { get; set; }
 
     [ObservableProperty]
     private string _method = "GET";

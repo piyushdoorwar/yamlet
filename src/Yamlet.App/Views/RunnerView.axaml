@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Yamlet.App.ViewModels"
+             xmlns:controls="using:Yamlet.App.Controls"
+             x:Class="Yamlet.App.Views.RunnerView"
+             x:DataType="vm:RunnerViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,*" Margin="10,8,10,10">
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+      <StackPanel Grid.Column="0" Spacing="3">
+        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" />
+        <TextBlock Classes="muted" FontSize="12" Text="{Binding Summary}" />
+      </StackPanel>
+      <Button Grid.Column="1"
+              Classes="accent"
+              MinWidth="80"
+              Command="{Binding StartCommand}"
+              IsEnabled="{Binding !IsRunning}"
+              Content="Start run" />
+    </Grid>
+
+    <Border Grid.Row="1"
+            Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="8"
+            Margin="0,0,0,8">
+      <Grid ColumnDefinitions="*,*,*,*,*">
+        <StackPanel Grid.Column="0" Spacing="3">
+          <TextBlock Classes="heading" Text="SOURCE" />
+          <TextBlock Text="Runner" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Spacing="3">
+          <TextBlock Classes="heading" Text="ENVIRONMENT" />
+          <TextBlock Text="{Binding EnvironmentText}" />
+        </StackPanel>
+        <StackPanel Grid.Column="2" Spacing="3">
+          <TextBlock Classes="heading" Text="SELECTED" />
+          <TextBlock Text="{Binding SelectedCount}" />
+        </StackPanel>
+        <StackPanel Grid.Column="3" Spacing="3">
+          <TextBlock Classes="heading" Text="RESULTS" />
+          <TextBlock>
+            <Run Text="{Binding PassedCount}" />
+            <Run Text=" passed / " />
+            <Run Text="{Binding FailedCount}" />
+            <Run Text=" failed" />
+          </TextBlock>
+        </StackPanel>
+        <StackPanel Grid.Column="4" Spacing="3">
+          <TextBlock Classes="heading" Text="DURATION" />
+          <TextBlock Text="{Binding Duration}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="0.42*,0.58*">
+      <Border Grid.Column="0"
+              Background="{DynamicResource PanelBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="8"
+              Margin="0,0,8,0">
+        <DockPanel LastChildFill="True">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" FontWeight="SemiBold" Text="Run sequence" />
+            <Button Grid.Column="1" Classes="ghost" Padding="6,3" Command="{Binding DeselectAllCommand}" Content="Deselect All" />
+            <Button Grid.Column="2" Classes="ghost" Padding="6,3" Command="{Binding SelectAllCommand}" Content="Select All" />
+            <Button Grid.Column="3" Classes="ghost" Padding="6,3" Command="{Binding ResetCommand}" Content="Reset" />
+          </Grid>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Items}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RunnerItemViewModel">
+                  <Grid ColumnDefinitions="26,Auto,38,*" Margin="0,4">
+                    <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Index}" VerticalAlignment="Center" />
+                    <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2"
+                               Classes="methodVerb"
+                               Text="{Binding Method}"
+                               Foreground="{Binding RequestNode.Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Column="1"
+              Background="{DynamicResource PanelBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              CornerRadius="6"
+              Padding="8">
+        <DockPanel LastChildFill="True">
+          <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Text="Run results" Margin="0,0,0,8" />
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Items}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RunnerItemViewModel">
+                  <Border BorderBrush="{DynamicResource BorderBrush}"
+                          BorderThickness="0,0,0,1"
+                          Padding="0,8">
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Method}"
+                                   Classes="methodVerb"
+                                   Foreground="{Binding RequestNode.Method, Converter={x:Static controls:MethodToBrushConverter.Instance}}" />
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      </StackPanel>
+                      <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding Status}" />
+                        <TextBlock Classes="muted" Text="{Binding Duration}" />
+                      </StackPanel>
+                      <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0" Spacing="2">
+                        <TextBlock Classes="muted" Text="{Binding Url}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Result}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

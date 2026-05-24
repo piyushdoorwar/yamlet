@@ -11,29 +11,58 @@ public sealed class RequestScriptRunner
 {
     private static readonly TimeSpan ScriptTimeout = TimeSpan.FromSeconds(5);
 
-    public void RunPreRequest(YamletRequest request, RequestScriptVariables variables)
+    public void RunPreRequest(
+        YamletRequest request,
+        RequestScriptVariables variables,
+        string? collectionScript = null)
     {
-        if (string.IsNullOrWhiteSpace(request.PreRequestScript))
-        {
-            return;
-        }
+        // Collection-scope script runs first, then the request's own.
+        RunCollectionScript(request, variables, response: null, collectionScript);
 
-        CreateEngine(request, variables, response: null)
-            .Execute(request.PreRequestScript);
+        if (!string.IsNullOrWhiteSpace(request.PreRequestScript))
+        {
+            CreateEngine(request, variables, response: null).Execute(request.PreRequestScript);
+        }
     }
 
     public void RunPostResponse(
         YamletRequest request,
         YamletResponse response,
-        RequestScriptVariables variables)
+        RequestScriptVariables variables,
+        string? collectionScript = null)
     {
-        if (string.IsNullOrWhiteSpace(request.PostResponseScript))
+        if (!string.IsNullOrWhiteSpace(request.PostResponseScript))
+        {
+            CreateEngine(request, variables, response).Execute(request.PostResponseScript);
+        }
+
+        RunCollectionScript(request, variables, response, collectionScript);
+    }
+
+    /// <summary>
+    /// Runs a collection-scope script in its own engine. Errors are swallowed so a failing
+    /// collection script (commonly a test assertion) can't turn a sent request into a
+    /// failure — collection scripts apply to every request and shouldn't abort the send.
+    /// </summary>
+    private void RunCollectionScript(
+        YamletRequest request,
+        RequestScriptVariables variables,
+        YamletResponse? response,
+        string? script)
+    {
+        if (string.IsNullOrWhiteSpace(script))
         {
             return;
         }
 
-        CreateEngine(request, variables, response)
-            .Execute(request.PostResponseScript);
+        try
+        {
+            CreateEngine(request, variables, response).Execute(script);
+        }
+        catch
+        {
+            // Ignore collection-script failures (e.g. test assertions).
+        }
     }
 
     private static Engine CreateEngine(
@@ -171,15 +200,22 @@ const pm = {
     }
   },
   test: (name, fn) => fn(),
-  expect: value => ({
-    to: {
-      equal: expected => {
-        if (value !== expected) {
-          throw new Error(`Expected ${value} to equal ${expected}`);
-        }
-      }
-    }
-  })
+  expect: value => {
+    const assert = (ok, message) => { if (!ok) throw new Error(message); };
+    const equal = expected => assert(value === expected, `Expected ${value} to equal ${expected}`);
+    const eql = expected => assert(JSON.stringify(value) === JSON.stringify(expected), `Expected ${value} to eql ${expected}`);
+    const within = (a, b) => assert(value >= a && value <= b, `Expected ${value} to be within ${a} and ${b}`);
+    const above = n => assert(value > n, `Expected ${value} to be above ${n}`);
+    const below = n => assert(value < n, `Expected ${value} to be below ${n}`);
+    const include = sub => assert(__toText(value).indexOf(__toText(sub)) >= 0, `Expected ${value} to include ${sub}`);
+    const oneOf = list => assert(Array.isArray(list) && list.indexOf(value) >= 0, `Expected ${value} to be one of ${list}`);
+    const noop = () => api;
+    const api = { equal, eql, within, above, below, include, oneOf, a: noop, an: noop };
+    api.be = { equal, eql, within, above, below, a: noop, an: noop, ok: () => assert(!!value, `Expected ${value} to be truthy`) };
+    api.to = api;
+    api.have = { property: () => api };
+    return { to: api, that: api };
+  }
 };
 """;
 }

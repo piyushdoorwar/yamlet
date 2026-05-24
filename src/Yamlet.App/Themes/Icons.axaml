@@ -31,6 +31,12 @@
   <!-- Plus / add. -->
   <StreamGeometry x:Key="IconPlus">M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z</StreamGeometry>
 
+  <!-- More / overflow. -->
+  <StreamGeometry x:Key="IconMoreHorizontal">M6,10A2,2 0 1,1 6,14A2,2 0 0,1 6,10M12,10A2,2 0 1,1 12,14A2,2 0 0,1 12,10M18,10A2,2 0 1,1 18,14A2,2 0 0,1 18,10Z</StreamGeometry>
+
+  <!-- Collapse all tree nodes. -->
+  <StreamGeometry x:Key="IconCollapseAll">M7,4H21V6H7V4M3,8H17V10H3V8M7,12H21V14H7V12M3,16H17V18H3V16M7,20H21V22H7V20Z</StreamGeometry>
+
   <!-- Close / remove. -->
   <StreamGeometry x:Key="IconClose">M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z</StreamGeometry>
 
@@ -39,6 +45,9 @@
 
   <!-- Scripts / code. -->
   <StreamGeometry x:Key="IconScript">M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z</StreamGeometry>
+
+  <!-- Runner: play button in a rounded rectangle. -->
+  <StreamGeometry x:Key="IconRunner">M4,5A2,2 0 0,1 6,3H18A2,2 0 0,1 20,5V19A2,2 0 0,1 18,21H6A2,2 0 0,1 4,19V5M6,5V19H18V5H6M10,8.5L15.5,12L10,15.5V8.5Z</StreamGeometry>
 
   <!-- Send: paper-plane. Stroke-based outline — render with a stroked Path, not a
        filled PathIcon. -->

@@ -17,13 +17,18 @@ public sealed class RequestExecutor
     private readonly HttpClient _client;
     private readonly VariableResolver _resolver;
     private readonly RequestScriptRunner _scripts;
+    private readonly OAuth2TokenService _oauth;
 
     public RequestExecutor(HttpClient client, VariableResolver resolver, RequestScriptRunner? scripts = null)
     {
         _client = client;
         _resolver = resolver;
         _scripts = scripts ?? new RequestScriptRunner();
+        _oauth = new OAuth2TokenService(client);
     }
+
+    /// <summary>The shared token service, exposed so the UI can fetch tokens on demand.</summary>
+    public OAuth2TokenService OAuth2 => _oauth;
 
     /// <summary>Creates an executor backed by a default client with a sensible timeout.</summary>
     public static RequestExecutor CreateDefault() =>
@@ -52,17 +57,24 @@ public sealed class RequestExecutor
         VariableContext context,
         YamletAuth? collectionAuth,
         RequestScriptVariables scriptVariables,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? collectionPreRequestScript = null,
+        string? collectionPostResponseScript = null)
     {
         var stopwatch = Stopwatch.StartNew();
         try
         {
             var activeRequest = CloneRequest(request);
 
-            _scripts.RunPreRequest(activeRequest, scriptVariables);
+            _scripts.RunPreRequest(activeRequest, scriptVariables, collectionPreRequestScript);
             var activeContext = scriptVariables.ToContext();
 
-            using var message = BuildMessage(activeRequest, activeContext, collectionAuth);
+            var effectiveAuth = EffectiveAuth(activeRequest, collectionAuth);
+            var oauthToken = effectiveAuth.Type == YamletAuthType.OAuth2
+                ? await ResolveOAuthTokenAsync(effectiveAuth.OAuth2, activeContext, cancellationToken).ConfigureAwait(false)
+                : null;
+
+            using var message = BuildMessage(activeRequest, activeContext, collectionAuth, oauthToken);
             using var response = await _client
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
@@ -81,7 +93,7 @@ public sealed class RequestExecutor
                 Headers = CollectHeaders(response),
             };
 
-            _scripts.RunPostResponse(activeRequest, result, scriptVariables);
+            _scripts.RunPostResponse(activeRequest, result, scriptVariables, collectionPostResponseScript);
             await scriptVariables.PersistAsync().ConfigureAwait(false);
             return result;
         }
@@ -122,7 +134,8 @@ public sealed class RequestExecutor
     internal HttpRequestMessage BuildMessage(
         YamletRequest request,
         VariableContext context,
-        YamletAuth? collectionAuth = null)
+        YamletAuth? collectionAuth = null,
+        string? oauthToken = null)
     {
         var url = BuildUrl(request, context);
         var message = new HttpRequestMessage(new HttpMethod(request.Method.ToUpperInvariant()), url);
@@ -130,9 +143,37 @@ public sealed class RequestExecutor
         ApplyBody(request, context, message);
         ApplyDefaultHeaders(message);
         ApplyHeaders(request, context, message);
-        ApplyAuth(EffectiveAuth(request, collectionAuth), context, message);
+        ApplyAuth(EffectiveAuth(request, collectionAuth), context, message, oauthToken);
 
         return message;
+    }
+
+    /// <summary>
+    /// Resolves the OAuth2 token to attach: for client-credentials it fetches (and caches)
+    /// from the token endpoint; for other grants it uses the stored access token (set
+    /// manually or via the browser auth-code flow). Placeholders are resolved first.
+    /// </summary>
+    private async Task<string> ResolveOAuthTokenAsync(YamletOAuth2 config, VariableContext context, CancellationToken cancellationToken)
+    {
+        var resolved = new YamletOAuth2
+        {
+            GrantType = config.GrantType,
+            AccessToken = _resolver.Resolve(config.AccessToken, context),
+            AccessTokenUrl = _resolver.Resolve(config.AccessTokenUrl, context),
+            ClientId = _resolver.Resolve(config.ClientId, context),
+            ClientSecret = _resolver.Resolve(config.ClientSecret, context),
+            Scope = _resolver.Resolve(config.Scope, context),
+            ClientAuthentication = config.ClientAuthentication,
+        };
+
+        if (config.GrantType == OAuth2GrantType.ClientCredentials
+            && !string.IsNullOrWhiteSpace(resolved.AccessTokenUrl)
+            && !string.IsNullOrWhiteSpace(resolved.ClientId))
+        {
+            return await _oauth.GetClientCredentialsTokenAsync(resolved, cancellationToken).ConfigureAwait(false);
+        }
+
+        return resolved.AccessToken;
     }
 
     private static YamletAuth EffectiveAuth(YamletRequest request, YamletAuth? collectionAuth) =>
@@ -190,10 +231,33 @@ public sealed class RequestExecutor
     private static bool IsDefaultHeader(string key) =>
         string.Equals(key, DefaultUserAgentHeaderName, StringComparison.OrdinalIgnoreCase);
 
-    private void ApplyAuth(YamletAuth auth, VariableContext context, HttpRequestMessage message)
+    private void ApplyAuth(YamletAuth auth, VariableContext context, HttpRequestMessage message, string? oauthToken = null)
     {
         switch (auth.Type)
         {
+            case YamletAuthType.OAuth2:
+                var oauth = auth.OAuth2;
+                var accessToken = !string.IsNullOrWhiteSpace(oauthToken)
+                    ? oauthToken
+                    : _resolver.Resolve(oauth.AccessToken, context);
+                if (!string.IsNullOrWhiteSpace(accessToken))
+                {
+                    if (oauth.AddTokenTo == OAuth2TokenLocation.Query)
+                    {
+                        var uri = message.RequestUri!.ToString();
+                        var separator = uri.Contains('?') ? "&" : "?";
+                        message.RequestUri = new Uri(uri + separator + "access_token=" + Uri.EscapeDataString(accessToken));
+                    }
+                    else
+                    {
+                        var prefix = string.IsNullOrWhiteSpace(oauth.HeaderPrefix)
+                            ? "Bearer"
+                            : _resolver.Resolve(oauth.HeaderPrefix, context);
+                        message.Headers.TryAddWithoutValidation("Authorization", $"{prefix} {accessToken}");
+                    }
+                }
+                break;
+
             case YamletAuthType.Bearer:
                 var token = _resolver.Resolve(auth.Token, context);
                 if (!string.IsNullOrWhiteSpace(token))
@@ -244,14 +308,75 @@ public sealed class RequestExecutor
     private void ApplyBody(YamletRequest request, VariableContext context, HttpRequestMessage message)
     {
         var body = request.Body;
-        if (body.Type is YamletBodyType.None || string.IsNullOrEmpty(body.Raw))
+        if (body.Type is YamletBodyType.None)
         {
             return;
         }
 
-        var raw = _resolver.Resolve(body.Raw, context);
-        var mediaType = body.Type == YamletBodyType.Json ? "application/json" : "text/plain";
-        message.Content = new StringContent(raw, Encoding.UTF8, mediaType);
+        switch (body.Type)
+        {
+            case YamletBodyType.Raw:
+            case YamletBodyType.Json:
+                if (string.IsNullOrEmpty(body.Raw))
+                {
+                    return;
+                }
+                var raw = _resolver.Resolve(body.Raw, context);
+                var mediaType = body.Type == YamletBodyType.Json ? "application/json" : "text/plain";
+                message.Content = new StringContent(raw, Encoding.UTF8, mediaType);
+                break;
+
+            case YamletBodyType.UrlEncoded:
+                var formPairs = EnabledBodyFields(body, context)
+                    .Select(f => new KeyValuePair<string, string>(f.Key, f.Value));
+                message.Content = new FormUrlEncodedContent(formPairs);
+                break;
+
+            case YamletBodyType.FormData:
+                var multipart = new MultipartFormDataContent();
+                foreach (var field in EnabledBodyFields(body, context))
+                {
+                    if (field.IsFile || field.Value.StartsWith('@'))
+                    {
+                        var filePath = ResolveFilePath(field.Value, request.SourceFilePath);
+                        var stream = File.OpenRead(filePath);
+                        multipart.Add(new StreamContent(stream), field.Key, Path.GetFileName(filePath));
+                    }
+                    else
+                    {
+                        multipart.Add(new StringContent(field.Value, Encoding.UTF8), field.Key);
+                    }
+                }
+                message.Content = multipart;
+                break;
+        }
+    }
+
+    private IEnumerable<YamletBodyField> EnabledBodyFields(YamletRequestBody body, VariableContext context) =>
+        body.Fields
+            .Where(f => f.Enabled && !string.IsNullOrWhiteSpace(f.Key))
+            .Select(f => new YamletBodyField
+            {
+                Key = _resolver.Resolve(f.Key, context),
+                Value = _resolver.Resolve(f.Value, context),
+                Description = f.Description,
+                Enabled = f.Enabled,
+                IsFile = f.IsFile || IsFileDescription(f.Description),
+            });
+
+    private static bool IsFileDescription(string description) =>
+        string.Equals(description.Trim(), "file", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveFilePath(string value, string? sourceFilePath)
+    {
+        var path = value.StartsWith('@') ? value[1..] : value;
+        if (Path.IsPathRooted(path) || string.IsNullOrWhiteSpace(sourceFilePath))
+        {
+            return path;
+        }
+
+        var baseDirectory = Path.GetDirectoryName(sourceFilePath);
+        return string.IsNullOrWhiteSpace(baseDirectory) ? path : Path.Combine(baseDirectory, path);
     }
 
     private static string DecodeBody(byte[] bytes, HttpContentHeaders headers)
