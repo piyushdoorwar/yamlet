@@ -110,8 +110,16 @@ jobs:
           name: yamlet-windows-x64-setup
           path: artifacts/packages/*_setup.exe
 
-      - name: Attach installer to release
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: yamlet-windows-x64-msix
+          path: artifacts/packages/*.msix
+
+      - name: Attach installer and MSIX to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/packages/*_setup.exe
+          files: |
+            artifacts/packages/*_setup.exe
+            artifacts/packages/*.msix
