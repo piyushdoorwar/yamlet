@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
@@ -142,6 +143,31 @@ public partial class RequestEditorView : UserControl
         {
             ApplyLayout(_viewModel.IsSideBySide);
         }
+    }
+
+    private async void OnCopyResponseClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_viewModel is null || !TryGetResponseTextToCopy(_viewModel, out var text))
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(text);
+        }
+    }
+
+    private static bool TryGetResponseTextToCopy(RequestEditorViewModel viewModel, out string text)
+    {
+        text = viewModel.SelectedResponseView switch
+        {
+            "Headers" => viewModel.ResponseHeadersText,
+            "Raw" => viewModel.ResponseRaw,
+            _ => viewModel.ResponseBody,
+        };
+
+        return !string.IsNullOrEmpty(text);
     }
 
     /// <summary>

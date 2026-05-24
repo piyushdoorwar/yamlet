@@ -234,7 +234,7 @@
       <Grid RowDefinitions="Auto,*">
 
         <!-- Condensed response bar: view dropdown on the left, status/time/size on the right. -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto">
           <ComboBox Grid.Column="0"
                     MinWidth="110"
                     ItemsSource="{Binding ResponseViews}"
@@ -258,12 +258,21 @@
             <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseDurationText}" />
             <TextBlock VerticalAlignment="Center" Classes="muted" Text="{Binding ResponseSizeText}" />
           </StackPanel>
+          <Button Grid.Column="3"
+                  Classes="ghost"
+                  Padding="6"
+                  Margin="10,0,0,0"
+                  VerticalAlignment="Center"
+                  Click="OnCopyResponseClicked"
+                  ToolTip.Tip="Copy response"
+                  IsVisible="{Binding HasResponse}">
+            <PathIcon Data="{StaticResource IconCopy}" Width="14" Height="14" />
+          </Button>
         </Grid>
 
         <Panel Grid.Row="1" Margin="0,8,0,0" IsVisible="{Binding HasResponse}">
           <controls:CodeEditorView Text="{Binding ResponseBody}"
                                    Language="{Binding ResponseBodyLanguage}"
-                                   AllowBeautify="{Binding IsResponseBodyJson}"
                                    IsReadOnly="True"
                                    IsVisible="{Binding IsResponseBodyView}" />
           <controls:CodeEditorView Text="{Binding ResponseHeadersText}"

@@ -39,6 +39,11 @@
   <Color x:Key="VariableDefinedColor">#FFE0A458</Color>
   <Color x:Key="VariableUndefinedColor">#FFE2655A</Color>
 
+  <!-- JSON editor syntax colors. Variables intentionally keep their own amber/red
+       overlay so placeholders stand apart from normal JSON values. -->
+  <Color x:Key="JsonKeyColor">#FF9CC0EC</Color>
+  <Color x:Key="JsonValueColor">#FF8FD3A8</Color>
+
   <!-- Brushes -->
   <SolidColorBrush x:Key="RailBrush" Color="{StaticResource RailColor}" />
   <SolidColorBrush x:Key="SidebarBrush" Color="{StaticResource SidebarColor}" />
@@ -62,5 +67,7 @@
 
   <SolidColorBrush x:Key="VariableDefinedBrush" Color="{StaticResource VariableDefinedColor}" />
   <SolidColorBrush x:Key="VariableUndefinedBrush" Color="{StaticResource VariableUndefinedColor}" />
+  <SolidColorBrush x:Key="JsonKeyBrush" Color="{StaticResource JsonKeyColor}" />
+  <SolidColorBrush x:Key="JsonValueBrush" Color="{StaticResource JsonValueColor}" />
 
 </ResourceDictionary>

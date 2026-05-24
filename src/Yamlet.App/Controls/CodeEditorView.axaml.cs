@@ -25,6 +25,10 @@ public partial class CodeEditorView : UserControl
 {
     private static readonly Regex PlaceholderPattern =
         new(@"\{\{\s*([^{}\s]+)\s*\}\}", RegexOptions.Compiled);
+    private static readonly Regex JsonStringPattern =
+        new("\"(?:\\\\.|[^\"\\\\])*\"", RegexOptions.Compiled);
+    private static readonly Regex JsonLiteralPattern =
+        new(@"(?<![\w.])-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b(?:true|false|null)\b", RegexOptions.Compiled);
 
     public static readonly StyledProperty<string> TextProperty =
         AvaloniaProperty.Register<CodeEditorView, string>(
@@ -47,6 +51,8 @@ public partial class CodeEditorView : UserControl
     private readonly TextEditor _editor;
     private readonly IBrush _definedBrush;
     private readonly IBrush _undefinedBrush;
+    private readonly IBrush _jsonKeyBrush;
+    private readonly IBrush _jsonValueBrush;
     private readonly JsonFoldingStrategy _foldingStrategy = new();
     private FoldingManager? _foldingManager;
     private bool _syncing;
@@ -60,12 +66,18 @@ public partial class CodeEditorView : UserControl
 
         _definedBrush = FindBrush("VariableDefinedBrush", "#FFE0A458");
         _undefinedBrush = FindBrush("VariableUndefinedBrush", "#FFE2655A");
+        _jsonKeyBrush = FindBrush("JsonKeyBrush", "#FF9CC0EC");
+        _jsonValueBrush = FindBrush("JsonValueBrush", "#FF8FD3A8");
 
         _editor = this.FindControl<TextEditor>("EditorBox")!;
         _editor.Options.EnableHyperlinks = false;
         _editor.Options.EnableEmailHyperlinks = false;
         _editor.Text = Text ?? string.Empty;
         _editor.TextChanged += OnEditorTextChanged;
+        _editor.TextArea.TextView.LineTransformers.Add(
+            new JsonSyntaxColorizer(() => string.Equals(Language, "json", StringComparison.OrdinalIgnoreCase),
+                _jsonKeyBrush,
+                _jsonValueBrush));
         _editor.TextArea.TextView.LineTransformers.Add(new VariableColorizer(VariableState, _definedBrush, _undefinedBrush));
         _editor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         _editor.TextArea.TextView.PointerMoved += OnEditorPointerMoved;
@@ -134,6 +146,7 @@ public partial class CodeEditorView : UserControl
         else if (change.Property == LanguageProperty)
         {
             UpdateFolding();
+            _editor.TextArea.TextView.Redraw();
         }
     }
 
@@ -388,6 +401,70 @@ public partial class CodeEditorView : UserControl
         }
 
         return new SolidColorBrush(Color.Parse(fallbackHex));
+    }
+
+    /// <summary>Small JSON colorizer: property names use soft blue; values use Yamlet green.</summary>
+    private sealed class JsonSyntaxColorizer : DocumentColorizingTransformer
+    {
+        private readonly Func<bool> _isJson;
+        private readonly IBrush _key;
+        private readonly IBrush _value;
+
+        public JsonSyntaxColorizer(Func<bool> isJson, IBrush key, IBrush value)
+        {
+            _isJson = isJson;
+            _key = key;
+            _value = value;
+        }
+
+        protected override void ColorizeLine(DocumentLine line)
+        {
+            if (!_isJson())
+            {
+                return;
+            }
+
+            var text = CurrentContext.Document.GetText(line);
+            var stringSpans = new List<(int Start, int End)>();
+
+            foreach (Match match in JsonStringPattern.Matches(text))
+            {
+                var brush = IsPropertyName(text, match.Index + match.Length) ? _key : _value;
+                stringSpans.Add((match.Index, match.Index + match.Length));
+                ChangeLinePart(
+                    line.Offset + match.Index,
+                    line.Offset + match.Index + match.Length,
+                    element => element.TextRunProperties.SetForegroundBrush(brush));
+            }
+
+            foreach (Match match in JsonLiteralPattern.Matches(text))
+            {
+                if (stringSpans.Any(span => match.Index >= span.Start && match.Index < span.End))
+                {
+                    continue;
+                }
+
+                ChangeLinePart(
+                    line.Offset + match.Index,
+                    line.Offset + match.Index + match.Length,
+                    element => element.TextRunProperties.SetForegroundBrush(_value));
+            }
+        }
+
+        private static bool IsPropertyName(string line, int afterString)
+        {
+            for (var i = afterString; i < line.Length; i++)
+            {
+                if (char.IsWhiteSpace(line[i]))
+                {
+                    continue;
+                }
+
+                return line[i] == ':';
+            }
+
+            return false;
+        }
     }
 
     /// <summary>Colors {{placeholder}} spans amber (defined) or red (undefined).</summary>

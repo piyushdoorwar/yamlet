@@ -5,31 +5,53 @@
              x:Name="GridRoot"
              x:DataType="vm:EditableRowsViewModel">
 
+  <UserControl.Styles>
+    <Style Selector="TextBox.kvCell">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="BorderThickness" Value="0,0,1,1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <Style Selector="TextBox.kvCell:focus /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Button.kvRemove">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
   <DockPanel LastChildFill="True">
 
     <!-- Column header -->
-    <Grid DockPanel.Dock="Top" Margin="0,0,0,3" ColumnDefinitions="24,*,*,*,26">
-      <TextBlock Grid.Column="1" Classes="heading" Text="KEY" Margin="6,0,0,0" />
-      <TextBlock Grid.Column="2" Classes="heading" Text="VALUE" Margin="6,0,0,0" />
-      <TextBlock Grid.Column="3" Classes="heading" Text="DESCRIPTION" Margin="6,0,0,0" />
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="28,1.1*,1.1*,1.4*,28">
+      <TextBlock Grid.Column="1" Classes="heading" Text="KEY" Margin="8,0,0,4" />
+      <TextBlock Grid.Column="2" Classes="heading" Text="VALUE" Margin="8,0,0,4" />
+      <TextBlock Grid.Column="3" Classes="heading" Text="DESCRIPTION" Margin="8,0,0,4" />
     </Grid>
 
     <ScrollViewer>
       <ItemsControl ItemsSource="{Binding Rows}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:KeyValueRowViewModel">
-            <Grid ColumnDefinitions="24,*,*,*,26" Margin="0,1">
+            <Grid ColumnDefinitions="28,1.1*,1.1*,1.4*,28" MinHeight="30">
               <CheckBox Grid.Column="0"
                         IsChecked="{Binding Enabled}"
                         IsEnabled="{Binding !IsReadOnly}"
                         VerticalAlignment="Center"
                         Padding="0"
-                        Margin="2,0,0,0" />
-              <TextBox Grid.Column="1" Text="{Binding Key}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="key" Margin="2,0" />
-              <TextBox Grid.Column="2" Text="{Binding Value}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="value" Margin="2,0" />
-              <TextBox Grid.Column="3" Text="{Binding Description}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="description" Margin="2,0" />
+                        Margin="2,0,4,0" />
+              <TextBox Grid.Column="1" Classes="kvCell" Text="{Binding Key}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="key" />
+              <TextBox Grid.Column="2" Classes="kvCell" Text="{Binding Value}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="value" />
+              <TextBox Grid.Column="3" Classes="kvCell" Text="{Binding Description}" IsReadOnly="{Binding IsReadOnly}" PlaceholderText="description" />
               <Button Grid.Column="4"
-                      Classes="ghost"
+                      Classes="ghost kvRemove"
                       Padding="4"
                       Command="{Binding #GridRoot.DataContext.RemoveRowCommand}"
                       CommandParameter="{Binding}"

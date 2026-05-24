@@ -201,6 +201,10 @@
                 <Style Selector="TreeViewItem">
                   <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                 </Style>
+                <!-- Green hover on the row header (full width, doesn't highlight ancestors). -->
+                <Style Selector="TreeViewItem /template/ Border#PART_Header:pointerover">
+                  <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                </Style>
               </TreeView.Styles>
             </TreeView>
           </Panel>
