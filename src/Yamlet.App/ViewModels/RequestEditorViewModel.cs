@@ -27,7 +27,18 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     private readonly Func<string?>? _activeEnvironmentName;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
+    private CancellationTokenSource? _autoSaveCts;
     private VariableContext? _variableCache;
+
+    // Properties that represent user-editable request data and should trigger auto-save.
+    private static readonly HashSet<string> _autoSaveProperties = new(StringComparer.Ordinal)
+    {
+        nameof(Name), nameof(SelectedMethod), nameof(Url),
+        nameof(SelectedBodyType), nameof(BodyText),
+        nameof(SelectedAuthType), nameof(BearerToken), nameof(BasicUsername), nameof(BasicPassword),
+        nameof(ApiKeyName), nameof(ApiKeyValue), nameof(SelectedApiKeyLocation), nameof(Cookie),
+        nameof(PreRequestScript), nameof(PostResponseScript),
+    };
 
     public static readonly string[] Methods =
         { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" };
@@ -106,6 +117,13 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         BreadcrumbPath = BuildBreadcrumb(node);
         BreadcrumbPrefix = BuildBreadcrumbPrefix(node);
         LoadFrom(node.Request);
+
+        // Subscribe after LoadFrom so initial population doesn't trigger auto-save.
+        PropertyChanged += (_, e) => { if (_autoSaveProperties.Contains(e.PropertyName ?? "")) ScheduleAutoSave(); };
+        Params.ContentChanged += (_, _) => ScheduleAutoSave();
+        Headers.ContentChanged += (_, _) => ScheduleAutoSave();
+        Variables.ContentChanged += (_, _) => ScheduleAutoSave();
+        BodyFields.ContentChanged += (_, _) => ScheduleAutoSave();
     }
 
     // ---- Editable state ----------------------------------------------------
@@ -545,18 +563,22 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     // ---- Commands ----------------------------------------------------------
 
-    [RelayCommand]
-    private async Task SaveAsync()
+    private async void ScheduleAutoSave()
     {
+        var prev = _autoSaveCts;
+        _autoSaveCts = new CancellationTokenSource();
+        prev?.Cancel();
+        prev?.Dispose();
         try
         {
+            await Task.Delay(800, _autoSaveCts.Token).ConfigureAwait(false);
             var request = ApplyToModel();
             await _requestFiles.SaveRequestAsync(request).ConfigureAwait(false);
-            _status?.Invoke($"Saved {request.Name}");
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _status?.Invoke($"Save failed: {ex.Message}");
+            _status?.Invoke($"Auto-save failed: {ex.Message}");
         }
     }
 
