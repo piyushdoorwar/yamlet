@@ -169,8 +169,10 @@ public sealed partial class RunnerViewModel : ViewModelBase
             item.Result = "-";
         }
 
-        var tasks = selected.Select(RunItemAsync).ToArray();
-        await Task.WhenAll(tasks);
+        foreach (var item in selected)
+        {
+            await RunItemAsync(item);
+        }
 
         Duration = FormatDuration(DateTimeOffset.Now - started);
         Summary = $"Run complete: {PassedCount} passed, {FailedCount} failed.";
