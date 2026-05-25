@@ -5,6 +5,42 @@
              x:Class="Yamlet.App.Views.RunnerView"
              x:DataType="vm:RunnerViewModel">
 
+  <UserControl.Styles>
+    <Style Selector="ToggleButton.runnerSelect">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.runnerSelect:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PanelAltBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.runnerSelect:checked">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.runnerSelect:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.runnerSelect PathIcon">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+      <Setter Property="Foreground" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.runnerSelect:checked PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,Auto,*" Margin="10,8,10,10">
     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
       <StackPanel Grid.Column="0" Spacing="3">
@@ -85,9 +121,14 @@
             <ItemsControl ItemsSource="{Binding Items}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RunnerItemViewModel">
-                  <Grid ColumnDefinitions="26,Auto,38,*" Margin="0,4">
+                  <Grid ColumnDefinitions="26,34,50,*" Margin="0,4">
                     <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Index}" VerticalAlignment="Center" />
-                    <CheckBox Grid.Column="1" IsChecked="{Binding IsSelected}" VerticalAlignment="Center" />
+                    <ToggleButton Grid.Column="1"
+                                  Classes="runnerSelect"
+                                  IsChecked="{Binding IsSelected}"
+                                  ToolTip.Tip="Include in run">
+                      <PathIcon Data="{StaticResource IconCheck}" />
+                    </ToggleButton>
                     <TextBlock Grid.Column="2"
                                Classes="methodVerb"
                                Text="{Binding Method}"
