@@ -27,6 +27,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     private readonly Func<string, string, Task>? _setEnvironmentVariableAsync;
     private readonly Func<string?>? _activeEnvironmentName;
     private readonly IDialogService? _dialogs;
+    private readonly Func<YamletRequest, YamletResponse?>? _loadCachedResponse;
+    private readonly Action<YamletRequest, YamletResponse>? _rememberCachedResponse;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
     private CancellationTokenSource? _autoSaveCts;
@@ -103,7 +105,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         Func<string?>? activeEnvironmentName = null,
         Func<(string Pre, string Post)>? collectionScriptsFactory = null,
         CollectionService? collectionService = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        Func<YamletRequest, YamletResponse?>? loadCachedResponse = null,
+        Action<YamletRequest, YamletResponse>? rememberCachedResponse = null)
     {
         _node = node;
         _executor = executor;
@@ -118,11 +122,14 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         _setEnvironmentVariableAsync = setEnvironmentVariableAsync;
         _activeEnvironmentName = activeEnvironmentName;
         _dialogs = dialogs;
+        _loadCachedResponse = loadCachedResponse;
+        _rememberCachedResponse = rememberCachedResponse;
         _isSideBySide = initialSideBySide;
 
         BreadcrumbPath = BuildBreadcrumb(node);
         BreadcrumbPrefix = BuildBreadcrumbPrefix(node);
         LoadFrom(node.Request);
+        LoadCachedResponse(node.Request);
 
         // Subscribe after LoadFrom so initial population doesn't trigger auto-save.
         PropertyChanged += (_, e) => { if (_autoSaveProperties.Contains(e.PropertyName ?? "")) ScheduleAutoSave(); };
@@ -650,6 +657,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
                     _inflight.Token, collectionPre, collectionPost)
                 .ConfigureAwait(false);
             ApplyResponse(response);
+            _rememberCachedResponse?.Invoke(request, response);
             RequestHistory.Insert(
                 0,
                 response.IsError
@@ -708,6 +716,18 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         ResponseRaw = raw.ToString();
         ResponseConsole = response.ConsoleText;
     }
+
+    private void LoadCachedResponse(YamletRequest request)
+    {
+        var response = _loadCachedResponse?.Invoke(request);
+        if (response is null)
+        {
+            return;
+        }
+
+        ApplyResponse(response);
+    }
+
     private static string CategoryFor(int statusCode) => statusCode switch
     {
         >= 200 and < 300 => "success",

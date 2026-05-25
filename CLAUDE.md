@@ -140,6 +140,29 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   pre, collection post after. Collection-script errors are swallowed (a failing test
   assertion must not fail the send); request-script errors still abort the send.
 - **RequestExecutor takes an injected `HttpClient`** so tests use a fake handler.
+- **Postman v2.1 is the canonical on-disk collection format.** `YamlDtos.cs` contains a
+  full set of Postman DTOs (`PostmanCollectionFileDto`, `PostmanItemDto`, `PostmanRequestDto`,
+  `PostmanAuthDto`, `PostmanBodyDto`, `PostmanEventDto`, etc.). `PostmanAuthDto` writes
+  the Postman list format (e.g. `bearer: [{key: token, value: …, type: string}]`) and
+  reads both that and the old Yamlet flat fields for backward compatibility. After every
+  request auto-save, `RequestEditorViewModel` also calls `CollectionService.SaveCollectionAsync`
+  to rebuild `collection.yaml` with up-to-date embedded requests (the `_node.Request`
+  reference is shared with `OwningCollection`, so no extra mapping is needed).
+- **Form-data body fields support file attachments.** `KeyValueRowViewModel` carries
+  `FormDataValueType` / `IsFile` to toggle between text and file mode. `IDialogService`
+  exposes `PickFileAsync`; the result is stored with a `@` prefix in the value (matching
+  cURL `--form` convention). `RequestEditorViewModel` accepts `IDialogService` and
+  exposes `SelectBodyFileCommand` for the file-picker button in the form-data template.
+- **URL highlight overlay.** The URL `TextBox` has `Foreground="Transparent"` so an
+  overlaid `TextBlock` (`UrlHighlightText`) renders all visible text. Plain text `Run`
+  objects are added without an explicit `Foreground` so they inherit the TextBlock's
+  `Foreground="{DynamicResource TextPrimaryBrush}"` at render time; variable spans get
+  explicit amber/red brushes. Never set an explicit foreground on plain-text runs —
+  it bypasses the dynamic resource and breaks light-mode-style changes.
+- **App version in About dialog.** `AboutDialog` reads `AssemblyInformationalVersionAttribute`
+  (stripping the `+githash` suffix). The csproj sets `<Version>0.0.0-dev</Version>` as the
+  local-dev default; CI passes `-p:Version=$VERSION -p:InformationalVersion=$VERSION` to
+  `dotnet publish`, overriding it with the real release version.
 
 ## On-disk layout
 
@@ -153,6 +176,13 @@ globals/globals.yaml
 
 `WorkspaceService.ResolveRoot` treats the picked folder as the root if it already
 contains `collections/`+`environments/`, else uses a `yamlet/` subfolder.
+
+**`collection.yaml` is written in Postman Collection v2.1 format** so the Postman CLI
+can run it directly (`postman collection run collection.yaml`). `CollectionService`
+serializes `PostmanCollectionFileDto` (all requests embedded inline under `item`).
+Environments are written as `PostmanEnvironmentDto` (Postman environment format with
+`_postman_variable_scope: environment` and `values:` list). On load, `CollectionMetadataDto`
+accepts both the Postman shape and the legacy Yamlet shape for backward compatibility.
 
 ## Packaging / distribution
 
@@ -177,8 +207,10 @@ target machine needs no separate .NET runtime.
 
 Conventions / gotchas:
 
-- **Version** flows via the `VERSION` env var (Linux) / `-p:Version` and is derived by
-  the workflow from the tag (`v1.2.3` → `1.2.3`), the dispatch input, or `0.0.0-dev`.
+- **Version** flows via the `VERSION` env var (Linux) / `-p:Version -p:InformationalVersion`
+  (Windows) and is derived by the workflow from the tag (`v1.2.3` → `1.2.3`), the dispatch
+  input, or `0.0.0-dev`. The csproj sets `<Version>0.0.0-dev</Version>` as the local-dev
+  default so `dotnet run` shows a meaningful value instead of the SDK default `1.0.0`.
   MSIX requires a numeric `X.X.X.X` identity version, so any pre-release suffix is
   stripped (`1.2.3-beta` → `1.2.3.0`).
 - The **`.msix` is produced unsigned** (`MakeAppx pack` only). Sign it before
@@ -211,13 +243,15 @@ headers as a map *or* list
 `*.request.yaml` / `*.environment.yaml` filenames, and unknown top-level keys preserved
 when saving.
 
-A collection's metadata may live in a native `collection.yaml` **or** an exported
-`.resources/definition.yaml` (`CollectionDefinitionDto`): collection `variables` as a
-name→value **map**, `auth` as a **list** of schemes (incl. `oauth2` with a `credentials:`
-block → `OAuth2CredentialsDto`), and collection-scope `scripts`. When both files exist the
-definition is applied first and `collection.yaml` overrides only what it specifies
-(merge-friendly `ApplyTo`), so a collection with only `.resources/` still loads its name,
-variables, OAuth2 auth and scripts.
+A collection's metadata may live in a native `collection.yaml` (now written as Postman
+v2.1 — see above) **or** an exported `.resources/definition.yaml` (`CollectionDefinitionDto`):
+collection `variables` as a name→value **map**, `auth` as a **list** of schemes (incl.
+`oauth2` with a `credentials:` block → `OAuth2CredentialsDto`), and collection-scope
+`scripts`. When both files exist the definition is applied first and `collection.yaml`
+overrides only what it specifies (merge-friendly `ApplyTo`), so a collection with only
+`.resources/` still loads its name, variables, OAuth2 auth and scripts. On load, the
+shared `CollectionMetadataDto` accepts Postman `info`/`item`/`variable`/`event` fields
+AND the legacy Yamlet flat fields, so existing workspaces round-trip without migration.
 
 Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestScript` /
 `PostResponseScript`), shown in the editor's **Scripts** tab, preserved on save
@@ -271,15 +305,17 @@ Inter font. **One deliberate swap: the accent is GREEN, not Claude's clay-orange
 Implemented: workspace create/open, collection/folder/request create, collection auth
 including **OAuth 2.0** (client-credentials + authorization-code/PKCE), edit
 method/URL/params/headers/body/auth, raw/JSON/form-data/x-www-form-urlencoded sending,
-multipart text and file fields, request **and** collection-level scripts, save & load
-YAML (incl. exported `.resources/definition.yaml`), top-level unknown YAML key
-preservation, send via HttpClient, condensed response (status/duration/size +
-Body/Headers/Raw dropdown), generated cURL snippets, per-request send history, variable
-resolution with inline `{{}}` highlighting / hover-peek / click-edit, Postman-style
-dynamic variables (`$guid`/`$timestamp`/`$random*`) with `$`-triggered autocomplete, JSON code folding,
-environment editing, multiple **tabs** with session restore (open tabs + active tab +
-environment + response layout), collection/folder **runner** tabs, tree rename/move/
-duplicate/delete actions, and `.deb`/`.exe`/`.msix` packaging.
+multipart text and **file** fields (file picker, `@path` curl convention),
+request **and** collection-level scripts, save & load YAML (incl. exported
+`.resources/definition.yaml`), **Postman Collection v2.1 format** export (collections and
+environments written in Postman-compatible YAML so the Postman CLI can run them directly),
+top-level unknown YAML key preservation, send via HttpClient, condensed response
+(status/duration/size + Body/Headers/Raw dropdown), generated cURL snippets, per-request
+send history, variable resolution with inline `{{}}` highlighting / hover-peek / click-edit,
+Postman-style dynamic variables (`$guid`/`$timestamp`/`$random*`) with `$`-triggered
+autocomplete, JSON code folding, environment editing, multiple **tabs** with session restore
+(open tabs + active tab + environment + response layout), collection/folder **runner** tabs,
+tree rename/move/duplicate/delete actions, and `.deb`/`.exe`/`.msix` packaging.
 
 Still intentionally out of product scope: team/cloud sync, mock servers, hosted API docs,
 and collaboration features.
