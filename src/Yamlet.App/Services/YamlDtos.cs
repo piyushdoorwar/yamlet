@@ -645,3 +645,569 @@ public sealed class GlobalsDto
             Key = v.Key, Value = v.Value, Enabled = v.IsEnabled,
         }).ToList();
 }
+
+// ---- Postman Collection v2.1 Format DTOs ----------------------------------------
+// Used to write collection.yaml in a format the Postman CLI can process, while still
+// carrying extra Yamlet-specific fields that Postman ignores.
+
+/// <summary>
+/// A single key/value/type entry inside a Postman auth credential list, e.g.
+/// <c>bearer: [{key: token, value: "...", type: string}]</c>.
+/// </summary>
+public sealed class PostmanAuthKvDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public string? Type { get; set; }
+}
+
+/// <summary>
+/// Postman auth block. Each auth type stores its credentials as a named list of
+/// <see cref="PostmanAuthKvDto"/> entries. Also carries the flat Yamlet-native fields
+/// (<c>token</c>, <c>username</c>, …) so the same class can round-trip both formats.
+/// </summary>
+public sealed class PostmanAuthDto
+{
+    public string Type { get; set; } = "noauth";
+
+    // Postman list format (one list per auth type)
+    public List<PostmanAuthKvDto>? Bearer { get; set; }
+    public List<PostmanAuthKvDto>? Basic { get; set; }
+    public List<PostmanAuthKvDto>? Apikey { get; set; }
+    public List<PostmanAuthKvDto>? Oauth2 { get; set; }
+
+    // Old Yamlet flat-format fallback (present in files written before this change)
+    public string? Token { get; set; }
+    public string? Username { get; set; }
+    public string? Password { get; set; }
+    public string? Key { get; set; }
+    public string? Value { get; set; }
+    public string? In { get; set; }
+    public string? Cookie { get; set; }
+    public OAuth2CredentialsDto? Credentials { get; set; }
+
+    public static PostmanAuthDto? FromDomain(YamletAuth auth)
+    {
+        return auth.Type switch
+        {
+            YamletAuthType.None => new() { Type = "noauth" },
+            YamletAuthType.Inherit => null,
+            YamletAuthType.Bearer => new()
+            {
+                Type = "bearer",
+                Bearer = [new() { Key = "token", Value = auth.Token, Type = "string" }],
+            },
+            YamletAuthType.Basic => new()
+            {
+                Type = "basic",
+                Basic =
+                [
+                    new() { Key = "username", Value = auth.Username, Type = "string" },
+                    new() { Key = "password", Value = auth.Password, Type = "string" },
+                ],
+            },
+            YamletAuthType.ApiKey => new()
+            {
+                Type = "apikey",
+                Apikey =
+                [
+                    new() { Key = "key", Value = auth.ApiKeyName, Type = "string" },
+                    new() { Key = "value", Value = auth.ApiKeyValue, Type = "string" },
+                    new() { Key = "in", Value = auth.ApiKeyIn == ApiKeyLocation.Query ? "query" : "header", Type = "string" },
+                ],
+            },
+            YamletAuthType.Cookie => new() { Type = "noauth" },
+            YamletAuthType.OAuth2 => BuildOAuth2Auth(auth.OAuth2),
+            _ => new() { Type = "noauth" },
+        };
+    }
+
+    private static PostmanAuthDto BuildOAuth2Auth(YamletOAuth2 o) => new()
+    {
+        Type = "oauth2",
+        Oauth2 =
+        [
+            new() { Key = "accessToken", Value = o.AccessToken, Type = "string" },
+            new() { Key = "tokenType", Value = o.HeaderPrefix, Type = "string" },
+            new() { Key = "addTokenTo", Value = o.AddTokenTo == OAuth2TokenLocation.Query ? "queryParams" : "header", Type = "string" },
+            new() { Key = "accessTokenUrl", Value = o.AccessTokenUrl, Type = "string" },
+            new() { Key = "authUrl", Value = o.AuthUrl, Type = "string" },
+            new() { Key = "clientId", Value = o.ClientId, Type = "string" },
+            new() { Key = "clientSecret", Value = o.ClientSecret, Type = "string" },
+            new() { Key = "scope", Value = o.Scope, Type = "string" },
+            new() { Key = "redirectUri", Value = o.RedirectUri, Type = "string" },
+            new() { Key = "grant_type", Value = o.GrantType switch
+            {
+                OAuth2GrantType.AuthorizationCode => "authorization_code",
+                OAuth2GrantType.Password => "password_credentials",
+                _ => "client_credentials",
+            }, Type = "string" },
+            new() { Key = "client_authentication", Value = o.ClientAuthentication == OAuth2ClientAuthentication.Body ? "body" : "header", Type = "string" },
+        ],
+    };
+
+    public YamletAuth ToDomain()
+    {
+        var type = (Type ?? "noauth").ToLowerInvariant() switch
+        {
+            "bearer" => YamletAuthType.Bearer,
+            "basic" => YamletAuthType.Basic,
+            "apikey" or "api-key" => YamletAuthType.ApiKey,
+            "oauth2" => YamletAuthType.OAuth2,
+            "cookie" => YamletAuthType.Cookie,
+            "inherit" or "inherited" => YamletAuthType.Inherit,
+            _ => YamletAuthType.None,
+        };
+
+        return type switch
+        {
+            YamletAuthType.Bearer => new()
+            {
+                Type = YamletAuthType.Bearer,
+                Token = LookupKv(Bearer, "token") ?? Token ?? string.Empty,
+            },
+            YamletAuthType.Basic => new()
+            {
+                Type = YamletAuthType.Basic,
+                Username = LookupKv(Basic, "username") ?? Username ?? string.Empty,
+                Password = LookupKv(Basic, "password") ?? Password ?? string.Empty,
+            },
+            YamletAuthType.ApiKey => new()
+            {
+                Type = YamletAuthType.ApiKey,
+                ApiKeyName = LookupKv(Apikey, "key") ?? Key ?? string.Empty,
+                ApiKeyValue = LookupKv(Apikey, "value") ?? Value ?? string.Empty,
+                ApiKeyIn = string.Equals(LookupKv(Apikey, "in") ?? In, "query", StringComparison.OrdinalIgnoreCase)
+                    ? ApiKeyLocation.Query : ApiKeyLocation.Header,
+            },
+            YamletAuthType.OAuth2 => new()
+            {
+                Type = YamletAuthType.OAuth2,
+                OAuth2 = ParseOAuth2(),
+            },
+            YamletAuthType.Cookie => new()
+            {
+                Type = YamletAuthType.Cookie,
+                Cookie = Cookie ?? string.Empty,
+            },
+            YamletAuthType.Inherit => new() { Type = YamletAuthType.Inherit },
+            _ => new() { Type = YamletAuthType.None },
+        };
+    }
+
+    private YamletOAuth2 ParseOAuth2()
+    {
+        if (Credentials is not null)
+        {
+            return Credentials.ToDomain();
+        }
+
+        var list = Oauth2;
+        return new YamletOAuth2
+        {
+            AccessToken = LookupKv(list, "accessToken") ?? string.Empty,
+            HeaderPrefix = LookupKv(list, "tokenType") ?? "Bearer",
+            AddTokenTo = string.Equals(LookupKv(list, "addTokenTo"), "queryParams", StringComparison.OrdinalIgnoreCase)
+                ? OAuth2TokenLocation.Query : OAuth2TokenLocation.Header,
+            AccessTokenUrl = LookupKv(list, "accessTokenUrl") ?? string.Empty,
+            AuthUrl = LookupKv(list, "authUrl") ?? string.Empty,
+            ClientId = LookupKv(list, "clientId") ?? string.Empty,
+            ClientSecret = LookupKv(list, "clientSecret") ?? string.Empty,
+            Scope = LookupKv(list, "scope") ?? string.Empty,
+            RedirectUri = LookupKv(list, "redirectUri") ?? string.Empty,
+            GrantType = (LookupKv(list, "grant_type") ?? "client_credentials").ToLowerInvariant() switch
+            {
+                "authorization_code" => OAuth2GrantType.AuthorizationCode,
+                "password_credentials" => OAuth2GrantType.Password,
+                _ => OAuth2GrantType.ClientCredentials,
+            },
+            ClientAuthentication = string.Equals(LookupKv(list, "client_authentication"), "body", StringComparison.OrdinalIgnoreCase)
+                ? OAuth2ClientAuthentication.Body : OAuth2ClientAuthentication.BasicHeader,
+            ChallengeAlgorithm = "S256",
+        };
+    }
+
+    private static string? LookupKv(List<PostmanAuthKvDto>? list, string key) =>
+        list?.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))?.Value;
+}
+
+/// <summary>Postman URL object with <c>raw</c> plus parsed <c>host</c>, <c>path</c>, and <c>query</c>.</summary>
+public sealed class PostmanUrlDto
+{
+    public string Raw { get; set; } = string.Empty;
+    public string? Protocol { get; set; }
+    public List<string>? Host { get; set; }
+    public List<string>? Path { get; set; }
+    public List<PostmanQueryItemDto>? Query { get; set; }
+}
+
+public sealed class PostmanQueryItemDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public bool? Disabled { get; set; }
+    public string? Description { get; set; }
+}
+
+public sealed class PostmanHeaderItemDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public bool? Disabled { get; set; }
+    public string? Description { get; set; }
+    public string? Type { get; set; }
+}
+
+public sealed class PostmanBodyOptionsDto
+{
+    public PostmanBodyRawOptionsDto? Raw { get; set; }
+}
+
+public sealed class PostmanBodyRawOptionsDto
+{
+    public string? Language { get; set; }
+}
+
+public sealed class PostmanFormItemDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public string? Type { get; set; }
+    public bool? Disabled { get; set; }
+    public string? Description { get; set; }
+    public object? Src { get; set; }
+}
+
+/// <summary>Postman request body with <c>mode</c>, <c>raw</c>, <c>formdata</c>, or <c>urlencoded</c>.</summary>
+public sealed class PostmanBodyDto
+{
+    public string Mode { get; set; } = "none";
+    public string? Raw { get; set; }
+    public PostmanBodyOptionsDto? Options { get; set; }
+    public List<PostmanFormItemDto>? Formdata { get; set; }
+    public List<PostmanFormItemDto>? Urlencoded { get; set; }
+}
+
+public sealed class PostmanScriptDto
+{
+    public string Type { get; set; } = "text/javascript";
+    public List<string> Exec { get; set; } = new();
+    public string? Id { get; set; }
+}
+
+public sealed class PostmanEventDto
+{
+    public string Listen { get; set; } = string.Empty;
+    public PostmanScriptDto Script { get; set; } = new();
+}
+
+public sealed class PostmanVariableDto
+{
+    public string? Id { get; set; }
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public string Type { get; set; } = "string";
+    public bool? Disabled { get; set; }
+}
+
+/// <summary>Postman <c>info</c> block at the top of a collection file.</summary>
+public sealed class PostmanInfoDto
+{
+    [YamlMember(Alias = "_postman_id")]
+    public string? PostmanId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Schema { get; set; } = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
+}
+
+/// <summary>Postman <c>request</c> block inside a collection item.</summary>
+public sealed class PostmanRequestDto
+{
+    public string Method { get; set; } = "GET";
+    public PostmanUrlDto Url { get; set; } = new();
+    public List<PostmanHeaderItemDto>? Header { get; set; }
+    public PostmanBodyDto? Body { get; set; }
+    public PostmanAuthDto? Auth { get; set; }
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// A Postman collection item — either a request (has <c>request</c>) or a folder
+/// (has <c>item</c>).
+/// </summary>
+public sealed class PostmanItemDto
+{
+    public string? Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public PostmanRequestDto? Request { get; set; }
+    public List<PostmanItemDto>? Item { get; set; }
+    public List<object>? Response { get; set; }
+    public List<PostmanEventDto>? Event { get; set; }
+    public PostmanAuthDto? Auth { get; set; }
+}
+
+/// <summary>
+/// The on-disk shape written for <c>collection.yaml</c>. Follows the Postman Collection
+/// v2.1 schema so the Postman CLI can run it, with embedded requests under <c>item</c>.
+/// </summary>
+public sealed class PostmanCollectionFileDto
+{
+    public PostmanInfoDto Info { get; set; } = new();
+    public List<PostmanItemDto> Item { get; set; } = new();
+    public List<PostmanVariableDto>? Variable { get; set; }
+    public List<PostmanEventDto>? Event { get; set; }
+    public PostmanAuthDto? Auth { get; set; }
+
+    public static PostmanCollectionFileDto FromDomain(YamletCollection c) => new()
+    {
+        Info = new PostmanInfoDto { PostmanId = c.Id, Name = c.Name },
+        Item = BuildItems(c.Folders, c.Requests),
+        Variable = c.Variables.Count == 0 ? null : c.Variables
+            .Select(v => new PostmanVariableDto
+            {
+                Key = v.Key,
+                Value = v.Value,
+                Disabled = v.Enabled ? null : (bool?)true,
+            })
+            .ToList(),
+        Event = BuildEvents(c.PreRequestScript, c.PostResponseScript),
+        Auth = c.Auth.Type != YamletAuthType.None ? PostmanAuthDto.FromDomain(c.Auth) : null,
+    };
+
+    private static List<PostmanItemDto> BuildItems(
+        IEnumerable<YamletFolder> folders,
+        IEnumerable<YamletRequest> requests)
+    {
+        var items = new List<PostmanItemDto>();
+        foreach (var folder in folders)
+        {
+            items.Add(new PostmanItemDto
+            {
+                Name = folder.Name,
+                Item = BuildItems(folder.Folders, folder.Requests),
+            });
+        }
+        foreach (var request in requests)
+        {
+            items.Add(BuildRequestItem(request));
+        }
+        return items;
+    }
+
+    private static PostmanItemDto BuildRequestItem(YamletRequest r) => new()
+    {
+        Id = r.Id,
+        Name = r.Name,
+        Description = NullIfEmpty(r.Description),
+        Request = new PostmanRequestDto
+        {
+            Method = r.Method,
+            Url = BuildUrl(r.Url, r.QueryParams),
+            Header = r.Headers.Count == 0 ? null : r.Headers
+                .Select(h => new PostmanHeaderItemDto
+                {
+                    Key = h.Key,
+                    Value = h.Value,
+                    Disabled = h.Enabled ? null : (bool?)true,
+                    Description = NullIfEmpty(h.Description),
+                })
+                .ToList(),
+            Body = BuildBody(r.Body),
+            Auth = r.Auth.Type != YamletAuthType.Inherit ? PostmanAuthDto.FromDomain(r.Auth) : null,
+            Description = NullIfEmpty(r.Description),
+        },
+        Event = BuildEvents(r.PreRequestScript, r.PostResponseScript),
+        Response = new List<object>(),
+    };
+
+    private static PostmanUrlDto BuildUrl(string url, IReadOnlyList<YamletQueryParam> queryParams)
+    {
+        var urlDto = new PostmanUrlDto { Raw = url };
+        var urlForParsing = System.Text.RegularExpressions.Regex.Replace(url, @"\{\{[^}]+\}\}", "placeholder");
+        if (Uri.TryCreate(urlForParsing, UriKind.Absolute, out var uri))
+        {
+            urlDto.Protocol = uri.Scheme;
+            var host = uri.Host.Split('.');
+            urlDto.Host = host.Length > 0 && !string.IsNullOrEmpty(uri.Host) ? host.ToList() : null;
+            var pathStr = uri.AbsolutePath.Trim('/');
+            urlDto.Path = string.IsNullOrEmpty(pathStr) ? null : pathStr.Split('/').ToList();
+        }
+        var nonEmpty = queryParams.Where(p => !string.IsNullOrWhiteSpace(p.Key)).ToList();
+        if (nonEmpty.Count > 0)
+        {
+            urlDto.Query = nonEmpty
+                .Select(p => new PostmanQueryItemDto
+                {
+                    Key = p.Key,
+                    Value = p.Value,
+                    Disabled = p.Enabled ? null : (bool?)true,
+                    Description = NullIfEmpty(p.Description),
+                })
+                .ToList();
+        }
+        return urlDto;
+    }
+
+    private static PostmanBodyDto BuildBody(YamletRequestBody body) => body.Type switch
+    {
+        YamletBodyType.Raw => new()
+        {
+            Mode = "raw",
+            Raw = body.Raw,
+            Options = new() { Raw = new() { Language = "text" } },
+        },
+        YamletBodyType.Json => new()
+        {
+            Mode = "raw",
+            Raw = body.Raw,
+            Options = new() { Raw = new() { Language = "json" } },
+        },
+        YamletBodyType.FormData => new()
+        {
+            Mode = "formdata",
+            Formdata = body.Fields
+                .Where(f => !string.IsNullOrWhiteSpace(f.Key))
+                .Select(f => new PostmanFormItemDto
+                {
+                    Key = f.Key,
+                    Value = f.IsFile ? null : NullIfEmpty(f.Value),
+                    Type = f.IsFile ? "file" : "text",
+                    Disabled = f.Enabled ? null : (bool?)true,
+                    Description = NullIfEmpty(f.Description),
+                    Src = f.IsFile ? (object)new[] { f.Value.TrimStart('@') } : null,
+                })
+                .ToList(),
+        },
+        YamletBodyType.UrlEncoded => new()
+        {
+            Mode = "urlencoded",
+            Urlencoded = body.Fields
+                .Where(f => !string.IsNullOrWhiteSpace(f.Key))
+                .Select(f => new PostmanFormItemDto
+                {
+                    Key = f.Key,
+                    Value = NullIfEmpty(f.Value),
+                    Type = "text",
+                    Disabled = f.Enabled ? null : (bool?)true,
+                    Description = NullIfEmpty(f.Description),
+                })
+                .ToList(),
+        },
+        _ => new() { Mode = "none" },
+    };
+
+    private static List<PostmanEventDto>? BuildEvents(string preScript, string postScript)
+    {
+        var events = new List<PostmanEventDto>();
+        if (!string.IsNullOrWhiteSpace(preScript))
+        {
+            events.Add(new PostmanEventDto
+            {
+                Listen = "prerequest",
+                Script = new PostmanScriptDto { Exec = preScript.Split('\n').ToList() },
+            });
+        }
+        if (!string.IsNullOrWhiteSpace(postScript))
+        {
+            events.Add(new PostmanEventDto
+            {
+                Listen = "test",
+                Script = new PostmanScriptDto { Exec = postScript.Split('\n').ToList() },
+            });
+        }
+        return events.Count == 0 ? null : events;
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
+}
+
+/// <summary>
+/// Reads <c>collection.yaml</c> in either the new Postman v2.1 format or the legacy
+/// Yamlet flat format. Both shapes are deserialized into the same class; <see
+/// cref="ApplyTo"/> prefers Postman fields when present and falls back to the legacy
+/// ones.
+/// </summary>
+public sealed class CollectionMetadataDto
+{
+    // Postman format
+    public PostmanInfoDto? Info { get; set; }
+    public List<PostmanVariableDto>? Variable { get; set; }
+    public List<PostmanEventDto>? Event { get; set; }
+    public PostmanAuthDto? Auth { get; set; }
+
+    // Legacy Yamlet flat format (backward compat for files written before this change)
+    public string? Id { get; set; }
+    public string? Name { get; set; }
+    public List<KeyValueDto>? Variables { get; set; }
+    public List<ScriptDto>? Scripts { get; set; }
+
+    public void ApplyTo(YamletCollection c)
+    {
+        var id = Info?.PostmanId ?? Id;
+        var name = Info?.Name ?? Name;
+
+        if (!string.IsNullOrWhiteSpace(id)) c.Id = id;
+        if (!string.IsNullOrWhiteSpace(name)) c.Name = name;
+
+        if (Auth is not null)
+        {
+            c.Auth = Auth.ToDomain();
+        }
+
+        var vars = Variable is { Count: > 0 }
+            ? Variable.Select(v => new YamletVariable { Key = v.Key, Value = v.Value ?? string.Empty, Enabled = v.Disabled != true }).ToList()
+            : Variables is { Count: > 0 }
+                ? Variables.Select(v => new YamletVariable { Key = v.Key, Value = v.Value, Enabled = v.IsEnabled }).ToList()
+                : null;
+        if (vars is not null) c.Variables = vars;
+
+        var pre = EventScript("prerequest") is { Length: > 0 } p ? p : ScriptDto.JoinByPhase(Scripts, isPre: true);
+        var post = EventScript("test") is { Length: > 0 } pt ? pt : ScriptDto.JoinByPhase(Scripts, isPre: false);
+        if (!string.IsNullOrEmpty(pre)) c.PreRequestScript = pre;
+        if (!string.IsNullOrEmpty(post)) c.PostResponseScript = post;
+    }
+
+    private string EventScript(string listen) =>
+        Event?.FirstOrDefault(e => string.Equals(e.Listen, listen, StringComparison.OrdinalIgnoreCase)) is { } ev
+            ? string.Join("\n", ev.Script.Exec)
+            : string.Empty;
+}
+
+// ---- Postman Environment Format -----------------------------------------------
+
+public sealed class PostmanEnvironmentValueDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public bool Enabled { get; set; } = true;
+    public string Type { get; set; } = "default";
+}
+
+/// <summary>
+/// On-disk shape for environment YAML files in the Postman v2.1 format. Uses
+/// <c>values</c> (not <c>variables</c>) and carries <c>_postman_variable_scope</c>.
+/// </summary>
+public sealed class PostmanEnvironmentDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public List<PostmanEnvironmentValueDto> Values { get; set; } = new();
+
+    [YamlMember(Alias = "_postman_variable_scope")]
+    public string PostmanVariableScope { get; set; } = "environment";
+
+    public static PostmanEnvironmentDto FromDomain(YamletEnvironment e) => new()
+    {
+        Id = e.Id,
+        Name = e.Name,
+        Values = e.Variables
+            .Select(v => new PostmanEnvironmentValueDto
+            {
+                Key = v.Key,
+                Value = v.Value,
+                Enabled = v.Enabled,
+            })
+            .ToList(),
+    };
+}

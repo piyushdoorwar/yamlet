@@ -68,7 +68,7 @@ public sealed class CollectionService
         collection.FilePath = metadataPath;
         if (File.Exists(metadataPath))
         {
-            var dto = _yaml.Deserialize<CollectionDto>(await File.ReadAllTextAsync(metadataPath).ConfigureAwait(false));
+            var dto = _yaml.Deserialize<CollectionMetadataDto>(await File.ReadAllTextAsync(metadataPath).ConfigureAwait(false));
             dto.ApplyTo(collection);
         }
 
@@ -190,13 +190,10 @@ public sealed class CollectionService
         Directory.CreateDirectory(collection.DirectoryPath);
         collection.FilePath = Path.Combine(collection.DirectoryPath, MetadataFileName);
 
-        var dto = CollectionDto.FromDomain(collection);
-        var original = File.Exists(collection.FilePath)
-            ? await File.ReadAllTextAsync(collection.FilePath).ConfigureAwait(false)
-            : null;
-        await File.WriteAllTextAsync(
-            collection.FilePath,
-            _yaml.SerializePreservingUnknownTopLevel(dto, original)).ConfigureAwait(false);
+        // Write the full Postman v2.1 collection (info + item + variable + event + auth).
+        // Requests are embedded so the Postman CLI can run the collection without extra files.
+        var dto = PostmanCollectionFileDto.FromDomain(collection);
+        await File.WriteAllTextAsync(collection.FilePath, _yaml.Serialize(dto)).ConfigureAwait(false);
 
         EnsureFolderDirectories(collection.Folders);
     }
