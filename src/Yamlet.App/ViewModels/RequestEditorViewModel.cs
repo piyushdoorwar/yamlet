@@ -26,6 +26,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     private readonly Action<bool>? _persistLayout;
     private readonly Func<string, string, Task>? _setEnvironmentVariableAsync;
     private readonly Func<string?>? _activeEnvironmentName;
+    private readonly IDialogService? _dialogs;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
     private CancellationTokenSource? _autoSaveCts;
@@ -101,7 +102,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         Func<string, string, Task>? setEnvironmentVariableAsync = null,
         Func<string?>? activeEnvironmentName = null,
         Func<(string Pre, string Post)>? collectionScriptsFactory = null,
-        CollectionService? collectionService = null)
+        CollectionService? collectionService = null,
+        IDialogService? dialogs = null)
     {
         _node = node;
         _executor = executor;
@@ -115,6 +117,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         _persistLayout = persistLayout;
         _setEnvironmentVariableAsync = setEnvironmentVariableAsync;
         _activeEnvironmentName = activeEnvironmentName;
+        _dialogs = dialogs;
         _isSideBySide = initialSideBySide;
 
         BreadcrumbPath = BuildBreadcrumb(node);
@@ -193,6 +196,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         SelectedBodyType.Value is YamletBodyType.Raw or YamletBodyType.Json;
     public bool IsBodyFieldsVisible =>
         SelectedBodyType.Value is YamletBodyType.FormData or YamletBodyType.UrlEncoded;
+    public bool IsFormDataBodyVisible => SelectedBodyType.Value == YamletBodyType.FormData;
+    public bool IsUrlEncodedBodyVisible => SelectedBodyType.Value == YamletBodyType.UrlEncoded;
 
     public bool IsJsonBodyEditor => SelectedBodyType.Value == YamletBodyType.Json;
     public string BodyEditorLanguage => IsJsonBodyEditor ? "json" : "text";
@@ -238,6 +243,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     {
         OnPropertyChanged(nameof(IsBodyEditorVisible));
         OnPropertyChanged(nameof(IsBodyFieldsVisible));
+        OnPropertyChanged(nameof(IsFormDataBodyVisible));
+        OnPropertyChanged(nameof(IsUrlEncodedBodyVisible));
         OnPropertyChanged(nameof(IsJsonBodyEditor));
         OnPropertyChanged(nameof(BodyEditorLanguage));
         OnPropertyChanged(nameof(HasBody));
@@ -276,6 +283,22 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     [RelayCommand]
     private void ToggleLayout() => IsSideBySide = !IsSideBySide;
+
+    [RelayCommand]
+    private async Task SelectBodyFileAsync(KeyValueRowViewModel row)
+    {
+        if (_dialogs is null || row.IsReadOnly)
+        {
+            return;
+        }
+
+        var path = await _dialogs.PickFileAsync("Select form-data file");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            row.IsFile = true;
+            row.Value = path;
+        }
+    }
 
     // ---- Variable inspection (IVariableSource) -----------------------------
 
@@ -404,9 +427,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         BodyFields.Load(request.Body.Fields.Select(f => new KeyValueRowViewModel
         {
             Key = f.Key,
-            Value = f.IsFile && !f.Value.StartsWith('@') ? "@" + f.Value : f.Value,
-            Description = f.Description,
+            Value = f.Value,
+            Description = f.IsFile && string.Equals(f.Description, "file", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : f.Description,
             Enabled = f.Enabled,
+            IsFile = f.IsFile,
         }));
 
         SelectedAuthType = AuthTypes.First(a => a.Value == request.Auth.Type);
@@ -540,8 +566,10 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
                 Value = r.Value,
                 Description = r.Description,
                 Enabled = r.Enabled,
-                IsFile = string.Equals(r.Description.Trim(), "file", StringComparison.OrdinalIgnoreCase)
-                         || r.Value.StartsWith('@'),
+                IsFile = SelectedBodyType.Value == YamletBodyType.FormData
+                    && (r.IsFile
+                        || string.Equals(r.Description.Trim(), "file", StringComparison.OrdinalIgnoreCase)
+                        || r.Value.StartsWith('@')),
             }).ToList(),
         };
         request.Auth = new YamletAuth
@@ -758,7 +786,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             case YamletBodyType.FormData:
                 foreach (var field in BodyFields.NonEmptyRows().Where(r => r.Enabled))
                 {
-                    var value = field.Value.StartsWith('@') ? field.Value : field.Value;
+                    var value = field.IsFile && !field.Value.StartsWith('@') ? "@" + field.Value : field.Value;
                     sb.Append(" \\\n  -F ").Append(ShellQuote($"{field.Key}={value}"));
                 }
                 break;

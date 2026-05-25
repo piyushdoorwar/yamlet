@@ -262,7 +262,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             SetActiveEnvironmentVariableAsync,
             () => SelectedEnvironment?.Name,
             () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript),
-            _collectionService);
+            _collectionService,
+            _dialogs);
 
         var tab = new OpenTabViewModel(
             node,
@@ -1665,6 +1666,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 internal sealed class DesignDialogService : IDialogService
 {
     public Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
+    public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(null);
     public Task<string?> PromptTextAsync(string title, string prompt, string defaultValue = "") =>
         Task.FromResult<string?>(null);
 }

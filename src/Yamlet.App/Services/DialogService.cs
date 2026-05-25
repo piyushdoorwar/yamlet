@@ -12,6 +12,8 @@ public interface IDialogService
 {
     Task<string?> PickFolderAsync(string title);
 
+    Task<string?> PickFileAsync(string title);
+
     /// <summary>
     /// Shows a single-line text prompt. Returns the entered text, or null if cancelled.
     /// </summary>
@@ -43,6 +45,23 @@ public sealed class DialogService : IDialogService
 
         var folder = folders.Count > 0 ? folders[0] : null;
         return folder?.TryGetLocalPath();
+    }
+
+    public async Task<string?> PickFileAsync(string title)
+    {
+        if (_owner?.StorageProvider is not { } storage)
+        {
+            return null;
+        }
+
+        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+        });
+
+        var file = files.Count > 0 ? files[0] : null;
+        return file?.TryGetLocalPath();
     }
 
     public async Task<string?> PromptTextAsync(string title, string prompt, string defaultValue = "")
