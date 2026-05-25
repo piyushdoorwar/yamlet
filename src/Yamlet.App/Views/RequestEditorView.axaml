@@ -113,8 +113,8 @@
       </StackPanel>
     </Grid>
 
-    <!-- Method / URL / Send -->
-    <Grid Grid.Row="1" ColumnDefinitions="106,*,Auto" Margin="0,0,0,8">
+    <!-- Method / URL / Paste cURL / Send -->
+    <Grid Grid.Row="1" ColumnDefinitions="106,*,Auto,Auto" Margin="0,0,0,8">
       <ComboBox Grid.Column="0"
                 Margin="0,0,8,0"
                 ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
@@ -174,6 +174,15 @@
         </Border>
       </Popup>
       <Button Grid.Column="2"
+              Classes="ghost"
+              Padding="8,6"
+              Margin="0,0,6,0"
+              VerticalAlignment="Center"
+              Click="OnPasteCurlClicked"
+              ToolTip.Tip="Paste cURL command">
+        <TextBlock Text="Paste cURL" FontSize="12" />
+      </Button>
+      <Button Grid.Column="3"
               Classes="accent"
               MinWidth="58"
               Command="{Binding SendCommand}"
@@ -396,9 +405,15 @@
             </DockPanel>
           </Grid>
 
-          <TextBlock Classes="muted"
-                     Text="Per-request settings arrive in a future release."
-                     IsVisible="{Binding IsSettingsSection}" />
+          <StackPanel Spacing="12" IsVisible="{Binding IsSettingsSection}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="heading" Text="SSL / TLS" />
+              <CheckBox IsChecked="{Binding SkipSslVerification}"
+                        Content="Disable SSL certificate verification" />
+              <TextBlock Classes="muted" FontSize="11"
+                         Text="Accepts self-signed and expired certificates. Use only against trusted servers." />
+            </StackPanel>
+          </StackPanel>
         </Grid>
       </DockPanel>
     </Border>

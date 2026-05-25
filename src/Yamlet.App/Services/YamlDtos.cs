@@ -380,6 +380,7 @@ public sealed class RequestDto
     public List<KeyValueDto>? Variables { get; set; }
     public AuthDto? Auth { get; set; }
     public BodyDto? Body { get; set; }
+    public bool? SkipSslVerification { get; set; }
 
     public static RequestDto FromDomain(YamletRequest r) => new()
     {
@@ -403,6 +404,7 @@ public sealed class RequestDto
             .ToList(),
         Auth = r.Auth.Type == YamletAuthType.Inherit ? null : AuthDto.FromDomain(r.Auth),
         Body = BodyDto.FromDomain(r.Body),
+        SkipSslVerification = r.SkipSslVerification ? true : null,
     };
 
     public YamletRequest ToDomain(string? sourceFilePath) => new()
@@ -429,6 +431,7 @@ public sealed class RequestDto
         }).ToList(),
         Auth = Auth is null ? new YamletAuth { Type = YamletAuthType.Inherit } : Auth.ToDomain(),
         Body = (Body ?? new BodyDto()).ToDomain(),
+        SkipSslVerification = SkipSslVerification ?? false,
         SourceFilePath = sourceFilePath,
     };
 

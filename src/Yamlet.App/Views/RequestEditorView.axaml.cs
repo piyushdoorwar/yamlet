@@ -240,6 +240,17 @@ public partial class RequestEditorView : UserControl
         }
     }
 
+    private async void OnPasteCurlClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        var text = await (TopLevel.GetTopLevel(this)?.Clipboard?.TryGetTextAsync() ?? Task.FromResult<string?>(null));
+        _viewModel.ApplyCurlImport(text);
+    }
+
     private async void OnCopyResponseClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (_viewModel is null || !TryGetResponseTextToCopy(_viewModel, out var text))

@@ -28,6 +28,9 @@ public sealed class YamletRequest
     /// <summary>Script that runs after a response is received.</summary>
     public string PostResponseScript { get; set; } = string.Empty;
 
+    /// <summary>When true, SSL certificate errors are ignored for this request.</summary>
+    public bool SkipSslVerification { get; set; }
+
     /// <summary>Absolute path of the YAML file backing this request, if saved.</summary>
     public string? SourceFilePath { get; set; }
 }

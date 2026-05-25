@@ -42,6 +42,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         nameof(SelectedAuthType), nameof(BearerToken), nameof(BasicUsername), nameof(BasicPassword),
         nameof(ApiKeyName), nameof(ApiKeyValue), nameof(SelectedApiKeyLocation), nameof(Cookie),
         nameof(PreRequestScript), nameof(PostResponseScript),
+        nameof(SkipSslVerification),
     };
 
     public static readonly string[] Methods =
@@ -185,6 +186,9 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     [ObservableProperty]
     private string _postResponseScript = string.Empty;
+
+    [ObservableProperty]
+    private bool _skipSslVerification;
 
     [ObservableProperty]
     private string _codeSnippet = string.Empty;
@@ -453,6 +457,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
         PreRequestScript = request.PreRequestScript;
         PostResponseScript = request.PostResponseScript;
+        SkipSslVerification = request.SkipSslVerification;
         RefreshCodeSnippet();
         SelectedRequestSection = BestInitialRequestSection(request);
     }
@@ -592,6 +597,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         };
         request.PreRequestScript = PreRequestScript;
         request.PostResponseScript = PostResponseScript;
+        request.SkipSslVerification = SkipSslVerification;
         RefreshCodeSnippet();
         return request;
     }
@@ -627,6 +633,82 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     [RelayCommand]
     private void RefreshCodeSnippet() => CodeSnippet = BuildCurlSnippet();
+
+    /// <summary>Parses a cURL string and populates the editor fields. Exposed for testing.</summary>
+    internal void ApplyCurlImport(string? input)
+    {
+        var result = CurlImporter.TryParse(input ?? string.Empty);
+        if (result is null)
+        {
+            return;
+        }
+
+        Url = result.Url;
+        if (!string.IsNullOrEmpty(result.Method))
+        {
+            SelectedMethod = Methods.Contains(result.Method) ? result.Method : "GET";
+        }
+
+        // Headers — merge: keep existing non-empty rows, update matching keys, append new.
+        if (result.Headers.Count > 0)
+        {
+            var merged = Headers.NonEmptyRows()
+                .Select(r => new KeyValueRowViewModel { Key = r.Key, Value = r.Value, Enabled = r.Enabled })
+                .ToList();
+            foreach (var h in result.Headers)
+            {
+                var existing = merged.FirstOrDefault(
+                    r => string.Equals(r.Key, h.Key, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    existing.Value = h.Value;
+                }
+                else
+                {
+                    merged.Add(new KeyValueRowViewModel { Key = h.Key, Value = h.Value, Enabled = true });
+                }
+            }
+            Headers.Load(merged);
+        }
+
+        // Body.
+        if (result.BodyType != YamletBodyType.None)
+        {
+            SelectedBodyType = BodyTypes.First(b => b.Value == result.BodyType);
+            if (result.BodyType is YamletBodyType.FormData)
+            {
+                BodyFields.Load(result.FormFields.Select(f =>
+                    new KeyValueRowViewModel { Key = f.Key, Value = f.Value, Enabled = true }));
+            }
+            else
+            {
+                BodyText = result.Body;
+            }
+        }
+
+        // Auth.
+        if (!string.IsNullOrEmpty(result.BearerToken))
+        {
+            SelectedAuthType = AuthTypes.First(a => a.Value == YamletAuthType.Bearer);
+            BearerToken = result.BearerToken;
+        }
+        else if (!string.IsNullOrEmpty(result.BasicUsername))
+        {
+            SelectedAuthType = AuthTypes.First(a => a.Value == YamletAuthType.Basic);
+            BasicUsername = result.BasicUsername;
+            BasicPassword = result.BasicPassword;
+        }
+        else if (!string.IsNullOrEmpty(result.Cookie))
+        {
+            SelectedAuthType = AuthTypes.First(a => a.Value == YamletAuthType.Cookie);
+            Cookie = result.Cookie;
+        }
+
+        if (result.SkipSslVerification)
+        {
+            SkipSslVerification = true;
+        }
+    }
 
     [RelayCommand]
     private async Task SendAsync()
