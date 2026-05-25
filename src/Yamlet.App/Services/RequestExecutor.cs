@@ -15,6 +15,7 @@ public sealed class RequestExecutor
     public const string DefaultUserAgent = "Yamlet/1.0.0";
 
     private readonly HttpClient _client;
+    private readonly HttpClient _insecureClient;
     private readonly VariableResolver _resolver;
     private readonly RequestScriptRunner _scripts;
     private readonly OAuth2TokenService _oauth;
@@ -22,6 +23,7 @@ public sealed class RequestExecutor
     public RequestExecutor(HttpClient client, VariableResolver resolver, RequestScriptRunner? scripts = null)
     {
         _client = client;
+        _insecureClient = CreateInsecureClient(client.Timeout);
         _resolver = resolver;
         _scripts = scripts ?? new RequestScriptRunner();
         _oauth = new OAuth2TokenService(client);
@@ -33,6 +35,18 @@ public sealed class RequestExecutor
     /// <summary>Creates an executor backed by a default client with a sensible timeout.</summary>
     public static RequestExecutor CreateDefault() =>
         new(new HttpClient { Timeout = TimeSpan.FromSeconds(100) }, new VariableResolver());
+
+    private static HttpClient CreateInsecureClient(TimeSpan timeout)
+    {
+        var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        };
+        return new HttpClient(handler) { Timeout = timeout };
+    }
+
+    private HttpClient ClientFor(YamletRequest request) =>
+        request.SkipSslVerification ? _insecureClient : _client;
 
     public async Task<YamletResponse> ExecuteAsync(
         YamletRequest request,
@@ -78,7 +92,7 @@ public sealed class RequestExecutor
             using var message = BuildMessage(activeRequest, activeContext, collectionAuth, oauthToken);
             consoleText = await BuildConsoleRequestTextAsync(message, cancellationToken).ConfigureAwait(false);
             httpStopwatch = Stopwatch.StartNew();
-            using var response = await _client
+            using var response = await ClientFor(activeRequest)
                 .SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -132,6 +146,7 @@ public sealed class RequestExecutor
         Description = request.Description,
         PreRequestScript = request.PreRequestScript,
         PostResponseScript = request.PostResponseScript,
+        SkipSslVerification = request.SkipSslVerification,
         SourceFilePath = request.SourceFilePath,
     };
 

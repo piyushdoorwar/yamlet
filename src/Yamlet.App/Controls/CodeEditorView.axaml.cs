@@ -13,6 +13,7 @@ using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
+using AvaloniaEdit.Search;
 using Yamlet.App.Services;
 
 namespace Yamlet.App.Controls;
@@ -92,6 +93,7 @@ public partial class CodeEditorView : UserControl
         _editor.TextArea.TextView.PointerMoved += OnEditorPointerMoved;
         _editor.TextArea.TextView.PointerExited += OnEditorPointerExited;
         _editor.TextArea.TextEntered += OnEditorTextEntered;
+        SearchPanel.Install(_editor);
         UpdateFolding();
     }
 
