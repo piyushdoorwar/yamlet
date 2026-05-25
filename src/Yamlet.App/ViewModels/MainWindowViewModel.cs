@@ -137,6 +137,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // Only open the editor tab when selection comes from the sidebar, not the
+        // status-bar picker (which is for setting the active variable scope only).
         OpenEnvironmentTab(value);
     }
 
