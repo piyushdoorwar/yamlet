@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Yamlet.App.Models;
 
 namespace Yamlet.App.Stores;
 
@@ -53,6 +54,39 @@ public sealed class RecentWorkspaceService
     {
         var state = LoadState();
         state.ResponseSideBySide = sideBySide;
+        SaveState(state);
+    }
+
+    public YamletResponse? LoadLastResponse(string workspaceRootPath, string requestKey)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath) || string.IsNullOrWhiteSpace(requestKey))
+        {
+            return null;
+        }
+
+        var state = LoadState();
+        return state.LastResponseByWorkspace.TryGetValue(NormalizePath(workspaceRootPath), out var responses) &&
+               responses.TryGetValue(NormalizePath(requestKey), out var response)
+            ? CloneForUi(response)
+            : null;
+    }
+
+    public void RememberLastResponse(string workspaceRootPath, string requestKey, YamletResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceRootPath) || string.IsNullOrWhiteSpace(requestKey))
+        {
+            return;
+        }
+
+        var state = LoadState();
+        var workspaceKey = NormalizePath(workspaceRootPath);
+        if (!state.LastResponseByWorkspace.TryGetValue(workspaceKey, out var responses))
+        {
+            responses = new Dictionary<string, YamletResponse>(StringComparer.OrdinalIgnoreCase);
+            state.LastResponseByWorkspace[workspaceKey] = responses;
+        }
+
+        responses[NormalizePath(requestKey)] = CloneForCache(response);
         SaveState(state);
     }
 
@@ -121,6 +155,7 @@ public sealed class RecentWorkspaceService
             state.RecentWorkspaces ??= new();
             state.SelectedEnvironmentByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
             state.SessionByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
+            state.LastResponseByWorkspace ??= new(StringComparer.OrdinalIgnoreCase);
             return state;
         }
         catch
@@ -172,11 +207,34 @@ public sealed class RecentWorkspaceService
         }
     }
 
+    private static YamletResponse CloneForCache(YamletResponse response) => new()
+    {
+        StatusCode = response.StatusCode,
+        ReasonPhrase = response.ReasonPhrase,
+        DurationMs = response.DurationMs,
+        SizeBytes = response.SizeBytes,
+        Headers = response.Headers.Select(h => new YamletHeader
+        {
+            Key = h.Key,
+            Value = h.Value,
+            Description = h.Description,
+            Enabled = h.Enabled,
+        }).ToList(),
+        Body = response.Body,
+        ContentType = response.ContentType,
+        IsError = response.IsError,
+        ErrorMessage = response.ErrorMessage,
+        ConsoleText = string.Empty,
+    };
+
+    private static YamletResponse CloneForUi(YamletResponse response) => CloneForCache(response);
+
     private sealed class CacheState
     {
         public List<string> RecentWorkspaces { get; set; } = new();
         public Dictionary<string, string> SelectedEnvironmentByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, WorkspaceSession> SessionByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, Dictionary<string, YamletResponse>> LastResponseByWorkspace { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public bool ResponseSideBySide { get; set; }
     }
 }

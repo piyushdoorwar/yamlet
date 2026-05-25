@@ -263,7 +263,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             () => SelectedEnvironment?.Name,
             () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript),
             _collectionService,
-            _dialogs);
+            _dialogs,
+            request => Workspace is null
+                ? null
+                : _recent.LoadLastResponse(Workspace.RootPath, RequestCacheKey(request)),
+            (request, response) =>
+            {
+                if (Workspace is not null)
+                {
+                    _recent.RememberLastResponse(Workspace.RootPath, RequestCacheKey(request), response);
+                }
+            });
 
         var tab = new OpenTabViewModel(
             node,
@@ -474,6 +484,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         OpenTabKind.Collection => (tab.Key as CollectionNodeViewModel)?.Collection.FilePath,
         _ => null,
     };
+
+    private static string RequestCacheKey(YamletRequest request) =>
+        !string.IsNullOrWhiteSpace(request.SourceFilePath)
+            ? request.SourceFilePath!
+            : request.Id;
 
     /// <summary>Saves the current open tabs and active tab for the workspace.</summary>
     private void PersistSession()
