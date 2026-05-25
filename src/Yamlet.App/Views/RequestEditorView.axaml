@@ -7,8 +7,8 @@
 
   <Grid RowDefinitions="Auto,Auto,*" Margin="10,8,10,10">
 
-    <!-- Title row: type badge + breadcrumb + editable name, Save on the right -->
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+    <!-- Title row: type badge + breadcrumb + editable name -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
       <Border Classes="typeBadge" Grid.Column="0">
         <TextBlock Text="HTTP" FontSize="10" FontWeight="Bold"
                    Foreground="{DynamicResource AccentBrush}" />
@@ -19,7 +19,6 @@
         <TextBox Classes="title" Text="{Binding Name}" PlaceholderText="Request name"
                  VerticalAlignment="Center" MinWidth="120" />
       </StackPanel>
-      <Button Grid.Column="2" MinWidth="58" Command="{Binding SaveCommand}" Content="Save" />
     </Grid>
 
     <!-- Method / URL / Send -->
@@ -27,7 +26,22 @@
       <ComboBox Grid.Column="0"
                 Margin="0,0,8,0"
                 ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
-                SelectedItem="{Binding SelectedMethod}" />
+                SelectedItem="{Binding SelectedMethod}">
+        <ComboBox.SelectionBoxItemTemplate>
+          <DataTemplate x:CompileBindings="False">
+            <TextBlock Text="{Binding}"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding Converter={x:Static controls:MethodToBrushConverter.Instance}}" />
+          </DataTemplate>
+        </ComboBox.SelectionBoxItemTemplate>
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:CompileBindings="False">
+            <TextBlock Text="{Binding}"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding Converter={x:Static controls:MethodToBrushConverter.Instance}}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
       <TextBox Grid.Column="1"
                x:Name="UrlBox"
                Margin="0,0,8,0"
