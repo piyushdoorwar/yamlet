@@ -138,7 +138,7 @@ public sealed class WorkspaceService
             Directory.CreateDirectory(dir);
         }
 
-        await File.WriteAllTextAsync(environment.FilePath, _yaml.Serialize(EnvironmentDto.FromDomain(environment)))
+        await File.WriteAllTextAsync(environment.FilePath, _yaml.Serialize(PostmanEnvironmentDto.FromDomain(environment)))
             .ConfigureAwait(false);
     }
 

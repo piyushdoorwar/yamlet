@@ -17,6 +17,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 {
     private readonly RequestExecutor _executor;
     private readonly RequestFileService _requestFiles;
+    private readonly CollectionService? _collectionService;
     private readonly Func<YamletRequest, VariableContext> _contextFactory;
     private readonly Func<YamletRequest, RequestScriptVariables> _scriptVariablesFactory;
     private readonly Func<YamletAuth?> _collectionAuthFactory;
@@ -99,11 +100,13 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         Action<bool>? persistLayout = null,
         Func<string, string, Task>? setEnvironmentVariableAsync = null,
         Func<string?>? activeEnvironmentName = null,
-        Func<(string Pre, string Post)>? collectionScriptsFactory = null)
+        Func<(string Pre, string Post)>? collectionScriptsFactory = null,
+        CollectionService? collectionService = null)
     {
         _node = node;
         _executor = executor;
         _requestFiles = requestFiles;
+        _collectionService = collectionService;
         _contextFactory = contextFactory;
         _scriptVariablesFactory = scriptVariablesFactory ?? (request => RequestScriptVariables.FromContext(_contextFactory(request)));
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
@@ -574,6 +577,11 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             await Task.Delay(800, _autoSaveCts.Token).ConfigureAwait(false);
             var request = ApplyToModel();
             await _requestFiles.SaveRequestAsync(request).ConfigureAwait(false);
+            // Rebuild the parent collection.yaml (Postman format with embedded requests).
+            if (_collectionService is not null)
+            {
+                await _collectionService.SaveCollectionAsync(_node.OwningCollection).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)

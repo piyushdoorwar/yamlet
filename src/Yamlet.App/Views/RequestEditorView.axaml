@@ -45,14 +45,18 @@
       <Grid Grid.Column="1" Margin="0,0,8,0">
         <TextBox x:Name="UrlBox"
                  PlaceholderText="Enter request URL  (supports {{variables}})"
-                 Text="{Binding Url}" />
+                 Text="{Binding Url}"
+                 Foreground="Transparent"
+                 CaretBrush="{DynamicResource TextPrimaryBrush}"
+                 SelectionForegroundBrush="{DynamicResource TextPrimaryBrush}" />
         <TextBlock x:Name="UrlHighlightText"
                    IsHitTestVisible="False"
                    ClipToBounds="True"
                    Padding="10,6"
                    FontSize="13"
                    TextWrapping="NoWrap"
-                   TextTrimming="Clip"
+                   TextTrimming="None"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
                    VerticalAlignment="Stretch" />
       </Grid>
 

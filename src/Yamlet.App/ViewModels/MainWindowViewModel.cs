@@ -261,7 +261,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _recent.RememberResponseSideBySide,
             SetActiveEnvironmentVariableAsync,
             () => SelectedEnvironment?.Name,
-            () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript));
+            () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript),
+            _collectionService);
 
         var tab = new OpenTabViewModel(
             node,

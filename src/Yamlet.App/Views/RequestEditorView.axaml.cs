@@ -30,10 +30,10 @@ public partial class RequestEditorView : UserControl
     private readonly Control? _responsePanel;
     private readonly TextBox? _urlBox;
     private readonly TextBlock? _urlHighlightText;
+    private readonly IBrush _urlTextBrush;
     private readonly IBrush _urlDefinedBrush;
     private readonly IBrush _urlEmptyBrush;
     private readonly IBrush _urlUndefinedBrush;
-    private readonly IBrush _urlTransparentBrush = Brushes.Transparent;
     private RequestEditorViewModel? _viewModel;
     private IVariableSource? _urlVariableSource;
     private string _urlPeekVariable = string.Empty;
@@ -47,6 +47,7 @@ public partial class RequestEditorView : UserControl
         _responsePanel = this.FindControl<Border>("ResponsePanel");
         _urlBox = this.FindControl<TextBox>("UrlBox");
         _urlHighlightText = this.FindControl<TextBlock>("UrlHighlightText");
+        _urlTextBrush = FindBrush("TextPrimaryBrush", "#FFF5F4EF");
         _urlDefinedBrush = FindBrush("VariableDefinedBrush", "#FFE0A458");
         _urlEmptyBrush = FindBrush("TextMutedBrush", "#FF8A877D");
         _urlUndefinedBrush = FindBrush("VariableUndefinedBrush", "#FFE2655A");
@@ -164,7 +165,7 @@ public partial class RequestEditorView : UserControl
         {
             if (match.Index > position)
             {
-                AddUrlRun(text[position..match.Index], _urlTransparentBrush);
+                AddUrlRun(text[position..match.Index], null);
             }
 
             AddUrlRun(match.Value, UrlBrushForVariable(match.Groups[1].Value));
@@ -173,21 +174,23 @@ public partial class RequestEditorView : UserControl
 
         if (position < text.Length)
         {
-            AddUrlRun(text[position..], _urlTransparentBrush);
+            AddUrlRun(text[position..], null);
         }
     }
 
-    private void AddUrlRun(string text, IBrush brush)
+    private void AddUrlRun(string text, IBrush? brush)
     {
         if (_urlHighlightText?.Inlines is null || string.IsNullOrEmpty(text))
         {
             return;
         }
 
-        _urlHighlightText.Inlines.Add(new Run(text) { Foreground = brush });
+        _urlHighlightText.Inlines.Add(brush is null
+            ? new Run(text)
+            : new Run(text) { Foreground = brush });
     }
 
-    private IBrush UrlBrushForVariable(string name)
+    private IBrush? UrlBrushForVariable(string name)
     {
         if (_urlVariableSource is not null && _urlVariableSource.TryGetValue(name, out var value))
         {
@@ -199,7 +202,7 @@ public partial class RequestEditorView : UserControl
             return _urlDefinedBrush;
         }
 
-        return _urlVariableSource is null ? _urlTransparentBrush : _urlUndefinedBrush;
+        return _urlVariableSource is null ? null : _urlUndefinedBrush;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
