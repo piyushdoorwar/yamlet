@@ -3,14 +3,17 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Yamlet.App.Controls;
+using Yamlet.App.Services;
 using Yamlet.App.ViewModels;
 
 namespace Yamlet.App.Views;
@@ -26,7 +29,13 @@ public partial class RequestEditorView : UserControl
     private readonly GridSplitter? _splitter;
     private readonly Control? _responsePanel;
     private readonly TextBox? _urlBox;
+    private readonly TextBlock? _urlHighlightText;
+    private readonly IBrush _urlDefinedBrush;
+    private readonly IBrush _urlEmptyBrush;
+    private readonly IBrush _urlUndefinedBrush;
+    private readonly IBrush _urlTransparentBrush = Brushes.Transparent;
     private RequestEditorViewModel? _viewModel;
+    private IVariableSource? _urlVariableSource;
     private string _urlPeekVariable = string.Empty;
 
     public RequestEditorView()
@@ -37,8 +46,17 @@ public partial class RequestEditorView : UserControl
         _splitter = this.FindControl<GridSplitter>("LayoutSplitter");
         _responsePanel = this.FindControl<Border>("ResponsePanel");
         _urlBox = this.FindControl<TextBox>("UrlBox");
+        _urlHighlightText = this.FindControl<TextBlock>("UrlHighlightText");
+        _urlDefinedBrush = FindBrush("VariableDefinedBrush", "#FFE0A458");
+        _urlEmptyBrush = FindBrush("TextMutedBrush", "#FF8A877D");
+        _urlUndefinedBrush = FindBrush("VariableUndefinedBrush", "#FFE2655A");
+        if (_urlHighlightText is not null)
+        {
+            _urlHighlightText.Inlines ??= new InlineCollection();
+        }
         if (_urlBox is not null)
         {
+            _urlBox.TextChanged += OnUrlTextChanged;
             _urlBox.PointerMoved += OnUrlPointerMoved;
             _urlBox.PointerExited += OnUrlPointerExited;
         }
@@ -122,6 +140,68 @@ public partial class RequestEditorView : UserControl
         }
     }
 
+    private void OnUrlTextChanged(object? sender, TextChangedEventArgs e) => UpdateUrlHighlight();
+
+    private void OnUrlVariablesChanged(object? sender, EventArgs e) => UpdateUrlHighlight();
+
+    private void UpdateUrlHighlight()
+    {
+        if (_urlHighlightText is null)
+        {
+            return;
+        }
+
+        _urlHighlightText.Inlines?.Clear();
+
+        var text = _urlBox?.Text ?? string.Empty;
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var position = 0;
+        foreach (Match match in PlaceholderPattern.Matches(text))
+        {
+            if (match.Index > position)
+            {
+                AddUrlRun(text[position..match.Index], _urlTransparentBrush);
+            }
+
+            AddUrlRun(match.Value, UrlBrushForVariable(match.Groups[1].Value));
+            position = match.Index + match.Length;
+        }
+
+        if (position < text.Length)
+        {
+            AddUrlRun(text[position..], _urlTransparentBrush);
+        }
+    }
+
+    private void AddUrlRun(string text, IBrush brush)
+    {
+        if (_urlHighlightText?.Inlines is null || string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        _urlHighlightText.Inlines.Add(new Run(text) { Foreground = brush });
+    }
+
+    private IBrush UrlBrushForVariable(string name)
+    {
+        if (_urlVariableSource is not null && _urlVariableSource.TryGetValue(name, out var value))
+        {
+            return string.IsNullOrEmpty(value) ? _urlEmptyBrush : _urlDefinedBrush;
+        }
+
+        if (DynamicVariables.IsDynamic(name))
+        {
+            return _urlDefinedBrush;
+        }
+
+        return _urlVariableSource is null ? _urlTransparentBrush : _urlUndefinedBrush;
+    }
+
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_viewModel is not null)
@@ -129,12 +209,24 @@ public partial class RequestEditorView : UserControl
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
+        if (_urlVariableSource is not null)
+        {
+            _urlVariableSource.VariablesChanged -= OnUrlVariablesChanged;
+        }
+
         _viewModel = DataContext as RequestEditorViewModel;
+        _urlVariableSource = DataContext as IVariableSource;
         if (_viewModel is not null)
         {
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             ApplyLayout(_viewModel.IsSideBySide);
         }
+        if (_urlVariableSource is not null)
+        {
+            _urlVariableSource.VariablesChanged += OnUrlVariablesChanged;
+        }
+
+        UpdateUrlHighlight();
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -218,5 +310,17 @@ public partial class RequestEditorView : UserControl
             _splitter.VerticalAlignment = VerticalAlignment.Center;
             _splitter.ResizeDirection = GridResizeDirection.Rows;
         }
+    }
+
+    private static IBrush FindBrush(string key, string fallbackHex)
+    {
+        if (Avalonia.Application.Current is { } app &&
+            app.TryGetResource(key, app.ActualThemeVariant, out var value) &&
+            value is IBrush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Color.Parse(fallbackHex));
     }
 }
