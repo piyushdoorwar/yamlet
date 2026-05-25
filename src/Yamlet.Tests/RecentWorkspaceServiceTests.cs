@@ -1,4 +1,5 @@
 using Yamlet.App.Stores;
+using Yamlet.App.Models;
 
 namespace Yamlet.Tests;
 
@@ -74,5 +75,40 @@ public class RecentWorkspaceServiceTests : IDisposable
 
         Assert.Empty(session.OpenTabs);
         Assert.Equal(-1, session.ActiveTabIndex);
+    }
+
+    [Fact]
+    public void RememberLastResponse_RoundTripsResponseWithoutConsole()
+    {
+        var workspace = Path.Combine(Path.GetTempPath(), "yamlet-workspace");
+        var request = Path.Combine(workspace, "collections", "api", "get.yaml");
+        var service = new RecentWorkspaceService(_storePath);
+
+        service.RememberLastResponse(workspace, request, new YamletResponse
+        {
+            StatusCode = 200,
+            ReasonPhrase = "OK",
+            DurationMs = 42,
+            SizeBytes = 128,
+            Body = "{\"ok\":true}",
+            ContentType = "application/json",
+            ConsoleText = "Authorization: Bearer secret",
+            Headers =
+            {
+                new YamletHeader { Key = "Content-Type", Value = "application/json" },
+            },
+        });
+
+        var reloaded = new RecentWorkspaceService(_storePath).LoadLastResponse(workspace, request);
+
+        Assert.NotNull(reloaded);
+        Assert.Equal(200, reloaded.StatusCode);
+        Assert.Equal("OK", reloaded.ReasonPhrase);
+        Assert.Equal(42, reloaded.DurationMs);
+        Assert.Equal(128, reloaded.SizeBytes);
+        Assert.Equal("{\"ok\":true}", reloaded.Body);
+        Assert.Equal("application/json", reloaded.ContentType);
+        Assert.Equal("Content-Type", Assert.Single(reloaded.Headers).Key);
+        Assert.Equal(string.Empty, reloaded.ConsoleText);
     }
 }

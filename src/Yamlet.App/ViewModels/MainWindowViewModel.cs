@@ -137,6 +137,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // Only open the editor tab when selection comes from the sidebar, not the
+        // status-bar picker (which is for setting the active variable scope only).
         OpenEnvironmentTab(value);
     }
 
@@ -259,7 +261,19 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             _recent.RememberResponseSideBySide,
             SetActiveEnvironmentVariableAsync,
             () => SelectedEnvironment?.Name,
-            () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript));
+            () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript),
+            _collectionService,
+            _dialogs,
+            request => Workspace is null
+                ? null
+                : _recent.LoadLastResponse(Workspace.RootPath, RequestCacheKey(request)),
+            (request, response) =>
+            {
+                if (Workspace is not null)
+                {
+                    _recent.RememberLastResponse(Workspace.RootPath, RequestCacheKey(request), response);
+                }
+            });
 
         var tab = new OpenTabViewModel(
             node,
@@ -470,6 +484,11 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         OpenTabKind.Collection => (tab.Key as CollectionNodeViewModel)?.Collection.FilePath,
         _ => null,
     };
+
+    private static string RequestCacheKey(YamletRequest request) =>
+        !string.IsNullOrWhiteSpace(request.SourceFilePath)
+            ? request.SourceFilePath!
+            : request.Id;
 
     /// <summary>Saves the current open tabs and active tab for the workspace.</summary>
     private void PersistSession()
@@ -1662,6 +1681,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 internal sealed class DesignDialogService : IDialogService
 {
     public Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
+    public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(null);
     public Task<string?> PromptTextAsync(string title, string prompt, string defaultValue = "") =>
         Task.FromResult<string?>(null);
 }

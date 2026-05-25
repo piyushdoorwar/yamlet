@@ -17,6 +17,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 {
     private readonly RequestExecutor _executor;
     private readonly RequestFileService _requestFiles;
+    private readonly CollectionService? _collectionService;
     private readonly Func<YamletRequest, VariableContext> _contextFactory;
     private readonly Func<YamletRequest, RequestScriptVariables> _scriptVariablesFactory;
     private readonly Func<YamletAuth?> _collectionAuthFactory;
@@ -25,9 +26,23 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     private readonly Action<bool>? _persistLayout;
     private readonly Func<string, string, Task>? _setEnvironmentVariableAsync;
     private readonly Func<string?>? _activeEnvironmentName;
+    private readonly IDialogService? _dialogs;
+    private readonly Func<YamletRequest, YamletResponse?>? _loadCachedResponse;
+    private readonly Action<YamletRequest, YamletResponse>? _rememberCachedResponse;
     private readonly RequestNodeViewModel _node;
     private CancellationTokenSource? _inflight;
+    private CancellationTokenSource? _autoSaveCts;
     private VariableContext? _variableCache;
+
+    // Properties that represent user-editable request data and should trigger auto-save.
+    private static readonly HashSet<string> _autoSaveProperties = new(StringComparer.Ordinal)
+    {
+        nameof(Name), nameof(SelectedMethod), nameof(Url),
+        nameof(SelectedBodyType), nameof(BodyText),
+        nameof(SelectedAuthType), nameof(BearerToken), nameof(BasicUsername), nameof(BasicPassword),
+        nameof(ApiKeyName), nameof(ApiKeyValue), nameof(SelectedApiKeyLocation), nameof(Cookie),
+        nameof(PreRequestScript), nameof(PostResponseScript),
+    };
 
     public static readonly string[] Methods =
         { "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS" };
@@ -88,11 +103,16 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         Action<bool>? persistLayout = null,
         Func<string, string, Task>? setEnvironmentVariableAsync = null,
         Func<string?>? activeEnvironmentName = null,
-        Func<(string Pre, string Post)>? collectionScriptsFactory = null)
+        Func<(string Pre, string Post)>? collectionScriptsFactory = null,
+        CollectionService? collectionService = null,
+        IDialogService? dialogs = null,
+        Func<YamletRequest, YamletResponse?>? loadCachedResponse = null,
+        Action<YamletRequest, YamletResponse>? rememberCachedResponse = null)
     {
         _node = node;
         _executor = executor;
         _requestFiles = requestFiles;
+        _collectionService = collectionService;
         _contextFactory = contextFactory;
         _scriptVariablesFactory = scriptVariablesFactory ?? (request => RequestScriptVariables.FromContext(_contextFactory(request)));
         _collectionAuthFactory = collectionAuthFactory ?? (() => null);
@@ -101,11 +121,22 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         _persistLayout = persistLayout;
         _setEnvironmentVariableAsync = setEnvironmentVariableAsync;
         _activeEnvironmentName = activeEnvironmentName;
+        _dialogs = dialogs;
+        _loadCachedResponse = loadCachedResponse;
+        _rememberCachedResponse = rememberCachedResponse;
         _isSideBySide = initialSideBySide;
 
         BreadcrumbPath = BuildBreadcrumb(node);
         BreadcrumbPrefix = BuildBreadcrumbPrefix(node);
         LoadFrom(node.Request);
+        LoadCachedResponse(node.Request);
+
+        // Subscribe after LoadFrom so initial population doesn't trigger auto-save.
+        PropertyChanged += (_, e) => { if (_autoSaveProperties.Contains(e.PropertyName ?? "")) ScheduleAutoSave(); };
+        Params.ContentChanged += (_, _) => ScheduleAutoSave();
+        Headers.ContentChanged += (_, _) => ScheduleAutoSave();
+        Variables.ContentChanged += (_, _) => ScheduleAutoSave();
+        BodyFields.ContentChanged += (_, _) => ScheduleAutoSave();
     }
 
     // ---- Editable state ----------------------------------------------------
@@ -172,6 +203,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         SelectedBodyType.Value is YamletBodyType.Raw or YamletBodyType.Json;
     public bool IsBodyFieldsVisible =>
         SelectedBodyType.Value is YamletBodyType.FormData or YamletBodyType.UrlEncoded;
+    public bool IsFormDataBodyVisible => SelectedBodyType.Value == YamletBodyType.FormData;
+    public bool IsUrlEncodedBodyVisible => SelectedBodyType.Value == YamletBodyType.UrlEncoded;
 
     public bool IsJsonBodyEditor => SelectedBodyType.Value == YamletBodyType.Json;
     public string BodyEditorLanguage => IsJsonBodyEditor ? "json" : "text";
@@ -217,6 +250,8 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
     {
         OnPropertyChanged(nameof(IsBodyEditorVisible));
         OnPropertyChanged(nameof(IsBodyFieldsVisible));
+        OnPropertyChanged(nameof(IsFormDataBodyVisible));
+        OnPropertyChanged(nameof(IsUrlEncodedBodyVisible));
         OnPropertyChanged(nameof(IsJsonBodyEditor));
         OnPropertyChanged(nameof(BodyEditorLanguage));
         OnPropertyChanged(nameof(HasBody));
@@ -255,6 +290,22 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     [RelayCommand]
     private void ToggleLayout() => IsSideBySide = !IsSideBySide;
+
+    [RelayCommand]
+    private async Task SelectBodyFileAsync(KeyValueRowViewModel row)
+    {
+        if (_dialogs is null || row.IsReadOnly)
+        {
+            return;
+        }
+
+        var path = await _dialogs.PickFileAsync("Select form-data file");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            row.IsFile = true;
+            row.Value = path;
+        }
+    }
 
     // ---- Variable inspection (IVariableSource) -----------------------------
 
@@ -383,9 +434,12 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         BodyFields.Load(request.Body.Fields.Select(f => new KeyValueRowViewModel
         {
             Key = f.Key,
-            Value = f.IsFile && !f.Value.StartsWith('@') ? "@" + f.Value : f.Value,
-            Description = f.Description,
+            Value = f.Value,
+            Description = f.IsFile && string.Equals(f.Description, "file", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : f.Description,
             Enabled = f.Enabled,
+            IsFile = f.IsFile,
         }));
 
         SelectedAuthType = AuthTypes.First(a => a.Value == request.Auth.Type);
@@ -519,8 +573,10 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
                 Value = r.Value,
                 Description = r.Description,
                 Enabled = r.Enabled,
-                IsFile = string.Equals(r.Description.Trim(), "file", StringComparison.OrdinalIgnoreCase)
-                         || r.Value.StartsWith('@'),
+                IsFile = SelectedBodyType.Value == YamletBodyType.FormData
+                    && (r.IsFile
+                        || string.Equals(r.Description.Trim(), "file", StringComparison.OrdinalIgnoreCase)
+                        || r.Value.StartsWith('@')),
             }).ToList(),
         };
         request.Auth = new YamletAuth
@@ -545,18 +601,27 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
 
     // ---- Commands ----------------------------------------------------------
 
-    [RelayCommand]
-    private async Task SaveAsync()
+    private async void ScheduleAutoSave()
     {
+        var prev = _autoSaveCts;
+        _autoSaveCts = new CancellationTokenSource();
+        prev?.Cancel();
+        prev?.Dispose();
         try
         {
+            await Task.Delay(800, _autoSaveCts.Token).ConfigureAwait(false);
             var request = ApplyToModel();
             await _requestFiles.SaveRequestAsync(request).ConfigureAwait(false);
-            _status?.Invoke($"Saved {request.Name}");
+            // Rebuild the parent collection.yaml (Postman format with embedded requests).
+            if (_collectionService is not null)
+            {
+                await _collectionService.SaveCollectionAsync(_node.OwningCollection).ConfigureAwait(false);
+            }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _status?.Invoke($"Save failed: {ex.Message}");
+            _status?.Invoke($"Auto-save failed: {ex.Message}");
         }
     }
 
@@ -592,6 +657,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
                     _inflight.Token, collectionPre, collectionPost)
                 .ConfigureAwait(false);
             ApplyResponse(response);
+            _rememberCachedResponse?.Invoke(request, response);
             RequestHistory.Insert(
                 0,
                 response.IsError
@@ -650,6 +716,18 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
         ResponseRaw = raw.ToString();
         ResponseConsole = response.ConsoleText;
     }
+
+    private void LoadCachedResponse(YamletRequest request)
+    {
+        var response = _loadCachedResponse?.Invoke(request);
+        if (response is null)
+        {
+            return;
+        }
+
+        ApplyResponse(response);
+    }
+
     private static string CategoryFor(int statusCode) => statusCode switch
     {
         >= 200 and < 300 => "success",
@@ -728,7 +806,7 @@ public sealed partial class RequestEditorViewModel : ViewModelBase, IVariableSou
             case YamletBodyType.FormData:
                 foreach (var field in BodyFields.NonEmptyRows().Where(r => r.Enabled))
                 {
-                    var value = field.Value.StartsWith('@') ? field.Value : field.Value;
+                    var value = field.IsFile && !field.Value.StartsWith('@') ? "@" + field.Value : field.Value;
                     sb.Append(" \\\n  -F ").Append(ShellQuote($"{field.Key}={value}"));
                 }
                 break;

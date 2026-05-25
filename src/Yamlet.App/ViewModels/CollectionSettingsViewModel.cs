@@ -12,6 +12,16 @@ public sealed partial class CollectionSettingsViewModel : ViewModelBase
     private readonly CollectionService _collectionService;
     private readonly Action<string>? _status;
     private readonly Func<YamletOAuth2, Task<string>>? _acquireToken;
+    private CancellationTokenSource? _autoSaveCts;
+
+    private static readonly HashSet<string> _autoSaveProperties = new(StringComparer.Ordinal)
+    {
+        nameof(Name), nameof(SelectedAuthType), nameof(BearerToken), nameof(Cookie),
+        nameof(SelectedGrantType), nameof(SelectedTokenLocation), nameof(SelectedClientAuthentication),
+        nameof(AccessToken), nameof(AccessTokenUrl), nameof(AuthUrl),
+        nameof(ClientId), nameof(ClientSecret), nameof(Scope), nameof(RedirectUri),
+        nameof(PreRequestScript), nameof(PostResponseScript),
+    };
 
     public IReadOnlyList<LabeledOption<YamletAuthType>> AuthTypes { get; } = new[]
     {
@@ -70,6 +80,9 @@ public sealed partial class CollectionSettingsViewModel : ViewModelBase
 
         PreRequestScript = collection.PreRequestScript;
         PostResponseScript = collection.PostResponseScript;
+
+        // Subscribe after initialization so setting initial values doesn't trigger auto-save.
+        PropertyChanged += (_, e) => { if (_autoSaveProperties.Contains(e.PropertyName ?? "")) ScheduleAutoSave(); };
     }
 
     [ObservableProperty]
@@ -204,28 +217,31 @@ public sealed partial class CollectionSettingsViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private async Task SaveAsync()
+    private async void ScheduleAutoSave()
     {
-        _collection.Name = Name;
-        _collection.Auth = new YamletAuth
-        {
-            Type = SelectedAuthType.Value,
-            Token = BearerToken,
-            Cookie = Cookie,
-            OAuth2 = BuildOAuth2(),
-        };
-        _collection.PreRequestScript = PreRequestScript;
-        _collection.PostResponseScript = PostResponseScript;
-
+        var prev = _autoSaveCts;
+        _autoSaveCts = new CancellationTokenSource();
+        prev?.Cancel();
+        prev?.Dispose();
         try
         {
-            await _collectionService.SaveCollectionAsync(_collection);
-            _status?.Invoke($"Saved {Name}");
+            await Task.Delay(800, _autoSaveCts.Token).ConfigureAwait(false);
+            _collection.Name = Name;
+            _collection.Auth = new YamletAuth
+            {
+                Type = SelectedAuthType.Value,
+                Token = BearerToken,
+                Cookie = Cookie,
+                OAuth2 = BuildOAuth2(),
+            };
+            _collection.PreRequestScript = PreRequestScript;
+            _collection.PostResponseScript = PostResponseScript;
+            await _collectionService.SaveCollectionAsync(_collection).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _status?.Invoke($"Save failed: {ex.Message}");
+            _status?.Invoke($"Auto-save failed: {ex.Message}");
         }
     }
 }

@@ -2,13 +2,105 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Yamlet.App.ViewModels"
              xmlns:controls="using:Yamlet.App.Controls"
+             x:Name="EditorRoot"
              x:Class="Yamlet.App.Views.RequestEditorView"
              x:DataType="vm:RequestEditorViewModel">
 
+  <UserControl.Styles>
+    <Style Selector="Border.formRow">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Margin" Value="0,1" />
+      <Setter Property="MinHeight" Value="34" />
+    </Style>
+    <Style Selector="Border.formRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.formCell">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="PlaceholderForeground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="TextBox.formCell:pointerover /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="TextBox.formCell:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="ComboBox.formKind">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="9,4" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.formEnable">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.formEnable:checked /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.formEnable PathIcon">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+      <Setter Property="Foreground" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.formEnable:checked PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}" />
+    </Style>
+    <Style Selector="Button.formBrowse">
+      <Setter Property="Height" Value="28" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.formRemove">
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Opacity" Value="0.65" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Border.formRow:pointerover Button.formRemove">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid RowDefinitions="Auto,Auto,*" Margin="10,8,10,10">
 
-    <!-- Title row: type badge + breadcrumb + editable name, Save on the right -->
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+    <!-- Title row: type badge + breadcrumb + editable name -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
       <Border Classes="typeBadge" Grid.Column="0">
         <TextBlock Text="HTTP" FontSize="10" FontWeight="Bold"
                    Foreground="{DynamicResource AccentBrush}" />
@@ -19,7 +111,6 @@
         <TextBox Classes="title" Text="{Binding Name}" PlaceholderText="Request name"
                  VerticalAlignment="Center" MinWidth="120" />
       </StackPanel>
-      <Button Grid.Column="2" MinWidth="58" Command="{Binding SaveCommand}" Content="Save" />
     </Grid>
 
     <!-- Method / URL / Send -->
@@ -27,12 +118,39 @@
       <ComboBox Grid.Column="0"
                 Margin="0,0,8,0"
                 ItemsSource="{x:Static vm:RequestEditorViewModel.Methods}"
-                SelectedItem="{Binding SelectedMethod}" />
-      <TextBox Grid.Column="1"
-               x:Name="UrlBox"
-               Margin="0,0,8,0"
-               PlaceholderText="Enter request URL  (supports {{variables}})"
-               Text="{Binding Url}" />
+                SelectedItem="{Binding SelectedMethod}">
+        <ComboBox.SelectionBoxItemTemplate>
+          <DataTemplate x:CompileBindings="False">
+            <TextBlock Text="{Binding}"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding Converter={x:Static controls:MethodToBrushConverter.Instance}}" />
+          </DataTemplate>
+        </ComboBox.SelectionBoxItemTemplate>
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:CompileBindings="False">
+            <TextBlock Text="{Binding}"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding Converter={x:Static controls:MethodToBrushConverter.Instance}}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Grid Grid.Column="1" Margin="0,0,8,0">
+        <TextBox x:Name="UrlBox"
+                 PlaceholderText="Enter request URL  (supports {{variables}})"
+                 Text="{Binding Url}"
+                 Foreground="Transparent"
+                 CaretBrush="{DynamicResource TextPrimaryBrush}"
+                 SelectionForegroundBrush="{DynamicResource TextPrimaryBrush}" />
+        <TextBlock x:Name="UrlHighlightText"
+                   IsHitTestVisible="False"
+                   ClipToBounds="True"
+                   Padding="10,6"
+                   FontSize="13"
+                   TextWrapping="NoWrap"
+                   TextTrimming="None"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   VerticalAlignment="Stretch" />
+      </Grid>
 
       <!-- Hover peek for {{variables}} in the URL, resolved against the active environment. -->
       <Popup Grid.Column="1" x:Name="UrlPeekPopup" Placement="Pointer" IsHitTestVisible="False">
@@ -160,9 +278,79 @@
                                      IsVisible="{Binding IsBodyEditorVisible}" />
             <Panel HorizontalAlignment="Stretch"
                    VerticalAlignment="Stretch"
-                   IsVisible="{Binding IsBodyFieldsVisible}">
+                   IsVisible="{Binding IsUrlEncodedBodyVisible}">
               <controls:KeyValueGridView DataContext="{Binding BodyFields}" />
             </Panel>
+            <DockPanel LastChildFill="True"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch"
+                       IsVisible="{Binding IsFormDataBodyVisible}">
+              <Grid DockPanel.Dock="Top" ColumnDefinitions="34,1.1*,96,1.2*,1.0*,34" Margin="0,0,0,4">
+                <TextBlock Grid.Column="1" Classes="heading" Text="KEY" Margin="10,0,0,0" />
+                <TextBlock Grid.Column="2" Classes="heading" Text="TYPE" Margin="10,0,0,0" />
+                <TextBlock Grid.Column="3" Classes="heading" Text="VALUE" Margin="10,0,0,0" />
+                <TextBlock Grid.Column="4" Classes="heading" Text="DESCRIPTION" Margin="10,0,0,0" />
+              </Grid>
+              <ScrollViewer>
+                <ItemsControl ItemsSource="{Binding BodyFields.Rows}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:KeyValueRowViewModel">
+                      <Border Classes="formRow">
+                        <Grid ColumnDefinitions="34,1.1*,96,1.2*,1.0*,34">
+                          <ToggleButton Grid.Column="0"
+                                        Classes="formEnable"
+                                        IsChecked="{Binding Enabled}"
+                                        IsEnabled="{Binding !IsReadOnly}"
+                                        ToolTip.Tip="Enable row">
+                            <PathIcon Data="{StaticResource IconCheck}" />
+                          </ToggleButton>
+                          <TextBox Grid.Column="1"
+                                   Classes="formCell"
+                                   Text="{Binding Key}"
+                                   IsReadOnly="{Binding IsReadOnly}"
+                                   PlaceholderText="key" />
+                          <ComboBox Grid.Column="2"
+                                    Classes="formKind"
+                                    ItemsSource="{x:Static vm:KeyValueRowViewModel.FormDataValueTypes}"
+                                    SelectedItem="{Binding FormDataValueType}"
+                                    IsEnabled="{Binding !IsReadOnly}" />
+                          <Grid Grid.Column="3" ColumnDefinitions="*,Auto">
+                            <TextBox Grid.Column="0"
+                                     Classes="formCell"
+                                     Text="{Binding Value}"
+                                     IsReadOnly="{Binding IsReadOnly}"
+                                     PlaceholderText="{Binding ValuePlaceholder}" />
+                            <Button Grid.Column="1"
+                                    Classes="formBrowse"
+                                    Margin="6,2,2,2"
+                                    Command="{Binding #EditorRoot.DataContext.SelectBodyFileCommand}"
+                                    CommandParameter="{Binding}"
+                                    IsVisible="{Binding IsFileValue}"
+                                    IsEnabled="{Binding !IsReadOnly}"
+                                    Content="Browse" />
+                          </Grid>
+                          <TextBox Grid.Column="4"
+                                   Classes="formCell"
+                                   Text="{Binding Description}"
+                                   IsReadOnly="{Binding IsReadOnly}"
+                                   PlaceholderText="description" />
+                          <Button Grid.Column="5"
+                                  Classes="ghost formRemove"
+                                  Command="{Binding #EditorRoot.DataContext.BodyFields.RemoveRowCommand}"
+                                  CommandParameter="{Binding}"
+                                  IsVisible="{Binding !IsReadOnly}"
+                                  VerticalAlignment="Center"
+                                  ToolTip.Tip="Remove row">
+                            <PathIcon Data="{StaticResource IconClose}" Width="11" Height="11"
+                                      Foreground="{DynamicResource TextMutedBrush}" />
+                          </Button>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </DockPanel>
           </Grid>
 
           <Panel IsVisible="{Binding IsVariablesSection}">

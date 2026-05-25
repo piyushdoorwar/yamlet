@@ -58,6 +58,8 @@ public sealed partial class EditableRowsViewModel : ViewModelBase
         {
             AppendBlankRow();
         }
+
+        ContentChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void AppendBlankRow()
@@ -66,6 +68,9 @@ public sealed partial class EditableRowsViewModel : ViewModelBase
         row.PropertyChanged += OnRowChanged;
         Rows.Add(row);
     }
+
+    /// <summary>Raised when any row's content changes or a row is removed.</summary>
+    public event EventHandler? ContentChanged;
 
     private void OnRowChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -80,5 +85,7 @@ public sealed partial class EditableRowsViewModel : ViewModelBase
         {
             AppendBlankRow();
         }
+
+        ContentChanged?.Invoke(this, EventArgs.Empty);
     }
 }

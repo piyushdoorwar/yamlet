@@ -11,6 +11,8 @@
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>Yamlet.App</RootNamespace>
     <AssemblyName>Yamlet.App</AssemblyName>
+    <!-- Default version for local dev builds. CI overrides with -p:Version and -p:InformationalVersion. -->
+    <Version>0.0.0-dev</Version>
     <!-- Windows .exe icon (ignored when publishing for non-Windows RIDs). -->
     <ApplicationIcon>../../packaging/windows/yamlet.ico</ApplicationIcon>
   </PropertyGroup>
