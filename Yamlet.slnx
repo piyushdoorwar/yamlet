@@ -1,6 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Yamlet.Core/Yamlet.Core.csproj" />
     <Project Path="src/Yamlet.App/Yamlet.App.csproj" />
     <Project Path="src/Yamlet.Tests/Yamlet.Tests.csproj" />
+  </Folder>
+  <Folder Name="/cli/">
+    <Project Path="cli/Yamlet.Cli/Yamlet.Cli.csproj" />
   </Folder>
 </Solution>

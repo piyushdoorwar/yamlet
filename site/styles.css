@@ -305,12 +305,58 @@ h3 {
   color: var(--amber);
   font-family: "Cascadia Code", "Ubuntu Mono", monospace;
   font-size: 13px;
-  overflow: hidden;
+  overflow: visible;
   white-space: nowrap;
-  text-overflow: ellipsis;
+}
+
+.api-var {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 4px;
+  color: var(--amber);
+  cursor: help;
+  outline: none;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.api-var::after {
+  content: attr(data-value);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 2;
+  padding: 7px 9px;
+  border: 1px solid rgba(76, 168, 119, 0.45);
+  border-radius: 6px;
+  background: #121713;
+  color: var(--soft);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.api-var:hover,
+.api-var:focus-visible {
+  background: rgba(224, 164, 88, 0.12);
+  color: #f3bc72;
+}
+
+.api-var:hover::after,
+.api-var:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .api-url em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--soft);
   font-style: normal;
 }
@@ -318,12 +364,30 @@ h3 {
 .api-send {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 0 18px;
+  border: 1px solid var(--accent-bright);
   border-radius: 6px;
   background: var(--accent);
   color: #fff;
+  cursor: pointer;
+  font-family: inherit;
   font-weight: 800;
   font-size: 13px;
+  transition: background-color 0.18s ease, transform 0.12s ease, opacity 0.18s ease;
+}
+
+.api-send:hover {
+  background: var(--accent-bright);
+}
+
+.api-send:active {
+  transform: scale(0.96);
+}
+
+.api-send:disabled {
+  cursor: progress;
+  opacity: 0.78;
 }
 
 .api-response {
@@ -331,6 +395,7 @@ h3 {
   border-radius: 8px;
   background: #1a1917;
   overflow: hidden;
+  min-height: 228px;
 }
 
 .api-resp-bar {
@@ -352,6 +417,116 @@ h3 {
   background: #8fd3a8;
   color: #15150f;
   font-weight: 800;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.api-response[data-state="empty"] .api-status {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+
+.api-response[data-state="loading"] .api-status {
+  background: #4c4a45;
+  color: var(--soft);
+}
+
+.api-empty {
+  display: grid;
+  place-items: center;
+  min-height: 174px;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.api-empty span {
+  color: var(--soft);
+  font-weight: 800;
+}
+
+.api-empty small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.api-loading {
+  display: none;
+  min-height: 174px;
+  padding: 24px;
+}
+
+.api-response[data-state="loading"] .api-empty,
+.api-response[data-state="loaded"] .api-empty {
+  display: none;
+}
+
+.api-response[data-state="loading"] .api-loading {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+.api-loading span {
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--panel-2), rgba(76, 168, 119, 0.35), var(--panel-2));
+  background-size: 220% 100%;
+  animation: api-shimmer 0.72s ease-in-out infinite;
+}
+
+.api-loading span:nth-child(2) {
+  width: 82%;
+  animation-delay: 0.08s;
+}
+
+.api-loading span:nth-child(3) {
+  width: 64%;
+  animation-delay: 0.16s;
+}
+
+.api-result {
+  padding: 14px;
+  animation: api-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.api-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.api-page-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--soft);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.api-page-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+@keyframes api-shimmer {
+  from { background-position: 110% 0; }
+  to { background-position: -110% 0; }
+}
+
+@keyframes api-pop {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .api-json {
@@ -362,6 +537,35 @@ h3 {
   line-height: 1.7;
   color: var(--soft);
   overflow-x: auto;
+}
+
+.api-json-result {
+  max-height: 230px;
+  padding: 0 4px 2px;
+  background: transparent;
+  overflow: auto;
+  scrollbar-color: #8fd3a8 #232220;
+  scrollbar-width: thin;
+}
+
+.api-json-result::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.api-json-result::-webkit-scrollbar-track {
+  background: #232220;
+  border-radius: 999px;
+}
+
+.api-json-result::-webkit-scrollbar-thumb {
+  background: #8fd3a8;
+  border: 2px solid #232220;
+  border-radius: 999px;
+}
+
+.api-json-result::-webkit-scrollbar-thumb:hover {
+  background: #a7dfb9;
 }
 
 .api-json .k { color: #9cc0ec; }

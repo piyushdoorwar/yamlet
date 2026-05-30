@@ -76,22 +76,32 @@
           <div class="api-body">
             <div class="api-urlbar">
               <span class="api-method">GET</span>
-              <span class="api-url">{{base_url}}<em>api/courses</em></span>
-              <span class="api-send">Send</span>
+              <span class="api-url">
+                <span class="api-var" tabindex="0" data-value="https://example.com/">&#123;&#123;base_url&#125;&#125;</span><em id="apiPreviewPath">api/courses?page=1</em>
+              </span>
+              <button class="api-send" id="apiPreviewSend" type="button">Send</button>
             </div>
-            <div class="api-response">
+            <div class="api-response" id="apiPreviewResponse" data-state="empty">
               <div class="api-resp-bar">
-                <span class="api-status">200 OK</span>
-                <span>148 ms</span>
-                <span>1.2 KB</span>
+                <span class="api-status" id="apiPreviewStatus">Ready</span>
+                <span id="apiPreviewTime">-- ms</span>
+                <span id="apiPreviewSize">-- KB</span>
               </div>
-<pre class="api-json">{
-  <span class="k">"name"</span>: <span class="s">"MPhil in Public Policy"</span>,
-  <span class="k">"institutionName"</span>: <span class="s">"Cambridge University"</span>,
-  <span class="k">"isVisible"</span>: <span class="n">true</span>,
-  <span class="k">"pageSize"</span>: <span class="n">5</span>,
-  <span class="k">"totalItems"</span>: <span class="n">79</span>
-}</pre>
+              <div class="api-empty" id="apiPreviewEmpty">
+                <span>Response body is empty</span>
+                <small>Click Send to resolve variables and fetch courses.</small>
+              </div>
+              <div class="api-loading" id="apiPreviewLoading" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="api-result" id="apiPreviewResult" hidden>
+                <pre class="api-json api-json-result" id="apiPreviewJson"></pre>
+                <div class="api-pagination" aria-label="Preview response pagination">
+                  <button class="api-page-btn" id="apiPreviewPrev" type="button" aria-label="Previous preview page">Prev</button>
+                  <span id="apiPreviewPage">Page 1 of 2</span>
+                  <button class="api-page-btn" id="apiPreviewNext" type="button" aria-label="Next preview page">Next</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -73,7 +73,8 @@ public sealed class RequestExecutor
         RequestScriptVariables scriptVariables,
         CancellationToken cancellationToken = default,
         string? collectionPreRequestScript = null,
-        string? collectionPostResponseScript = null)
+        string? collectionPostResponseScript = null,
+        IList<ScriptTestResult>? tests = null)
     {
         Stopwatch? httpStopwatch = null;
         string consoleText = string.Empty;
@@ -81,7 +82,7 @@ public sealed class RequestExecutor
         {
             var activeRequest = CloneRequest(request);
 
-            _scripts.RunPreRequest(activeRequest, scriptVariables, collectionPreRequestScript);
+            _scripts.RunPreRequest(activeRequest, scriptVariables, collectionPreRequestScript, tests);
             var activeContext = scriptVariables.ToContext();
 
             var effectiveAuth = EffectiveAuth(activeRequest, collectionAuth);
@@ -111,7 +112,7 @@ public sealed class RequestExecutor
             };
             result.ConsoleText = BuildConsoleText(consoleText, result);
 
-            _scripts.RunPostResponse(activeRequest, result, scriptVariables, collectionPostResponseScript);
+            _scripts.RunPostResponse(activeRequest, result, scriptVariables, collectionPostResponseScript, tests);
             await scriptVariables.PersistAsync().ConfigureAwait(false);
             return result;
         }
