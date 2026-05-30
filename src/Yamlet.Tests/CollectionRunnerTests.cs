@@ -150,8 +150,10 @@ public class CollectionRunnerTests
         });
 
         var environment = new YamletEnvironment { Name = "dev" };
-        await runner.RunAsync(WorkspaceWith(collection), environment);
+        var report = await runner.RunAsync(WorkspaceWith(collection), environment);
 
         Assert.Equal("https://api.test/items/abc", handler.Urls[1]);
+        // The report carries the resolved URL, not the {{id}} template.
+        Assert.Equal("https://api.test/items/abc", report.Requests[1].Url);
     }
 }

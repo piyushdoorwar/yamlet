@@ -96,7 +96,7 @@ public sealed class CollectionRunner
                     collection.Name,
                     request.Name,
                     request.Method,
-                    request.Url,
+                    string.IsNullOrEmpty(response.ResolvedUrl) ? request.Url : response.ResolvedUrl,
                     response.StatusCode,
                     response.ReasonPhrase,
                     response.IsError,

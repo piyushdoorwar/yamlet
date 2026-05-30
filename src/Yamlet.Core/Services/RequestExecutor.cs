@@ -78,6 +78,7 @@ public sealed class RequestExecutor
     {
         Stopwatch? httpStopwatch = null;
         string consoleText = string.Empty;
+        string resolvedUrl = request.Url;
         try
         {
             var activeRequest = CloneRequest(request);
@@ -91,6 +92,7 @@ public sealed class RequestExecutor
                 : null;
 
             using var message = BuildMessage(activeRequest, activeContext, collectionAuth, oauthToken);
+            resolvedUrl = message.RequestUri?.ToString() ?? activeRequest.Url;
             consoleText = await BuildConsoleRequestTextAsync(message, cancellationToken).ConfigureAwait(false);
             httpStopwatch = Stopwatch.StartNew();
             using var response = await ClientFor(activeRequest)
@@ -109,6 +111,7 @@ public sealed class RequestExecutor
                 ContentType = response.Content.Headers.ContentType?.ToString() ?? string.Empty,
                 Body = DecodeBody(bytes, response.Content.Headers),
                 Headers = CollectHeaders(response),
+                ResolvedUrl = resolvedUrl,
             };
             result.ConsoleText = BuildConsoleText(consoleText, result);
 
@@ -120,6 +123,7 @@ public sealed class RequestExecutor
         {
             httpStopwatch?.Stop();
             var result = YamletResponse.FromError("Request was cancelled.", httpStopwatch?.ElapsedMilliseconds ?? 0);
+            result.ResolvedUrl = resolvedUrl;
             result.ConsoleText = BuildConsoleText(consoleText, result);
             return result;
         }
@@ -127,6 +131,7 @@ public sealed class RequestExecutor
         {
             httpStopwatch?.Stop();
             var result = YamletResponse.FromError(ex.Message, httpStopwatch?.ElapsedMilliseconds ?? 0);
+            result.ResolvedUrl = resolvedUrl;
             result.ConsoleText = BuildConsoleText(consoleText, result);
             return result;
         }
