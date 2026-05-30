@@ -1,0 +1,14 @@
+id: demo-list-posts
+name: List Posts
+order: 0
+method: GET
+url: '{{baseUrl}}/posts'
+scripts:
+- type: afterResponse
+  code: >
+    pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));
+
+    pm.test('returns a non-empty list', () => pm.expect(pm.response.json().length).to.above(0));
+body:
+  type: none
+...
