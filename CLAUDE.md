@@ -46,15 +46,25 @@ pwsh ./scripts/build-windows.ps1          # build the Windows .exe + .msix (Wind
 
 ## Solution structure
 
+`Yamlet.slnx` contains four projects. **`Yamlet.Core` is a UI-free class library** holding
+the domain models and all logic/disk services; **`Yamlet.App`** (Avalonia `WinExe`) and
+**`Yamlet.Cli`** (the `yamlet` dotnet tool) both reference it. Core has no Avalonia
+dependency, so the CLI runs headless. **Namespaces stay `Yamlet.App.Models` /
+`Yamlet.App.Services`** even for files in Core (only the project boundary moved), so the
+app's `using`s are unchanged.
+
 ```
 src/
-  Yamlet.App/
+  Yamlet.Core/     UI-free library (refs Jint + YamlDotNet)
     Models/        Plain domain POCOs (YamletWorkspace, Collection, Folder, Request,
                    Header, QueryParam, RequestBody, Auth, Environment, Variable, Response)
     Services/      Disk + logic: WorkspaceService, CollectionService, RequestFileService,
                    YamlSerializationService, YamlDtos (on-disk shapes + mapping),
                    VariableResolver, RequestExecutor, RequestScriptRunner/Variables,
-                   OAuth2TokenService, OAuth2BrowserFlow, DialogService, PathNaming
+                   CollectionRunner (headless run engine), OAuth2TokenService,
+                   DynamicVariables, CurlImporter, PathNaming
+  Yamlet.App/      Avalonia desktop app (refs Yamlet.Core)
+    Services/      UI/interactive only: DialogService (Avalonia), OAuth2BrowserFlow
     Stores/        RecentWorkspaceService (JSON app cache: recent workspaces, per-workspace
                    selected environment + open-tab session + response-layout preference)
     ViewModels/    MVVM: MainWindowViewModel, RequestEditorViewModel, CollectionSettingsViewModel,
@@ -65,16 +75,33 @@ src/
     Controls/      CodeEditorView (+ IVariableSource, JsonFoldingStrategy), KeyValueGridView,
                    YamletLogo, value converters
     Themes/        Colors.axaml, Icons.axaml, Yamlet.axaml (styles)
-  Yamlet.Tests/    xUnit tests
+  Yamlet.Tests/    xUnit tests (refs Yamlet.App, so Core resolves transitively)
+cli/
+  Yamlet.Cli/      `yamlet` dotnet tool (refs ../../src/Yamlet.Core); Program.cs + README
 packaging/         .deb assets + windows/ (Inno Setup .iss, AppxManifest, tiles, .ico)
 scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
 ```
+
+- **The `yamlet` CLI runs a workspace headlessly (for CI).** `yamlet run <workspace>
+  [--env <file>] [--globals <file>] [--bail]` opens the workspace via `WorkspaceService`,
+  then `CollectionRunner.RunAsync` sends every request across all collections in tree order
+  (depth-first, folders before requests), capturing `pm.test` results. A request **fails**
+  on a transport error, a non-2xx/3xx status, or any failed assertion; the process exits
+  `1` if anything failed, else `0`. Output is plain ASCII (`PASS`/`FAIL`, `ok`/`not ok` —
+  no emojis). Published to nuget.org as `Yamlet.Cli` by
+  [.github/workflows/publish-cli.yml](.github/workflows/publish-cli.yml) on `v*` tags
+  (needs a `NUGET_API_KEY` repo secret).
+- **`pm.test` results are captured opt-in.** `RequestScriptRunner` records each
+  `pm.test(name, fn)` into an `IList<ScriptTestResult>` when a sink is supplied (CLI/runner
+  path) and continues past failures; with no sink (the app's send path) a failed assertion
+  still throws, preserving existing behavior. `RequestExecutor.ExecuteAsync` threads the
+  optional sink through.
 
 ## Key architectural decisions
 
 - **Domain models are decoupled from the file format.** The UI binds to view models that
   wrap domain models (`Yamlet.App.Models`); on-disk YAML is described by separate DTOs in
-  [YamlDtos.cs](src/Yamlet.App/Services/YamlDtos.cs) with explicit `ToDomain` / `FromDomain`
+  [YamlDtos.cs](src/Yamlet.Core/Services/YamlDtos.cs) with explicit `ToDomain` / `FromDomain`
   mapping. Never bind UI or serialize domain models directly.
 - **No DI container.** The object graph is wired by hand in
   [App.axaml.cs](src/Yamlet.App/App.axaml.cs) `ComposeRoot()`. `DialogService` is attached
@@ -102,16 +129,16 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   environment file/name) so the session restores across restarts; missing targets are
   skipped, with a first-environment fallback.
 - **Variable precedence** (highest first): request → collection → environment → globals.
-  Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
+  Implemented in [VariableResolver.cs](src/Yamlet.Core/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
   are visible, not silently blanked).
 - **Dynamic variables** (`$guid`, `$timestamp`, `$random*`, …) are our own
-  implementation in [DynamicVariables.cs](src/Yamlet.App/Services/DynamicVariables.cs) — no
+  implementation in [DynamicVariables.cs](src/Yamlet.Core/Services/DynamicVariables.cs) — no
   faker dependency. `VariableResolver` falls back to `DynamicVariables.TryGenerate` when a
   `{{$name}}` placeholder isn't a user variable, so **user variables always win** and each
   occurrence generates a **fresh** value. Scripts get
   `pm.variables.replaceIn('{{$randomFirstName}}')` (and `pm.replaceIn`) wired in
-  [RequestScriptRunner.cs](src/Yamlet.App/Services/RequestScriptRunner.cs). In
+  [RequestScriptRunner.cs](src/Yamlet.Core/Services/RequestScriptRunner.cs). In
   `CodeEditorView`, typing `$` pops an autocomplete list of the full catalog; dynamic
   placeholders highlight as defined (amber) and hover-peek shows their description +
   example instead of the editable inspector (they aren't settable).
@@ -128,7 +155,7 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   summary line.
 - **Collection auth incl. OAuth 2.0.** A collection's auth applies to requests whose auth
   is `Inherit`. `YamletAuth.OAuth2` supports **client-credentials** (token fetched + cached
-  from the token endpoint by [OAuth2TokenService](src/Yamlet.App/Services/OAuth2TokenService.cs),
+  from the token endpoint by [OAuth2TokenService](src/Yamlet.Core/Services/OAuth2TokenService.cs),
   attached as a Bearer header or `access_token` query per `addTokenTo`) and
   **authorization-code with PKCE** (interactive via
   [OAuth2BrowserFlow](src/Yamlet.App/Services/OAuth2BrowserFlow.cs): system browser + a

@@ -3,6 +3,9 @@ using Yamlet.App.Models;
 
 namespace Yamlet.App.Services;
 
+/// <summary>The outcome of a single <c>pm.test(name, fn)</c> assertion.</summary>
+public sealed record ScriptTestResult(string Name, bool Passed, string? Message);
+
 /// <summary>
 /// Executes per-request JavaScript with a small Yamlet-compatible <c>pm</c> surface.
 /// Scripts run in a short-lived engine for each phase.
@@ -14,14 +17,15 @@ public sealed class RequestScriptRunner
     public void RunPreRequest(
         YamletRequest request,
         RequestScriptVariables variables,
-        string? collectionScript = null)
+        string? collectionScript = null,
+        IList<ScriptTestResult>? tests = null)
     {
         // Collection-scope script runs first, then the request's own.
-        RunCollectionScript(request, variables, response: null, collectionScript);
+        RunCollectionScript(request, variables, response: null, collectionScript, tests);
 
         if (!string.IsNullOrWhiteSpace(request.PreRequestScript))
         {
-            CreateEngine(request, variables, response: null).Execute(request.PreRequestScript);
+            CreateEngine(request, variables, response: null, tests).Execute(request.PreRequestScript);
         }
     }
 
@@ -29,26 +33,30 @@ public sealed class RequestScriptRunner
         YamletRequest request,
         YamletResponse response,
         RequestScriptVariables variables,
-        string? collectionScript = null)
+        string? collectionScript = null,
+        IList<ScriptTestResult>? tests = null)
     {
         if (!string.IsNullOrWhiteSpace(request.PostResponseScript))
         {
-            CreateEngine(request, variables, response).Execute(request.PostResponseScript);
+            CreateEngine(request, variables, response, tests).Execute(request.PostResponseScript);
         }
 
-        RunCollectionScript(request, variables, response, collectionScript);
+        RunCollectionScript(request, variables, response, collectionScript, tests);
     }
 
     /// <summary>
     /// Runs a collection-scope script in its own engine. Errors are swallowed so a failing
     /// collection script (commonly a test assertion) can't turn a sent request into a
     /// failure — collection scripts apply to every request and shouldn't abort the send.
+    /// Captured <c>pm.test</c> results (when <paramref name="tests"/> is supplied) are still
+    /// recorded before the failure is swallowed.
     /// </summary>
     private void RunCollectionScript(
         YamletRequest request,
         RequestScriptVariables variables,
         YamletResponse? response,
-        string? script)
+        string? script,
+        IList<ScriptTestResult>? tests)
     {
         if (string.IsNullOrWhiteSpace(script))
         {
@@ -57,7 +65,7 @@ public sealed class RequestScriptRunner
 
         try
         {
-            CreateEngine(request, variables, response).Execute(script);
+            CreateEngine(request, variables, response, tests).Execute(script);
         }
         catch
         {
@@ -68,9 +76,17 @@ public sealed class RequestScriptRunner
     private static Engine CreateEngine(
         YamletRequest request,
         RequestScriptVariables variables,
-        YamletResponse? response)
+        YamletResponse? response,
+        IList<ScriptTestResult>? tests)
     {
         var engine = new Engine(options => options.TimeoutInterval(ScriptTimeout));
+
+        // When a sink is supplied (CLI/runner), pm.test records each assertion and continues;
+        // otherwise a failed assertion throws and aborts, preserving the app's existing behavior.
+        var collectTests = tests is not null;
+        engine.SetValue("__collectTests", collectTests);
+        engine.SetValue("__recordTest", (Action<string, bool, string>)((name, ok, message) =>
+            tests?.Add(new ScriptTestResult(name, ok, string.IsNullOrEmpty(message) ? null : message))));
 
         // Resolves {{placeholders}} (including dynamic $variables) against the live scopes
         // at call time, so pm.variables.replaceIn('{{$randomFirstName}}') works in scripts.
@@ -207,7 +223,13 @@ const pm = {
       has: name => __responseHeader(String(name)) !== null
     }
   },
-  test: (name, fn) => fn(),
+  test: (name, fn) => {
+    try { fn(); __recordTest(String(name), true, ''); }
+    catch (e) {
+      __recordTest(String(name), false, String((e && e.message) || e));
+      if (!__collectTests) throw e;
+    }
+  },
   expect: value => {
     const assert = (ok, message) => { if (!ok) throw new Error(message); };
     const equal = expected => assert(value === expected, `Expected ${value} to equal ${expected}`);

@@ -52,6 +52,114 @@ async function hydrateDownloadLinks() {
 
 hydrateDownloadLinks();
 
+// ── Interactive API preview ───────────────────────────────────────────────
+(function () {
+  const sendButton = document.getElementById("apiPreviewSend");
+  const responseEl = document.getElementById("apiPreviewResponse");
+  const pathEl = document.getElementById("apiPreviewPath");
+  const statusEl = document.getElementById("apiPreviewStatus");
+  const timeEl = document.getElementById("apiPreviewTime");
+  const sizeEl = document.getElementById("apiPreviewSize");
+  const resultEl = document.getElementById("apiPreviewResult");
+  const jsonEl = document.getElementById("apiPreviewJson");
+  const pageEl = document.getElementById("apiPreviewPage");
+  const prevButton = document.getElementById("apiPreviewPrev");
+  const nextButton = document.getElementById("apiPreviewNext");
+
+  if (!sendButton || !responseEl || !pathEl || !resultEl || !jsonEl || !pageEl || !prevButton || !nextButton) return;
+
+  const pages = [
+    [
+      { id: "course_pubpol", name: "MPhil in Public Policy", institutionName: "Cambridge University", isVisible: true },
+      { id: "course_analytics", name: "Product Analytics", institutionName: "Example Labs", isVisible: true },
+      { id: "course_dist_api", name: "Intro to Distributed APIs", institutionName: "Northwind School", isVisible: true },
+    ],
+    [
+      { id: "course_design", name: "Service Design Studio", institutionName: "Example Labs", isVisible: true },
+      { id: "course_ethics", name: "Data Ethics", institutionName: "Cambridge University", isVisible: true },
+      { id: "course_http", name: "HTTP Fundamentals", institutionName: "Northwind School", isVisible: true },
+    ],
+  ];
+
+  let pageIndex = 0;
+  let timer = null;
+
+  function setMeta(state) {
+    responseEl.dataset.state = state;
+    statusEl.textContent = state === "loaded" ? "200 OK" : state === "loading" ? "Sending" : "Ready";
+    timeEl.textContent = state === "loaded" ? "128 ms" : "-- ms";
+    sizeEl.textContent = state === "loaded" ? "1.8 KB" : "-- KB";
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function highlightJson(json) {
+    return escapeHtml(json).replace(
+      /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g,
+      (match, key, string, literal, number) => {
+        if (key) return `<span class="k">${key}</span>`;
+        if (string) return `<span class="s">${string}</span>`;
+        if (literal) return `<span class="n">${literal}</span>`;
+        if (number) return `<span class="n">${number}</span>`;
+        return match;
+      }
+    );
+  }
+
+  function renderPage() {
+    const body = {
+      page: pageIndex + 1,
+      pageSize: pages[pageIndex].length,
+      totalItems: pages.flat().length,
+      data: pages[pageIndex],
+    };
+
+    jsonEl.innerHTML = highlightJson(JSON.stringify(body, null, 2));
+    pathEl.textContent = `api/courses?page=${pageIndex + 1}`;
+    pageEl.textContent = `Page ${pageIndex + 1} of ${pages.length}`;
+    prevButton.disabled = pageIndex === 0;
+    nextButton.disabled = pageIndex === pages.length - 1;
+  }
+
+  function showResponse() {
+    setMeta("loaded");
+    renderPage();
+    resultEl.hidden = false;
+    sendButton.disabled = false;
+    sendButton.textContent = "Send";
+  }
+
+  function sendPreviewRequest() {
+    window.clearTimeout(timer);
+    resultEl.hidden = true;
+    pageIndex = 0;
+    setMeta("loading");
+    sendButton.disabled = true;
+    sendButton.textContent = "Sending";
+    timer = window.setTimeout(showResponse, 380);
+  }
+
+  sendButton.addEventListener("click", sendPreviewRequest);
+  prevButton.addEventListener("click", () => {
+    if (pageIndex > 0) {
+      pageIndex -= 1;
+      renderPage();
+    }
+  });
+  nextButton.addEventListener("click", () => {
+    if (pageIndex < pages.length - 1) {
+      pageIndex += 1;
+      renderPage();
+    }
+  });
+})();
+
 // ── Scroll reveal ─────────────────────────────────────────────────────────
 (function () {
   const obs = new IntersectionObserver(
