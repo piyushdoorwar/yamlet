@@ -1,0 +1,34 @@
+name: Verify samples
+
+# Installs the latest published Yamlet.Cli from nuget.org and runs the sample workspace, so
+# every commit exercises the released tool end to end the same way a consumer would use it.
+#
+# Requires Yamlet.Cli to already be on nuget.org (see publish-cli.yml) — runs will fail at
+# the install step until the first publish. The sample hits the public
+# jsonplaceholder.typicode.com API, so the runner needs internet (GitHub-hosted runners do)
+# but no secrets.
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Run sample collections
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install latest Yamlet CLI from nuget.org
+        run: |
+          dotnet tool install --global Yamlet.Cli
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Run sample workspace
+        run: yamlet run samples/demo --env samples/demo/environments/dev.yaml

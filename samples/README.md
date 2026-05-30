@@ -42,3 +42,9 @@ dotnet run --project src/Yamlet.App
 
 Then open the `samples/demo` folder — the app and CLI share the same loaders, so what runs
 in CI is what you see in the UI.
+
+### In CI
+
+[.github/workflows/verify-samples.yml](../.github/workflows/verify-samples.yml) installs the
+latest published `Yamlet.Cli` from nuget.org and runs this workspace on every push —
+dogfooding the released tool exactly as a consumer would.
