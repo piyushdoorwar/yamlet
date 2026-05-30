@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="All Yamlet releases - download for Linux and Windows." />
+    <title>Releases - Yamlet</title>
+    <link rel="icon" href="../assets/yamlet.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="../" aria-label="Yamlet home">
+        <img src="../assets/yamlet.svg" alt="" />
+        <span>Yamlet</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a class="icon-link" href="../#features">
+          <img src="../assets/features.svg" alt="" />
+          <span>Features</span>
+        </a>
+        <a class="icon-link" href="../#download">
+          <img src="../assets/download.svg" alt="" />
+          <span>Download</span>
+        </a>
+        <a class="icon-link" href="../releases" aria-current="page">
+          <img src="../assets/releases.svg" alt="" />
+          <span>Releases</span>
+        </a>
+        <a class="icon-link" href="../policy/">
+          <img src="../assets/policy.svg" alt="" />
+          <span>Privacy</span>
+        </a>
+        <a class="github-link icon-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+          <img src="../assets/github.svg" alt="" />
+          <span>GitHub</span>
+        </a>
+      </nav>
+    </header>
+
+    <main class="releases-main">
+      <div class="releases-header">
+        <div>
+          <p class="eyebrow">All versions</p>
+          <h1 class="releases-title">Releases</h1>
+          <p class="releases-subtitle">Download any previous release. Stable builds are listed by default.</p>
+        </div>
+
+        <div class="releases-filters">
+          <div class="os-tabs" role="tablist" aria-label="Filter by operating system">
+            <button class="os-tab active" role="tab" aria-selected="true"  data-os="all"     aria-controls="releases-items">All</button>
+            <button class="os-tab"        role="tab" aria-selected="false" data-os="linux"   aria-controls="releases-items">
+              <img src="../assets/ubuntu.svg" alt="" /> Linux
+            </button>
+            <button class="os-tab"        role="tab" aria-selected="false" data-os="windows" aria-controls="releases-items">
+              <img src="../assets/windows.svg" alt="" /> Windows
+            </button>
+          </div>
+          <span class="releases-filters-sep" aria-hidden="true"></span>
+          <label class="stable-toggle" for="stableOnlyToggle">
+            <input type="checkbox" id="stableOnlyToggle" checked />
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Stable only</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="releases-tabs">
+        <div class="tab-buttons">
+          <button class="tab-button active" data-tab="versions">Versions</button>
+          <button class="tab-button" data-tab="installation">Installation</button>
+        </div>
+
+        <!-- Versions tab -->
+        <div class="tab-content active" data-tab="versions">
+          <div id="releases-loading" class="releases-state">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Fetching releases…</span>
+          </div>
+          <div id="releases-error" class="releases-state hidden">
+            Could not load releases.
+            <a class="github-link" href="https://github.com/piyushdoorwar/yamlet/releases" rel="noreferrer">
+              <img src="../assets/github.svg" alt="" />
+              <span>View on GitHub</span>
+            </a>
+          </div>
+          <div id="releases-empty" class="releases-state hidden">
+            No releases found for this platform yet.
+          </div>
+          <div id="releases-items"></div>
+
+          <nav class="pagination" id="pagination" aria-label="Releases pagination" hidden>
+            <button id="page-prev" class="page-btn" aria-label="Previous page" disabled>← Prev</button>
+            <span id="page-label" class="page-label"></span>
+            <button id="page-next" class="page-btn" aria-label="Next page">Next →</button>
+          </nav>
+        </div>
+
+        <!-- Installation tab -->
+        <div class="tab-content" data-tab="installation">
+          <div class="installation-guide">
+            <div class="install-method">
+              <h3>Linux (Debian / Ubuntu) – .deb</h3>
+              <p>Download the <code>.deb</code> from the Versions tab, then install it:</p>
+              <pre><code>sudo apt install ~/Downloads/yamlet_*_amd64.deb</code></pre>
+              <p class="install-note">The build is self-contained — no separate .NET runtime is required.</p>
+            </div>
+
+            <div class="install-method">
+              <h3>Windows – .exe installer</h3>
+              <p>Download the <code>.exe</code> installer from the Versions tab and run it. Self-contained; no extra runtime needed.</p>
+            </div>
+
+            <div class="install-method">
+              <h3>Windows – .msix package</h3>
+              <p>Prefer MSIX? Download the <code>.msix</code> from the Versions tab. It ships unsigned, so install it with a trusted certificate or via <code>Add-AppxPackage</code> in a developer environment.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <span>Yamlet</span>
+      <div class="footer-links">
+        <a class="icon-link" href="./" aria-current="page">
+          <img src="../assets/releases.svg" alt="" />
+          <span>Releases</span>
+        </a>
+        <a class="icon-link" href="../policy/">
+          <img src="../assets/policy.svg" alt="" />
+          <span>Privacy</span>
+        </a>
+        <a class="github-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+          <img src="../assets/github.svg" alt="" />
+          <span>GitHub</span>
+        </a>
+        <button class="footer-support-link icon-link" id="footerSupportBtnReleases">
+          <img src="../assets/support.svg" alt="" />
+          <span>Support</span>
+        </button>
+      </div>
+    </footer>
+
+    <div class="modal-backdrop hidden" id="supportModalReleases" role="dialog" aria-modal="true" aria-labelledby="supportModalTitleReleases">
+      <div class="modal-box">
+        <div class="modal-header">
+          <p class="eyebrow" style="margin:0">Support and issues</p>
+          <button class="modal-close" aria-label="Close support dialog" id="closeSupportReleases">✕</button>
+        </div>
+        <h2 id="supportModalTitleReleases" class="modal-title">Need help with Yamlet?</h2>
+        <p class="modal-body">
+          Found a bug or have feedback? Open an issue on GitHub, or send an email and include your OS,
+          Yamlet version, and a short note about what happened.
+        </p>
+        <a class="button secondary large email-link" href="mailto:piyushdoorwar+yamlet@gmail.com">
+          <img src="../assets/mail.svg" alt="" />
+          <span>piyushdoorwar+yamlet@gmail.com</span>
+        </a>
+      </div>
+    </div>
+
+    <script src="../image-guard.js"></script>
+    <script src="releases.js"></script>
+    <script>
+      const btn = document.getElementById("footerSupportBtnReleases");
+      const modal = document.getElementById("supportModalReleases");
+      const closeBtn = document.getElementById("closeSupportReleases");
+      btn.addEventListener("click", () => { modal.classList.remove("hidden"); document.body.style.overflow = "hidden"; });
+      closeBtn.addEventListener("click", () => { modal.classList.add("hidden"); document.body.style.overflow = ""; });
+      modal.addEventListener("click", e => { if (e.target === modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; } });
+      document.addEventListener("keydown", e => { if (e.key === "Escape" && !modal.classList.contains("hidden")) { modal.classList.add("hidden"); document.body.style.overflow = ""; } });
+    </script>
+  </body>
+</html>
