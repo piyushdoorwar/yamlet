@@ -1,0 +1,14 @@
+id: demo-get-post
+name: Get Post
+order: 1
+method: GET
+url: '{{baseUrl}}/posts/{{postId}}'
+scripts:
+- type: afterResponse
+  code: >
+    pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));
+
+    pm.test('returns the requested post', () => pm.expect(pm.response.json().id).to.equal(1));
+body:
+  type: none
+...

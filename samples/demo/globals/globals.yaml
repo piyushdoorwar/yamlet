@@ -1,0 +1,4 @@
+variables:
+  - key: appName
+    value: Yamlet
+    enabled: true

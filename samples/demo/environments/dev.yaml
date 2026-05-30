@@ -1,0 +1,6 @@
+id: demo-env-dev
+name: dev
+variables:
+  - key: baseUrl
+    value: https://jsonplaceholder.typicode.com
+    enabled: true

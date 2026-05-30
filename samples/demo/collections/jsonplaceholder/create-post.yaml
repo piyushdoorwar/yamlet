@@ -1,0 +1,20 @@
+id: demo-create-post
+name: Create Post
+order: 2
+method: POST
+url: '{{baseUrl}}/posts'
+scripts:
+- type: afterResponse
+  code: >
+    pm.test('status is 201', () => pm.expect(pm.response.code).to.equal(201));
+
+    pm.test('echoes a new id', () => pm.expect(pm.response.json().id).to.above(0));
+body:
+  type: json
+  raw: >
+    {
+      "title": "Yamlet",
+      "body": "Created from the sample collection",
+      "userId": 1
+    }
+...

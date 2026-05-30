@@ -1,0 +1,14 @@
+id: demo-list-users
+name: List Users
+order: 0
+method: GET
+url: '{{baseUrl}}/users'
+scripts:
+- type: afterResponse
+  code: >
+    pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));
+
+    pm.test('returns users', () => pm.expect(pm.response.json().length).to.above(0));
+body:
+  type: none
+...

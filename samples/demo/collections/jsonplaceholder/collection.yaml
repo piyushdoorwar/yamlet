@@ -1,0 +1,7 @@
+id: demo-jsonplaceholder
+name: JSONPlaceholder
+order: 0
+variables:
+  - key: postId
+    value: "1"
+    enabled: true
