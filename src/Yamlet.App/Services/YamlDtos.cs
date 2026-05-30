@@ -639,14 +639,17 @@ public sealed class CollectionDefinitionDto
     }
 }
 
-/// <summary>On-disk shape of an environment YAML file.</summary>
+/// <summary>
+/// On-disk shape of an environment YAML file. Written with the native <c>variables:</c>
+/// list; also reads imported Postman environments, which use <c>values:</c>.
+/// </summary>
 public sealed class EnvironmentDto
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public List<KeyValueDto>? Variables { get; set; }
 
-    /// <summary>Alternate key used by exported files (alias for <see cref="Variables"/>).</summary>
+    /// <summary>Alternate key used by imported Postman environments (alias for <see cref="Variables"/>).</summary>
     public List<KeyValueDto>? Values { get; set; }
 
     public static EnvironmentDto FromDomain(YamletEnvironment e) => new()
@@ -693,12 +696,13 @@ public sealed class GlobalsDto
         }).ToList();
 }
 
-// ---- Postman Collection v2.1 Format DTOs ----------------------------------------
-// Used to write collection.yaml in a format the Postman CLI can process, while still
-// carrying extra Yamlet-specific fields that Postman ignores.
+// ---- Imported Postman v2.1 reader DTOs ------------------------------------------
+// Yamlet writes its own native format (see CollectionDto / RequestDto / FolderDto /
+// EnvironmentDto). These types exist only to READ collections imported/exported in the
+// Postman Collection v2.1 shape; they are never written.
 
 /// <summary>
-/// A single key/value/type entry inside a Postman auth credential list, e.g.
+/// A single key/value/type entry inside an imported auth credential list, e.g.
 /// <c>bearer: [{key: token, value: "...", type: string}]</c>.
 /// </summary>
 public sealed class PostmanAuthKvDto
@@ -709,9 +713,10 @@ public sealed class PostmanAuthKvDto
 }
 
 /// <summary>
-/// Postman auth block. Each auth type stores its credentials as a named list of
-/// <see cref="PostmanAuthKvDto"/> entries. Also carries the flat Yamlet-native fields
-/// (<c>token</c>, <c>username</c>, …) so the same class can round-trip both formats.
+/// Imported auth block. Each auth type stores its credentials as a named list of
+/// <see cref="PostmanAuthKvDto"/> entries; the flat fields (<c>token</c>, <c>username</c>,
+/// …) cover collections written in Yamlet's older flat shape. Read-only — see
+/// <see cref="ToDomain"/>.
 /// </summary>
 public sealed class PostmanAuthDto
 {
@@ -723,7 +728,7 @@ public sealed class PostmanAuthDto
     public List<PostmanAuthKvDto>? Apikey { get; set; }
     public List<PostmanAuthKvDto>? Oauth2 { get; set; }
 
-    // Old Yamlet flat-format fallback (present in files written before this change)
+    // Flat-format fallback (Yamlet's older auth shape)
     public string? Token { get; set; }
     public string? Username { get; set; }
     public string? Password { get; set; }
@@ -732,66 +737,6 @@ public sealed class PostmanAuthDto
     public string? In { get; set; }
     public string? Cookie { get; set; }
     public OAuth2CredentialsDto? Credentials { get; set; }
-
-    public static PostmanAuthDto? FromDomain(YamletAuth auth)
-    {
-        return auth.Type switch
-        {
-            YamletAuthType.None => new() { Type = "noauth" },
-            YamletAuthType.Inherit => null,
-            YamletAuthType.Bearer => new()
-            {
-                Type = "bearer",
-                Bearer = [new() { Key = "token", Value = auth.Token, Type = "string" }],
-            },
-            YamletAuthType.Basic => new()
-            {
-                Type = "basic",
-                Basic =
-                [
-                    new() { Key = "username", Value = auth.Username, Type = "string" },
-                    new() { Key = "password", Value = auth.Password, Type = "string" },
-                ],
-            },
-            YamletAuthType.ApiKey => new()
-            {
-                Type = "apikey",
-                Apikey =
-                [
-                    new() { Key = "key", Value = auth.ApiKeyName, Type = "string" },
-                    new() { Key = "value", Value = auth.ApiKeyValue, Type = "string" },
-                    new() { Key = "in", Value = auth.ApiKeyIn == ApiKeyLocation.Query ? "query" : "header", Type = "string" },
-                ],
-            },
-            YamletAuthType.Cookie => new() { Type = "noauth" },
-            YamletAuthType.OAuth2 => BuildOAuth2Auth(auth.OAuth2),
-            _ => new() { Type = "noauth" },
-        };
-    }
-
-    private static PostmanAuthDto BuildOAuth2Auth(YamletOAuth2 o) => new()
-    {
-        Type = "oauth2",
-        Oauth2 =
-        [
-            new() { Key = "accessToken", Value = o.AccessToken, Type = "string" },
-            new() { Key = "tokenType", Value = o.HeaderPrefix, Type = "string" },
-            new() { Key = "addTokenTo", Value = o.AddTokenTo == OAuth2TokenLocation.Query ? "queryParams" : "header", Type = "string" },
-            new() { Key = "accessTokenUrl", Value = o.AccessTokenUrl, Type = "string" },
-            new() { Key = "authUrl", Value = o.AuthUrl, Type = "string" },
-            new() { Key = "clientId", Value = o.ClientId, Type = "string" },
-            new() { Key = "clientSecret", Value = o.ClientSecret, Type = "string" },
-            new() { Key = "scope", Value = o.Scope, Type = "string" },
-            new() { Key = "redirectUri", Value = o.RedirectUri, Type = "string" },
-            new() { Key = "grant_type", Value = o.GrantType switch
-            {
-                OAuth2GrantType.AuthorizationCode => "authorization_code",
-                OAuth2GrantType.Password => "password_credentials",
-                _ => "client_credentials",
-            }, Type = "string" },
-            new() { Key = "client_authentication", Value = o.ClientAuthentication == OAuth2ClientAuthentication.Body ? "body" : "header", Type = "string" },
-        ],
-    };
 
     public YamletAuth ToDomain()
     {
@@ -962,42 +907,4 @@ public sealed class CollectionMetadataDto
         Event?.FirstOrDefault(e => string.Equals(e.Listen, listen, StringComparison.OrdinalIgnoreCase)) is { } ev
             ? string.Join("\n", ev.Script.Exec)
             : string.Empty;
-}
-
-// ---- Postman Environment Format -----------------------------------------------
-
-public sealed class PostmanEnvironmentValueDto
-{
-    public string Key { get; set; } = string.Empty;
-    public string? Value { get; set; }
-    public bool Enabled { get; set; } = true;
-    public string Type { get; set; } = "default";
-}
-
-/// <summary>
-/// On-disk shape for environment YAML files in the Postman v2.1 format. Uses
-/// <c>values</c> (not <c>variables</c>) and carries <c>_postman_variable_scope</c>.
-/// </summary>
-public sealed class PostmanEnvironmentDto
-{
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public List<PostmanEnvironmentValueDto> Values { get; set; } = new();
-
-    [YamlMember(Alias = "_postman_variable_scope")]
-    public string PostmanVariableScope { get; set; } = "environment";
-
-    public static PostmanEnvironmentDto FromDomain(YamletEnvironment e) => new()
-    {
-        Id = e.Id,
-        Name = e.Name,
-        Values = e.Variables
-            .Select(v => new PostmanEnvironmentValueDto
-            {
-                Key = v.Key,
-                Value = v.Value,
-                Enabled = v.Enabled,
-            })
-            .ToList(),
-    };
 }

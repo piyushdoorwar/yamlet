@@ -112,6 +112,30 @@ public class WorkspaceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveEnvironment_WritesNativeFormat_NotPostman()
+    {
+        var workspace = await _workspaces.CreateWorkspaceAsync(_tempDir);
+        var environment = new Yamlet.App.Models.YamletEnvironment
+        {
+            Name = "Local",
+            Variables = { new Yamlet.App.Models.YamletVariable { Key = "baseUrl", Value = "http://localhost", Enabled = true } },
+            FilePath = Path.Combine(workspace.EnvironmentsPath, "local.yaml"),
+        };
+
+        await _workspaces.SaveEnvironmentAsync(environment);
+        var yaml = await File.ReadAllTextAsync(environment.FilePath!);
+
+        Assert.Contains("variables:", yaml);
+        Assert.DoesNotContain("_postman_variable_scope", yaml);
+        Assert.DoesNotContain("values:", yaml);
+
+        var reopened = await _workspaces.OpenWorkspaceAsync(_tempDir);
+        var loaded = Assert.Single(reopened.Environments);
+        Assert.Equal("Local", loaded.Name);
+        Assert.Equal("http://localhost", loaded.Variables.Single(v => v.Key == "baseUrl").Value);
+    }
+
+    [Fact]
     public async Task SaveCollection_WritesMetadataOnly_NotEmbeddedRequests()
     {
         var workspace = await _workspaces.CreateWorkspaceAsync(_tempDir);

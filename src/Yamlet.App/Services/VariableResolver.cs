@@ -94,8 +94,8 @@ public sealed class VariableResolver
                 return value;
             }
 
-            // User variables win; fall back to Postman-style dynamic variables ($guid,
-            // $timestamp, $random*) — each occurrence generates a fresh value.
+            // User variables win; fall back to dynamic variables ($guid, $timestamp,
+            // $random*) — each occurrence generates a fresh value.
             if (DynamicVariables.TryGenerate(key, out var generated))
             {
                 return generated;

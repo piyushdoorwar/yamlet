@@ -105,11 +105,11 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   Implemented in [VariableResolver.cs](src/Yamlet.App/Services/VariableResolver.cs) via
   `VariableContext`. Unknown `{{placeholders}}` are left untouched (so missing variables
   are visible, not silently blanked).
-- **Dynamic variables** (Postman-style `$guid`, `$timestamp`, `$random*`, …) are our own
+- **Dynamic variables** (`$guid`, `$timestamp`, `$random*`, …) are our own
   implementation in [DynamicVariables.cs](src/Yamlet.App/Services/DynamicVariables.cs) — no
   faker dependency. `VariableResolver` falls back to `DynamicVariables.TryGenerate` when a
   `{{$name}}` placeholder isn't a user variable, so **user variables always win** and each
-  occurrence generates a **fresh** value (matching Postman). Scripts get
+  occurrence generates a **fresh** value. Scripts get
   `pm.variables.replaceIn('{{$randomFirstName}}')` (and `pm.replaceIn`) wired in
   [RequestScriptRunner.cs](src/Yamlet.App/Services/RequestScriptRunner.cs). In
   `CodeEditorView`, typing `$` pops an autocomplete list of the full catalog; dynamic
@@ -156,13 +156,13 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   folder)`, which renumbers that container's direct children and rewrites the affected request
   files / `folder.yaml`s. Deletes intentionally leave gaps (harmless — the next op renumbers).
 - **Backward compat: old formats still read, never written.** `YamlDtos.cs` retains the
-  Postman reader DTOs (`PostmanInfoDto`, `PostmanVariableDto`, `PostmanEventDto`, `PostmanAuthDto`,
-  `PostmanScriptDto`) so `CollectionMetadataDto` loads existing Postman v2.1 `collection.yaml`
-  and imported `.resources/definition.yaml`; `PostmanAuthDto` reads both the Postman list
-  format (`bearer: [{key: token, value: …}]`) and the flat Yamlet fields. The Postman *writer*
-  DTOs (`PostmanCollectionFileDto`, `PostmanItemDto`, `PostmanRequestDto`, `PostmanUrlDto`,
-  `PostmanBodyDto`, …) were removed. Existing/imported workspaces migrate to the native shape
-  on the next save. (Environments are still written in Postman format — see below.)
+  import-format reader DTOs (`PostmanInfoDto`, `PostmanVariableDto`, `PostmanEventDto`,
+  `PostmanAuthDto`, `PostmanScriptDto`) so `CollectionMetadataDto` loads existing Postman v2.1
+  `collection.yaml` and imported `.resources/definition.yaml`; `PostmanAuthDto` reads both the
+  Postman list format (`bearer: [{key: token, value: …}]`) and the flat Yamlet fields. **Yamlet
+  never writes the Postman format** — all writer DTOs were removed and the remaining
+  `Postman*` types exist solely to *read* imported collections. Existing/imported workspaces
+  migrate to the native shape on the next save.
 - **Form-data body fields support file attachments.** `KeyValueRowViewModel` carries
   `FormDataValueType` / `IsFile` to toggle between text and file mode. `IDialogService`
   exposes `PickFileAsync`; the result is stored with a `@` prefix in the value (matching
@@ -197,8 +197,9 @@ variables, auth, scripts, `order`) — requests are **not** embedded; each reque
 `<request>.yaml` and each folder has a `folder.yaml` (name + `order`). On load,
 `CollectionMetadataDto` accepts this native shape **and** the legacy Postman v2.1 shape
 (and imported `.resources/definition.yaml`) for backward compatibility — old files migrate
-to the native shape on next save. **Environments are still written as `PostmanEnvironmentDto`**
-(Postman environment format with `_postman_variable_scope: environment` and `values:` list).
+to the native shape on next save. **Environments are written as the native `EnvironmentDto`**
+(`variables:` list); the loader also reads imported Postman environments (`values:` +
+`_postman_variable_scope`) via `EnvironmentDto`'s `Values` alias, so both round-trip.
 
 ## Packaging / distribution
 
@@ -325,12 +326,12 @@ method/URL/params/headers/body/auth, raw/JSON/form-data/x-www-form-urlencoded se
 multipart text and **file** fields (file picker, `@path` curl convention),
 request **and** collection-level scripts, save & load YAML in **Yamlet's native format**
 (self-contained per-request files with persisted `order`; metadata-only `collection.yaml`;
-per-folder `folder.yaml`) while still **reading** legacy Postman v2.1 and exported
-`.resources/definition.yaml` collections (environments are still written in Postman format),
+per-folder `folder.yaml`; native `EnvironmentDto`) while still **reading** legacy Postman v2.1
+and exported `.resources/definition.yaml` collections and imported Postman environments,
 top-level unknown YAML key preservation, send via HttpClient, condensed response
 (status/duration/size + Body/Headers/Raw dropdown), generated cURL snippets, per-request
 send history, variable resolution with inline `{{}}` highlighting / hover-peek / click-edit,
-Postman-style dynamic variables (`$guid`/`$timestamp`/`$random*`) with `$`-triggered
+dynamic variables (`$guid`/`$timestamp`/`$random*`) with `$`-triggered
 autocomplete, JSON code folding, environment editing, multiple **tabs** with session restore
 (open tabs + active tab + environment + response layout), collection/folder **runner** tabs,
 tree rename/move/duplicate/delete actions, and `.deb`/`.exe`/`.msix` packaging.

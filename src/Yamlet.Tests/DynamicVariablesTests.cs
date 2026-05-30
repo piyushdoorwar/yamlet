@@ -17,7 +17,7 @@ public class DynamicVariablesTests
         Assert.Contains("$timestamp", names);
         Assert.Contains("$randomFirstName", names);
         Assert.Contains("$randomInt", names);
-        // The catalog should be the full Postman set, not a handful.
+        // The catalog should be the full set, not a handful.
         Assert.True(DynamicVariables.All.Count > 80, $"expected the full catalog, got {DynamicVariables.All.Count}");
     }
 
