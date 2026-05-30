@@ -87,8 +87,12 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   then `CollectionRunner.RunAsync` sends every request across all collections in tree order
   (depth-first, folders before requests), capturing `pm.test` results. A request **fails**
   on a transport error, a non-2xx/3xx status, or any failed assertion; the process exits
-  `1` if anything failed, else `0`. Output is plain ASCII (`PASS`/`FAIL`, `ok`/`not ok` —
-  no emojis). Published to nuget.org as `Yamlet.Cli` by
+  `1` if anything failed, else `0`. The reporter prints a box-drawn results **table**
+  (resolved URL, status, per-request time, tests passed/total) with **ANSI colors** (green
+  PASS / red FAIL — no emojis; honors `--no-color` and `NO_COLOR`), a failures detail
+  section, and a summary line with total run time. URLs shown are the **resolved** request
+  URL (`YamletResponse.ResolvedUrl`, set from the sent message), not the `{{template}}`.
+  Published to nuget.org as `Yamlet.Cli` by
   [.github/workflows/publish-cli.yml](.github/workflows/publish-cli.yml) on `v*` tags
   (needs a `NUGET_API_KEY` repo secret).
 - **`pm.test` results are captured opt-in.** `RequestScriptRunner` records each

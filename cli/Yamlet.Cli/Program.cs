@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using Yamlet.App.Models;
 using Yamlet.App.Services;
 
@@ -67,56 +69,176 @@ internal static class Program
             return 1;
         }
 
-        Console.WriteLine($"Yamlet {Version()}");
-        Console.WriteLine($"Workspace:   {workspace.RootPath}");
-        Console.WriteLine($"Environment: {environment?.Name ?? "(none)"}");
-        Console.WriteLine($"Requests:    {totalRequests}");
+        var useColor = !options.NoColor && Environment.GetEnvironmentVariable("NO_COLOR") is null;
+
+        Console.WriteLine(Color($"Yamlet {Version()}", Bold, useColor));
+        Console.WriteLine($"{Color("Workspace:  ", Dim, useColor)} {workspace.RootPath}");
+        Console.WriteLine($"{Color("Environment:", Dim, useColor)} {environment?.Name ?? "(none)"}");
+        Console.WriteLine($"{Color("Requests:   ", Dim, useColor)} {totalRequests}");
         Console.WriteLine();
 
         var executor = RequestExecutor.CreateDefault();
         var runner = new CollectionRunner(executor);
+
+        var stopwatch = Stopwatch.StartNew();
         var report = await runner.RunAsync(
             workspace, environment, new RunOptions { Bail = options.Bail }).ConfigureAwait(false);
+        stopwatch.Stop();
 
-        PrintReport(report);
+        PrintReport(report, stopwatch.ElapsedMilliseconds, useColor);
         return report.Success ? 0 : 1;
     }
 
     // ---- Reporting ---------------------------------------------------------
 
-    private static void PrintReport(RunReport report)
+    private static void PrintReport(RunReport report, long totalMs, bool useColor)
     {
-        string? currentCollection = null;
+        var multiCollection = report.Requests.Select(r => r.Collection).Distinct().Count() > 1;
+
+        var headers = multiCollection
+            ? new[] { "Result", "Collection", "Method", "URL", "Status", "Time", "Tests" }
+            : new[] { "Result", "Method", "URL", "Status", "Time", "Tests" };
+        var aligns = multiCollection
+            ? new[] { Align.Left, Align.Left, Align.Left, Align.Left, Align.Left, Align.Right, Align.Right }
+            : new[] { Align.Left, Align.Left, Align.Left, Align.Left, Align.Right, Align.Right };
+
+        var rows = new List<Cell[]>();
         foreach (var r in report.Requests)
         {
-            if (r.Collection != currentCollection)
-            {
-                currentCollection = r.Collection;
-                Console.WriteLine($"# {currentCollection}");
-            }
+            var passed = r.Tests.Count(t => t.Passed);
+            var total = r.Tests.Count;
+            var result = r.Failed ? new Cell("FAIL", Red) : new Cell("PASS", Green);
+            var status = new Cell(
+                r.TransportError ? "ERROR" : $"{r.StatusCode} {r.ReasonPhrase}".Trim(),
+                r.Failed ? Red : Green);
+            var tests = new Cell(
+                total == 0 ? "-" : $"{passed}/{total}",
+                total == 0 ? null : passed == total ? Green : Red);
+            var time = new Cell($"{r.DurationMs} ms");
+            var method = new Cell(r.Method, Cyan);
+            var url = new Cell(r.Url);
 
-            var status = r.TransportError ? "ERROR" : $"{r.StatusCode} {r.ReasonPhrase}".Trim();
-            var label = r.Failed ? "FAIL" : "PASS";
-            Console.WriteLine($"{label}  {r.Method,-6} {r.Url} -> {status} ({r.DurationMs}ms)");
+            rows.Add(multiCollection
+                ? new[] { result, new Cell(r.Collection), method, url, status, time, tests }
+                : new[] { result, method, url, status, time, tests });
+        }
 
-            if (r.TransportError && r.ErrorMessage is not null)
-            {
-                Console.WriteLine($"        {r.ErrorMessage}");
-            }
+        PrintTable(headers, aligns, rows, useColor);
 
-            foreach (var test in r.Tests)
+        var failed = report.Requests.Where(r => r.Failed).ToList();
+        if (failed.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine(Color("Failures:", Red, useColor, bold: true));
+            foreach (var r in failed)
             {
-                var marker = test.Passed ? "ok    " : "not ok";
-                var suffix = test.Passed || string.IsNullOrEmpty(test.Message) ? string.Empty : $": {test.Message}";
-                Console.WriteLine($"  {marker}  {test.Name}{suffix}");
+                var failedTests = r.Tests.Where(t => !t.Passed).ToList();
+                foreach (var t in failedTests)
+                {
+                    var msg = string.IsNullOrEmpty(t.Message) ? string.Empty : $": {t.Message}";
+                    Console.WriteLine("  " + Color($"{r.Name} > {t.Name}{msg}", Red, useColor));
+                }
+                if (failedTests.Count == 0)
+                {
+                    var reason = r.TransportError
+                        ? r.ErrorMessage ?? "transport error"
+                        : $"HTTP {r.StatusCode} {r.ReasonPhrase}".Trim();
+                    Console.WriteLine("  " + Color($"{r.Name} ({r.Method} {r.Url}): {reason}", Red, useColor));
+                }
             }
         }
 
         Console.WriteLine();
-        Console.WriteLine(
-            $"Summary: {report.Total} requests, {report.PassedCount} passed, {report.FailedCount} failed; " +
-            $"{report.TotalAssertions} assertions, {report.FailedAssertions} failed.");
+        var reqSummary =
+            $"{report.Total} requests, " +
+            Color($"{report.PassedCount} passed", report.PassedCount > 0 ? Green : null, useColor) + ", " +
+            Color($"{report.FailedCount} failed", report.FailedCount > 0 ? Red : null, useColor);
+        var assertSummary =
+            $"{report.TotalAssertions} assertions, " +
+            Color($"{report.FailedAssertions} failed", report.FailedAssertions > 0 ? Red : null, useColor);
+        Console.WriteLine($"Summary: {reqSummary}; {assertSummary}; {FormatMs(totalMs)} total.");
+        Console.WriteLine(report.Success
+            ? Color("RESULT: PASS", Green, useColor, bold: true)
+            : Color("RESULT: FAIL", Red, useColor, bold: true));
     }
+
+    // ---- Table + color helpers --------------------------------------------
+
+    private enum Align { Left, Right }
+
+    private sealed record Cell(string Text, string? Color = null);
+
+    // ANSI SGR codes.
+    private const string Green = "32";
+    private const string Red = "31";
+    private const string Cyan = "36";
+    private const string Dim = "2";
+    private const string Bold = "1";
+
+    private static void PrintTable(string[] headers, Align[] aligns, List<Cell[]> rows, bool useColor)
+    {
+        var widths = new int[headers.Length];
+        for (var c = 0; c < headers.Length; c++)
+        {
+            widths[c] = headers[c].Length;
+        }
+        foreach (var row in rows)
+        {
+            for (var c = 0; c < row.Length; c++)
+            {
+                widths[c] = Math.Max(widths[c], row[c].Text.Length);
+            }
+        }
+
+        string Rule(char left, char mid, char right) =>
+            left + string.Join(mid, widths.Select(w => new string('─', w + 2))) + right;
+
+        Console.WriteLine(Rule('┌', '┬', '┐'));
+        PrintRow(headers.Select(h => new Cell(h)).ToArray(), widths, aligns, useColor, bold: true);
+        Console.WriteLine(Rule('├', '┼', '┤'));
+        foreach (var row in rows)
+        {
+            PrintRow(row, widths, aligns, useColor);
+        }
+        Console.WriteLine(Rule('└', '┴', '┘'));
+    }
+
+    private static void PrintRow(Cell[] cells, int[] widths, Align[] aligns, bool useColor, bool bold = false)
+    {
+        var sb = new StringBuilder("│");
+        for (var c = 0; c < cells.Length; c++)
+        {
+            var text = aligns[c] == Align.Right
+                ? cells[c].Text.PadLeft(widths[c])
+                : cells[c].Text.PadRight(widths[c]);
+            sb.Append(' ').Append(Color(text, cells[c].Color, useColor, bold)).Append(' ').Append('│');
+        }
+        Console.WriteLine(sb.ToString());
+    }
+
+    private static string Color(string text, string? code, bool useColor, bool bold = false)
+    {
+        if (!useColor)
+        {
+            return text;
+        }
+        var codes = new List<string>();
+        if (bold)
+        {
+            codes.Add(Bold);
+        }
+        if (!string.IsNullOrEmpty(code) && code != Bold)
+        {
+            codes.Add(code);
+        }
+        else if (code == Bold && !bold)
+        {
+            codes.Add(Bold);
+        }
+        return codes.Count == 0 ? text : $"[{string.Join(';', codes)}m{text}[0m";
+    }
+
+    private static string FormatMs(long ms) => ms >= 1000 ? $"{ms / 1000.0:0.00} s" : $"{ms} ms";
 
     // ---- Loading helpers ---------------------------------------------------
 
@@ -176,6 +298,7 @@ internal static class Program
         string? env = null;
         string? globals = null;
         var bail = false;
+        var noColor = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -189,6 +312,9 @@ internal static class Program
                     break;
                 case "--bail":
                     bail = true;
+                    break;
+                case "--no-color":
+                    noColor = true;
                     break;
                 default:
                     if (args[i].StartsWith('-'))
@@ -209,7 +335,7 @@ internal static class Program
             throw new CliException("Missing <workspace> path. Usage: yamlet run <workspace> [--env <file>]");
         }
 
-        return new RunArguments(Path.GetFullPath(workspace), env, globals, bail);
+        return new RunArguments(Path.GetFullPath(workspace), env, globals, bail, noColor);
     }
 
     private static string NextValue(string[] args, ref int i, string option)
@@ -243,6 +369,7 @@ internal static class Program
                                     name). Omit to run with globals only.
               -g, --globals <file>  Override the workspace globals with this YAML file.
                   --bail            Stop after the first failing request.
+                  --no-color        Disable ANSI colors (also honors the NO_COLOR env var).
               -h, --help            Show this help.
               -v, --version         Show the CLI version.
 
@@ -254,7 +381,8 @@ internal static class Program
             """);
     }
 
-    private sealed record RunArguments(string WorkspacePath, string? EnvFile, string? GlobalsFile, bool Bail);
+    private sealed record RunArguments(
+        string WorkspacePath, string? EnvFile, string? GlobalsFile, bool Bail, bool NoColor);
 
     private sealed class CliException(string message) : Exception(message);
 }

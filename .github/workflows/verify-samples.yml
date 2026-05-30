@@ -26,9 +26,20 @@ jobs:
           dotnet-version: "10.0.x"
 
       - name: Install latest Yamlet CLI from nuget.org
+        # Retry to ride out the propagation window: nuget.org lists a freshly published
+        # package on the gallery a little before its restore endpoints (flat container /
+        # search index) catch up, so an install right after a publish can briefly 404.
         run: |
-          dotnet tool install --global Yamlet.Cli
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          for attempt in 1 2 3 4 5 6; do
+            if dotnet tool install --global Yamlet.Cli; then
+              echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+              exit 0
+            fi
+            echo "Install attempt ${attempt} failed; retrying in 30s..."
+            sleep 30
+          done
+          echo "::error::Could not install Yamlet.Cli from nuget.org after several attempts."
+          exit 1
 
       - name: Run sample workspace
         run: yamlet run samples/demo --env samples/demo/environments/dev.yaml

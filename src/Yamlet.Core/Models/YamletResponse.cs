@@ -11,6 +11,10 @@ public sealed class YamletResponse
     public long DurationMs { get; set; }
     public long SizeBytes { get; set; }
 
+    /// <summary>The fully-resolved request URL actually sent (variables expanded, query
+    /// params applied, plus any script mutation). Empty if the request never got that far.</summary>
+    public string ResolvedUrl { get; set; } = string.Empty;
+
     public List<YamletHeader> Headers { get; set; } = new();
     public string Body { get; set; } = string.Empty;
 
