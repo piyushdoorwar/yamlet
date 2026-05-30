@@ -42,6 +42,31 @@ public class YamlSerializationTests
     }
 
     [Fact]
+    public void Request_RoundTripsOrder()
+    {
+        var request = new YamletRequest { Name = "Second", Method = "GET", Order = 3 };
+
+        var yaml = _yaml.Serialize(RequestDto.FromDomain(request));
+        var restored = _yaml.Deserialize<RequestDto>(yaml).ToDomain("/tmp/second.yaml");
+
+        Assert.Contains("order: 3", yaml);
+        Assert.Equal(3, restored.Order);
+    }
+
+    [Fact]
+    public void Folder_RoundTripsThroughDto()
+    {
+        var folder = new YamletFolder { Name = "users", Order = 2 };
+
+        var yaml = _yaml.Serialize(FolderDto.FromDomain(folder));
+        var restored = new YamletFolder { Name = "from-dir" };
+        _yaml.Deserialize<FolderDto>(yaml).ApplyTo(restored);
+
+        Assert.Equal("users", restored.Name);
+        Assert.Equal(2, restored.Order);
+    }
+
+    [Fact]
     public void RequestYaml_UsesCamelCaseAndLowercaseEnums()
     {
         var request = new YamletRequest

@@ -12,6 +12,13 @@ public sealed class YamletFolder
     public List<YamletFolder> Folders { get; set; } = new();
     public List<YamletRequest> Requests { get; set; } = new();
 
+    /// <summary>
+    /// Position of this folder among its sibling folders within the same directory.
+    /// Persisted to the folder's <c>folder.yaml</c> so the tree order survives reloads;
+    /// lower sorts first.
+    /// </summary>
+    public int Order { get; set; }
+
     /// <summary>Absolute path of the directory backing this folder, if saved.</summary>
     public string? DirectoryPath { get; set; }
 }

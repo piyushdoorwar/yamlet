@@ -793,8 +793,12 @@ footer a:hover,
   color: var(--soft);
 }
 
+.install-method p:last-child {
+  margin-bottom: 0;
+}
+
 .install-method pre {
-  margin: 0;
+  margin: 0 0 12px;
   padding: 12px 14px;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -808,8 +812,8 @@ footer a:hover,
   color: #a8d3a8;
 }
 
-.install-note {
-  margin: 8px 0 0;
+.install-method .install-note {
+  margin: 0;
   font-size: 13px;
   color: var(--muted);
 }

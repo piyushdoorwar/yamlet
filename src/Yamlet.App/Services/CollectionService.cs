@@ -10,6 +10,7 @@ namespace Yamlet.App.Services;
 public sealed class CollectionService
 {
     public const string MetadataFileName = "collection.yaml";
+    public const string FolderMetadataFileName = "folder.yaml";
 
     private readonly YamlSerializationService _yaml;
     private readonly RequestFileService _requestFiles;
@@ -42,7 +43,9 @@ public sealed class CollectionService
             }
         }
 
-        return result;
+        // Honor the persisted collection order; ties fall back to the alphabetical
+        // enumeration order above (OrderBy is stable).
+        return result.OrderBy(c => c.Order).ToList();
     }
 
     private async Task<YamletCollection> LoadCollectionAsync(string directory)
@@ -95,9 +98,28 @@ public sealed class CollectionService
                 Requests = await LoadRequestsInDirectoryAsync(dir).ConfigureAwait(false),
                 Folders = await LoadFoldersAsync(dir).ConfigureAwait(false),
             };
+
+            // folder.yaml carries the folder's display name and persisted position.
+            var metadataPath = Path.Combine(dir, FolderMetadataFileName);
+            if (File.Exists(metadataPath))
+            {
+                try
+                {
+                    var dto = _yaml.Deserialize<FolderDto>(
+                        await File.ReadAllTextAsync(metadataPath).ConfigureAwait(false));
+                    dto.ApplyTo(folder);
+                }
+                catch
+                {
+                    // Ignore a malformed folder.yaml; fall back to the directory name + order 0.
+                }
+            }
+
             folders.Add(folder);
         }
-        return folders;
+
+        // Honor the persisted order; ties keep the alphabetical enumeration order (stable sort).
+        return folders.OrderBy(f => f.Order).ToList();
     }
 
     private async Task<List<YamletRequest>> LoadRequestsInDirectoryAsync(string directory)
@@ -105,7 +127,9 @@ public sealed class CollectionService
         var requests = new List<YamletRequest>();
         foreach (var file in Directory.EnumerateFiles(directory, "*" + RequestFileService.FileExtension).OrderBy(f => f))
         {
-            if (string.Equals(Path.GetFileName(file), MetadataFileName, StringComparison.OrdinalIgnoreCase))
+            var fileName = Path.GetFileName(file);
+            if (string.Equals(fileName, MetadataFileName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(fileName, FolderMetadataFileName, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -119,7 +143,9 @@ public sealed class CollectionService
                 // Skip malformed request files.
             }
         }
-        return requests;
+
+        // Honor the persisted order; ties keep the alphabetical enumeration order (stable sort).
+        return requests.OrderBy(r => r.Order).ToList();
     }
 
     // ---- Creation ----------------------------------------------------------
@@ -150,8 +176,9 @@ public sealed class CollectionService
         var dir = PathNaming.UniqueDirectoryPath(parentDir, PathNaming.Slugify(name, "folder"));
         Directory.CreateDirectory(dir);
 
-        var folder = new YamletFolder { Name = name, DirectoryPath = dir };
-        (parent?.Folders ?? collection.Folders).Add(folder);
+        var siblings = parent?.Folders ?? collection.Folders;
+        var folder = new YamletFolder { Name = name, DirectoryPath = dir, Order = siblings.Count };
+        siblings.Add(folder);
         return folder;
     }
 
@@ -168,17 +195,19 @@ public sealed class CollectionService
         var fileName = PathNaming.Slugify(name, "request") + RequestFileService.FileExtension;
         var path = PathNaming.UniqueFilePath(parentDir, fileName);
 
-        var request = new YamletRequest { Name = name, SourceFilePath = path };
-        (parent?.Requests ?? collection.Requests).Add(request);
+        var siblings = parent?.Requests ?? collection.Requests;
+        var request = new YamletRequest { Name = name, SourceFilePath = path, Order = siblings.Count };
+        siblings.Add(request);
         return request;
     }
 
     // ---- Saving ------------------------------------------------------------
 
     /// <summary>
-    /// Writes the collection's <c>collection.yaml</c> metadata and ensures folder
-    /// directories exist. Request file contents are saved separately via
-    /// <see cref="RequestFileService.SaveRequestAsync"/>.
+    /// Writes the collection's <c>collection.yaml</c> metadata (id, name, variables, auth,
+    /// scripts) and each folder's <c>folder.yaml</c>. Request file contents are the single
+    /// source of truth for requests and are saved separately via
+    /// <see cref="RequestFileService.SaveRequestAsync"/> — they are not embedded here.
     /// </summary>
     public async Task SaveCollectionAsync(YamletCollection collection)
     {
@@ -190,23 +219,57 @@ public sealed class CollectionService
         Directory.CreateDirectory(collection.DirectoryPath);
         collection.FilePath = Path.Combine(collection.DirectoryPath, MetadataFileName);
 
-        // Write the full Postman v2.1 collection (info + item + variable + event + auth).
-        // Requests are embedded so the Postman CLI can run the collection without extra files.
-        var dto = PostmanCollectionFileDto.FromDomain(collection);
+        // Yamlet-native metadata only; requests live in their own files (ordered by `order`).
+        var dto = CollectionDto.FromDomain(collection);
         await File.WriteAllTextAsync(collection.FilePath, _yaml.Serialize(dto)).ConfigureAwait(false);
 
-        EnsureFolderDirectories(collection.Folders);
+        await EnsureFolderMetadataAsync(collection.Folders).ConfigureAwait(false);
     }
 
-    private static void EnsureFolderDirectories(IEnumerable<YamletFolder> folders)
+    /// <summary>
+    /// Renumbers the direct children of a container (a collection root, or a folder within
+    /// it) to match their current in-memory list order and persists each affected file.
+    /// Call this after a structural change (create, move, duplicate, delete, reorder) so the
+    /// on-disk <c>order</c> reflects the tree.
+    /// </summary>
+    public async Task SaveContainerOrderAsync(YamletCollection collection, YamletFolder? folder)
+    {
+        var requests = folder?.Requests ?? collection.Requests;
+        for (var i = 0; i < requests.Count; i++)
+        {
+            requests[i].Order = i;
+            if (!string.IsNullOrWhiteSpace(requests[i].SourceFilePath))
+            {
+                await _requestFiles.SaveRequestAsync(requests[i]).ConfigureAwait(false);
+            }
+        }
+
+        var folders = folder?.Folders ?? collection.Folders;
+        for (var i = 0; i < folders.Count; i++)
+        {
+            folders[i].Order = i;
+            await WriteFolderMetadataAsync(folders[i]).ConfigureAwait(false);
+        }
+    }
+
+    private async Task EnsureFolderMetadataAsync(IEnumerable<YamletFolder> folders)
     {
         foreach (var folder in folders)
         {
-            if (!string.IsNullOrWhiteSpace(folder.DirectoryPath))
-            {
-                Directory.CreateDirectory(folder.DirectoryPath);
-            }
-            EnsureFolderDirectories(folder.Folders);
+            await WriteFolderMetadataAsync(folder).ConfigureAwait(false);
+            await EnsureFolderMetadataAsync(folder.Folders).ConfigureAwait(false);
         }
+    }
+
+    private async Task WriteFolderMetadataAsync(YamletFolder folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder.DirectoryPath))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(folder.DirectoryPath);
+        var path = Path.Combine(folder.DirectoryPath, FolderMetadataFileName);
+        await File.WriteAllTextAsync(path, _yaml.Serialize(FolderDto.FromDomain(folder))).ConfigureAwait(false);
     }
 }
