@@ -397,7 +397,7 @@ public partial class CodeEditorView : UserControl
     // ---- Dynamic-variable autocomplete --------------------------------------
 
     /// <summary>
-    /// Pops a completion list of Postman-style dynamic variables when the user types
+    /// Pops a completion list of dynamic variables when the user types
     /// <c>$</c> (typically inside <c>{{ }}</c>). Typing more characters filters the list;
     /// accepting one inserts the variable name after the <c>$</c>.
     /// </summary>

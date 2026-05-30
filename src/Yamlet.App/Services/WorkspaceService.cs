@@ -138,7 +138,9 @@ public sealed class WorkspaceService
             Directory.CreateDirectory(dir);
         }
 
-        await File.WriteAllTextAsync(environment.FilePath, _yaml.Serialize(PostmanEnvironmentDto.FromDomain(environment)))
+        // Native Yamlet shape (`variables:`); the loader still reads imported Postman
+        // environments (`values:`) via EnvironmentDto's Values alias.
+        await File.WriteAllTextAsync(environment.FilePath, _yaml.Serialize(EnvironmentDto.FromDomain(environment)))
             .ConfigureAwait(false);
     }
 
