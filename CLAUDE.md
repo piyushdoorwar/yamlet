@@ -140,14 +140,29 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
   pre, collection post after. Collection-script errors are swallowed (a failing test
   assertion must not fail the send); request-script errors still abort the send.
 - **RequestExecutor takes an injected `HttpClient`** so tests use a fake handler.
-- **Postman v2.1 is the canonical on-disk collection format.** `YamlDtos.cs` contains a
-  full set of Postman DTOs (`PostmanCollectionFileDto`, `PostmanItemDto`, `PostmanRequestDto`,
-  `PostmanAuthDto`, `PostmanBodyDto`, `PostmanEventDto`, etc.). `PostmanAuthDto` writes
-  the Postman list format (e.g. `bearer: [{key: token, value: …, type: string}]`) and
-  reads both that and the old Yamlet flat fields for backward compatibility. After every
-  request auto-save, `RequestEditorViewModel` also calls `CollectionService.SaveCollectionAsync`
-  to rebuild `collection.yaml` with up-to-date embedded requests (the `_node.Request`
-  reference is shared with `OwningCollection`, so no extra mapping is needed).
+- **Each request file is the single source of truth; collection.yaml is metadata only.**
+  A request lives entirely in its own `<request>.yaml` (`RequestDto`, written by
+  `RequestFileService`) — verb, url, params, headers, path vars, variables, auth (incl.
+  cookie), body, scripts, ssl, **and its `order`**. `collection.yaml` is written by
+  `CollectionService.SaveCollectionAsync` as a lean Yamlet-native `CollectionDto` (id, name,
+  variables, auth, scripts, `order`) — it does **not** embed requests. Each folder carries a
+  small `folder.yaml` (`FolderDto`: name + `order`). This is our own format, not Postman, so
+  `RequestEditorViewModel`'s auto-save only writes the request file (no collection rebuild).
+- **Tree order is persisted per file.** `YamletRequest.Order` / `YamletFolder.Order` /
+  `YamletCollection.Order` survive reloads: the loader sorts each container's requests by
+  request `order` and its folders by `folder.yaml` `order` (ties fall back to filename, a
+  stable sort, so pre-`order` files load unchanged). After any structural change (create,
+  move, duplicate, reorder), the VM calls `CollectionService.SaveContainerOrderAsync(collection,
+  folder)`, which renumbers that container's direct children and rewrites the affected request
+  files / `folder.yaml`s. Deletes intentionally leave gaps (harmless — the next op renumbers).
+- **Backward compat: old formats still read, never written.** `YamlDtos.cs` retains the
+  Postman reader DTOs (`PostmanInfoDto`, `PostmanVariableDto`, `PostmanEventDto`, `PostmanAuthDto`,
+  `PostmanScriptDto`) so `CollectionMetadataDto` loads existing Postman v2.1 `collection.yaml`
+  and imported `.resources/definition.yaml`; `PostmanAuthDto` reads both the Postman list
+  format (`bearer: [{key: token, value: …}]`) and the flat Yamlet fields. The Postman *writer*
+  DTOs (`PostmanCollectionFileDto`, `PostmanItemDto`, `PostmanRequestDto`, `PostmanUrlDto`,
+  `PostmanBodyDto`, …) were removed. Existing/imported workspaces migrate to the native shape
+  on the next save. (Environments are still written in Postman format — see below.)
 - **Form-data body fields support file attachments.** `KeyValueRowViewModel` carries
   `FormDataValueType` / `IsFile` to toggle between text and file mode. `IDialogService`
   exposes `PickFileAsync`; the result is stored with a `@` prefix in the value (matching
@@ -169,7 +184,7 @@ scripts/           build-linux.sh (.deb), build-windows.ps1 (.exe + .msix)
 A workspace is a directory (or its `yamlet/` subfolder) containing:
 
 ```
-collections/<name>/collection.yaml + <request>.yaml + <folder>/<request>.yaml
+collections/<name>/collection.yaml + <request>.yaml + <folder>/folder.yaml + <folder>/<request>.yaml
 environments/<name>.yaml
 globals/globals.yaml
 ```
@@ -177,12 +192,13 @@ globals/globals.yaml
 `WorkspaceService.ResolveRoot` treats the picked folder as the root if it already
 contains `collections/`+`environments/`, else uses a `yamlet/` subfolder.
 
-**`collection.yaml` is written in Postman Collection v2.1 format** so the Postman CLI
-can run it directly (`postman collection run collection.yaml`). `CollectionService`
-serializes `PostmanCollectionFileDto` (all requests embedded inline under `item`).
-Environments are written as `PostmanEnvironmentDto` (Postman environment format with
-`_postman_variable_scope: environment` and `values:` list). On load, `CollectionMetadataDto`
-accepts both the Postman shape and the legacy Yamlet shape for backward compatibility.
+**`collection.yaml` is written as a lean Yamlet-native `CollectionDto`** (id, name,
+variables, auth, scripts, `order`) — requests are **not** embedded; each request is its own
+`<request>.yaml` and each folder has a `folder.yaml` (name + `order`). On load,
+`CollectionMetadataDto` accepts this native shape **and** the legacy Postman v2.1 shape
+(and imported `.resources/definition.yaml`) for backward compatibility — old files migrate
+to the native shape on next save. **Environments are still written as `PostmanEnvironmentDto`**
+(Postman environment format with `_postman_variable_scope: environment` and `values:` list).
 
 ## Packaging / distribution
 
@@ -243,15 +259,16 @@ headers as a map *or* list
 `*.request.yaml` / `*.environment.yaml` filenames, and unknown top-level keys preserved
 when saving.
 
-A collection's metadata may live in a native `collection.yaml` (now written as Postman
-v2.1 — see above) **or** an exported `.resources/definition.yaml` (`CollectionDefinitionDto`):
-collection `variables` as a name→value **map**, `auth` as a **list** of schemes (incl.
-`oauth2` with a `credentials:` block → `OAuth2CredentialsDto`), and collection-scope
-`scripts`. When both files exist the definition is applied first and `collection.yaml`
-overrides only what it specifies (merge-friendly `ApplyTo`), so a collection with only
-`.resources/` still loads its name, variables, OAuth2 auth and scripts. On load, the
-shared `CollectionMetadataDto` accepts Postman `info`/`item`/`variable`/`event` fields
-AND the legacy Yamlet flat fields, so existing workspaces round-trip without migration.
+A collection's metadata may live in a native `collection.yaml` (now written as a lean
+Yamlet-native `CollectionDto` — see above) **or** an exported `.resources/definition.yaml`
+(`CollectionDefinitionDto`): collection `variables` as a name→value **map**, `auth` as a
+**list** of schemes (incl. `oauth2` with a `credentials:` block → `OAuth2CredentialsDto`),
+and collection-scope `scripts`. When both files exist the definition is applied first and
+`collection.yaml` overrides only what it specifies (merge-friendly `ApplyTo`), so a
+collection with only `.resources/` still loads its name, variables, OAuth2 auth and scripts.
+On load, the shared `CollectionMetadataDto` accepts the native Yamlet flat fields AND the
+legacy Postman `info`/`variable`/`event` fields, so existing/imported workspaces round-trip
+without migration.
 
 Pre-request / post-response **scripts** are modeled (`YamletRequest.PreRequestScript` /
 `PostResponseScript`), shown in the editor's **Scripts** tab, preserved on save
@@ -306,9 +323,10 @@ Implemented: workspace create/open, collection/folder/request create, collection
 including **OAuth 2.0** (client-credentials + authorization-code/PKCE), edit
 method/URL/params/headers/body/auth, raw/JSON/form-data/x-www-form-urlencoded sending,
 multipart text and **file** fields (file picker, `@path` curl convention),
-request **and** collection-level scripts, save & load YAML (incl. exported
-`.resources/definition.yaml`), **Postman Collection v2.1 format** export (collections and
-environments written in Postman-compatible YAML so the Postman CLI can run them directly),
+request **and** collection-level scripts, save & load YAML in **Yamlet's native format**
+(self-contained per-request files with persisted `order`; metadata-only `collection.yaml`;
+per-folder `folder.yaml`) while still **reading** legacy Postman v2.1 and exported
+`.resources/definition.yaml` collections (environments are still written in Postman format),
 top-level unknown YAML key preservation, send via HttpClient, condensed response
 (status/duration/size + Body/Headers/Raw dropdown), generated cURL snippets, per-request
 send history, variable resolution with inline `{{}}` highlighting / hover-peek / click-edit,

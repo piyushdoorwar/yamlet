@@ -365,6 +365,9 @@ public sealed class RequestDto
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+
+    /// <summary>Position among sibling requests in the same directory (lower sorts first).</summary>
+    public int? Order { get; set; }
     public string Method { get; set; } = "GET";
     public string Url { get; set; } = string.Empty;
     public List<KeyValueDto>? QueryParams { get; set; }
@@ -387,6 +390,7 @@ public sealed class RequestDto
         Id = r.Id,
         Name = r.Name,
         Description = NullIfEmpty(r.Description),
+        Order = r.Order,
         Method = r.Method,
         Url = r.Url,
         Scripts = BuildScripts(r),
@@ -412,6 +416,7 @@ public sealed class RequestDto
         Id = string.IsNullOrWhiteSpace(Id) ? Guid.NewGuid().ToString() : Id,
         Name = Name,
         Description = Description ?? string.Empty,
+        Order = Order ?? 0,
         Method = string.IsNullOrWhiteSpace(Method) ? "GET" : Method.ToUpperInvariant(),
         Url = Url,
         PreRequestScript = ScriptOfKind(isPre: true),
@@ -494,6 +499,9 @@ public sealed class CollectionDto
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Position among sibling collections (lower sorts first).</summary>
+    public int? Order { get; set; }
     public List<KeyValueDto>? Variables { get; set; }
     public AuthDto? Auth { get; set; }
     public List<ScriptDto>? Scripts { get; set; }
@@ -502,6 +510,7 @@ public sealed class CollectionDto
     {
         Id = c.Id,
         Name = c.Name,
+        Order = c.Order,
         Auth = c.Auth.Type == YamletAuthType.None ? null : AuthDto.FromDomain(c.Auth),
         Variables = c.Variables.Count == 0 ? null : c.Variables
             .Select(v => new KeyValueDto { Key = v.Key, Value = v.Value, Enabled = v.Enabled })
@@ -524,6 +533,10 @@ public sealed class CollectionDto
         {
             c.Name = Name;
         }
+        if (Order.HasValue)
+        {
+            c.Order = Order.Value;
+        }
         if (Auth is not null)
         {
             c.Auth = Auth.ToDomain();
@@ -545,6 +558,37 @@ public sealed class CollectionDto
         if (!string.IsNullOrEmpty(post))
         {
             c.PostResponseScript = post;
+        }
+    }
+}
+
+/// <summary>
+/// On-disk shape of a folder's <c>folder.yaml</c> metadata file. Carries the folder's
+/// display name and its position among sibling folders so the tree order survives reloads.
+/// </summary>
+public sealed class FolderDto
+{
+    public string? Name { get; set; }
+
+    /// <summary>Position among sibling folders in the same directory (lower sorts first).</summary>
+    public int? Order { get; set; }
+
+    public static FolderDto FromDomain(YamletFolder f) => new()
+    {
+        Name = f.Name,
+        Order = f.Order,
+    };
+
+    /// <summary>Applies the file's metadata onto a folder, keeping the directory-derived name when absent.</summary>
+    public void ApplyTo(YamletFolder f)
+    {
+        if (!string.IsNullOrWhiteSpace(Name))
+        {
+            f.Name = Name;
+        }
+        if (Order.HasValue)
+        {
+            f.Order = Order.Value;
         }
     }
 }
@@ -834,63 +878,6 @@ public sealed class PostmanAuthDto
         list?.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))?.Value;
 }
 
-/// <summary>Postman URL object with <c>raw</c> plus parsed <c>host</c>, <c>path</c>, and <c>query</c>.</summary>
-public sealed class PostmanUrlDto
-{
-    public string Raw { get; set; } = string.Empty;
-    public string? Protocol { get; set; }
-    public List<string>? Host { get; set; }
-    public List<string>? Path { get; set; }
-    public List<PostmanQueryItemDto>? Query { get; set; }
-}
-
-public sealed class PostmanQueryItemDto
-{
-    public string Key { get; set; } = string.Empty;
-    public string? Value { get; set; }
-    public bool? Disabled { get; set; }
-    public string? Description { get; set; }
-}
-
-public sealed class PostmanHeaderItemDto
-{
-    public string Key { get; set; } = string.Empty;
-    public string? Value { get; set; }
-    public bool? Disabled { get; set; }
-    public string? Description { get; set; }
-    public string? Type { get; set; }
-}
-
-public sealed class PostmanBodyOptionsDto
-{
-    public PostmanBodyRawOptionsDto? Raw { get; set; }
-}
-
-public sealed class PostmanBodyRawOptionsDto
-{
-    public string? Language { get; set; }
-}
-
-public sealed class PostmanFormItemDto
-{
-    public string Key { get; set; } = string.Empty;
-    public string? Value { get; set; }
-    public string? Type { get; set; }
-    public bool? Disabled { get; set; }
-    public string? Description { get; set; }
-    public object? Src { get; set; }
-}
-
-/// <summary>Postman request body with <c>mode</c>, <c>raw</c>, <c>formdata</c>, or <c>urlencoded</c>.</summary>
-public sealed class PostmanBodyDto
-{
-    public string Mode { get; set; } = "none";
-    public string? Raw { get; set; }
-    public PostmanBodyOptionsDto? Options { get; set; }
-    public List<PostmanFormItemDto>? Formdata { get; set; }
-    public List<PostmanFormItemDto>? Urlencoded { get; set; }
-}
-
 public sealed class PostmanScriptDto
 {
     public string Type { get; set; } = "text/javascript";
@@ -923,213 +910,11 @@ public sealed class PostmanInfoDto
     public string Schema { get; set; } = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
 }
 
-/// <summary>Postman <c>request</c> block inside a collection item.</summary>
-public sealed class PostmanRequestDto
-{
-    public string Method { get; set; } = "GET";
-    public PostmanUrlDto Url { get; set; } = new();
-    public List<PostmanHeaderItemDto>? Header { get; set; }
-    public PostmanBodyDto? Body { get; set; }
-    public PostmanAuthDto? Auth { get; set; }
-    public string? Description { get; set; }
-}
-
 /// <summary>
-/// A Postman collection item — either a request (has <c>request</c>) or a folder
-/// (has <c>item</c>).
-/// </summary>
-public sealed class PostmanItemDto
-{
-    public string? Id { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public PostmanRequestDto? Request { get; set; }
-    public List<PostmanItemDto>? Item { get; set; }
-    public List<object>? Response { get; set; }
-    public List<PostmanEventDto>? Event { get; set; }
-    public PostmanAuthDto? Auth { get; set; }
-}
-
-/// <summary>
-/// The on-disk shape written for <c>collection.yaml</c>. Follows the Postman Collection
-/// v2.1 schema so the Postman CLI can run it, with embedded requests under <c>item</c>.
-/// </summary>
-public sealed class PostmanCollectionFileDto
-{
-    public PostmanInfoDto Info { get; set; } = new();
-    public List<PostmanItemDto> Item { get; set; } = new();
-    public List<PostmanVariableDto>? Variable { get; set; }
-    public List<PostmanEventDto>? Event { get; set; }
-    public PostmanAuthDto? Auth { get; set; }
-
-    public static PostmanCollectionFileDto FromDomain(YamletCollection c) => new()
-    {
-        Info = new PostmanInfoDto { PostmanId = c.Id, Name = c.Name },
-        Item = BuildItems(c.Folders, c.Requests),
-        Variable = c.Variables.Count == 0 ? null : c.Variables
-            .Select(v => new PostmanVariableDto
-            {
-                Key = v.Key,
-                Value = v.Value,
-                Disabled = v.Enabled ? null : (bool?)true,
-            })
-            .ToList(),
-        Event = BuildEvents(c.PreRequestScript, c.PostResponseScript),
-        Auth = c.Auth.Type != YamletAuthType.None ? PostmanAuthDto.FromDomain(c.Auth) : null,
-    };
-
-    private static List<PostmanItemDto> BuildItems(
-        IEnumerable<YamletFolder> folders,
-        IEnumerable<YamletRequest> requests)
-    {
-        var items = new List<PostmanItemDto>();
-        foreach (var folder in folders)
-        {
-            items.Add(new PostmanItemDto
-            {
-                Name = folder.Name,
-                Item = BuildItems(folder.Folders, folder.Requests),
-            });
-        }
-        foreach (var request in requests)
-        {
-            items.Add(BuildRequestItem(request));
-        }
-        return items;
-    }
-
-    private static PostmanItemDto BuildRequestItem(YamletRequest r) => new()
-    {
-        Id = r.Id,
-        Name = r.Name,
-        Description = NullIfEmpty(r.Description),
-        Request = new PostmanRequestDto
-        {
-            Method = r.Method,
-            Url = BuildUrl(r.Url, r.QueryParams),
-            Header = r.Headers.Count == 0 ? null : r.Headers
-                .Select(h => new PostmanHeaderItemDto
-                {
-                    Key = h.Key,
-                    Value = h.Value,
-                    Disabled = h.Enabled ? null : (bool?)true,
-                    Description = NullIfEmpty(h.Description),
-                })
-                .ToList(),
-            Body = BuildBody(r.Body),
-            Auth = r.Auth.Type != YamletAuthType.Inherit ? PostmanAuthDto.FromDomain(r.Auth) : null,
-            Description = NullIfEmpty(r.Description),
-        },
-        Event = BuildEvents(r.PreRequestScript, r.PostResponseScript),
-        Response = new List<object>(),
-    };
-
-    private static PostmanUrlDto BuildUrl(string url, IReadOnlyList<YamletQueryParam> queryParams)
-    {
-        var urlDto = new PostmanUrlDto { Raw = url };
-        var urlForParsing = System.Text.RegularExpressions.Regex.Replace(url, @"\{\{[^}]+\}\}", "placeholder");
-        if (Uri.TryCreate(urlForParsing, UriKind.Absolute, out var uri))
-        {
-            urlDto.Protocol = uri.Scheme;
-            var host = uri.Host.Split('.');
-            urlDto.Host = host.Length > 0 && !string.IsNullOrEmpty(uri.Host) ? host.ToList() : null;
-            var pathStr = uri.AbsolutePath.Trim('/');
-            urlDto.Path = string.IsNullOrEmpty(pathStr) ? null : pathStr.Split('/').ToList();
-        }
-        var nonEmpty = queryParams.Where(p => !string.IsNullOrWhiteSpace(p.Key)).ToList();
-        if (nonEmpty.Count > 0)
-        {
-            urlDto.Query = nonEmpty
-                .Select(p => new PostmanQueryItemDto
-                {
-                    Key = p.Key,
-                    Value = p.Value,
-                    Disabled = p.Enabled ? null : (bool?)true,
-                    Description = NullIfEmpty(p.Description),
-                })
-                .ToList();
-        }
-        return urlDto;
-    }
-
-    private static PostmanBodyDto BuildBody(YamletRequestBody body) => body.Type switch
-    {
-        YamletBodyType.Raw => new()
-        {
-            Mode = "raw",
-            Raw = body.Raw,
-            Options = new() { Raw = new() { Language = "text" } },
-        },
-        YamletBodyType.Json => new()
-        {
-            Mode = "raw",
-            Raw = body.Raw,
-            Options = new() { Raw = new() { Language = "json" } },
-        },
-        YamletBodyType.FormData => new()
-        {
-            Mode = "formdata",
-            Formdata = body.Fields
-                .Where(f => !string.IsNullOrWhiteSpace(f.Key))
-                .Select(f => new PostmanFormItemDto
-                {
-                    Key = f.Key,
-                    Value = f.IsFile ? null : NullIfEmpty(f.Value),
-                    Type = f.IsFile ? "file" : "text",
-                    Disabled = f.Enabled ? null : (bool?)true,
-                    Description = NullIfEmpty(f.Description),
-                    Src = f.IsFile ? (object)new[] { f.Value.TrimStart('@') } : null,
-                })
-                .ToList(),
-        },
-        YamletBodyType.UrlEncoded => new()
-        {
-            Mode = "urlencoded",
-            Urlencoded = body.Fields
-                .Where(f => !string.IsNullOrWhiteSpace(f.Key))
-                .Select(f => new PostmanFormItemDto
-                {
-                    Key = f.Key,
-                    Value = NullIfEmpty(f.Value),
-                    Type = "text",
-                    Disabled = f.Enabled ? null : (bool?)true,
-                    Description = NullIfEmpty(f.Description),
-                })
-                .ToList(),
-        },
-        _ => new() { Mode = "none" },
-    };
-
-    private static List<PostmanEventDto>? BuildEvents(string preScript, string postScript)
-    {
-        var events = new List<PostmanEventDto>();
-        if (!string.IsNullOrWhiteSpace(preScript))
-        {
-            events.Add(new PostmanEventDto
-            {
-                Listen = "prerequest",
-                Script = new PostmanScriptDto { Exec = preScript.Split('\n').ToList() },
-            });
-        }
-        if (!string.IsNullOrWhiteSpace(postScript))
-        {
-            events.Add(new PostmanEventDto
-            {
-                Listen = "test",
-                Script = new PostmanScriptDto { Exec = postScript.Split('\n').ToList() },
-            });
-        }
-        return events.Count == 0 ? null : events;
-    }
-
-    private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
-}
-
-/// <summary>
-/// Reads <c>collection.yaml</c> in either the new Postman v2.1 format or the legacy
-/// Yamlet flat format. Both shapes are deserialized into the same class; <see
-/// cref="ApplyTo"/> prefers Postman fields when present and falls back to the legacy
-/// ones.
+/// Reads <c>collection.yaml</c> in either the native Yamlet flat format (now written by
+/// <see cref="CollectionDto"/>) or the legacy Postman v2.1 format. Both shapes are
+/// deserialized into the same class; <see cref="ApplyTo"/> prefers Postman fields when
+/// present and falls back to the flat ones.
 /// </summary>
 public sealed class CollectionMetadataDto
 {
@@ -1139,9 +924,10 @@ public sealed class CollectionMetadataDto
     public List<PostmanEventDto>? Event { get; set; }
     public PostmanAuthDto? Auth { get; set; }
 
-    // Legacy Yamlet flat format (backward compat for files written before this change)
+    // Native Yamlet flat format (also the legacy shape written before the Postman era)
     public string? Id { get; set; }
     public string? Name { get; set; }
+    public int? Order { get; set; }
     public List<KeyValueDto>? Variables { get; set; }
     public List<ScriptDto>? Scripts { get; set; }
 
@@ -1152,6 +938,7 @@ public sealed class CollectionMetadataDto
 
         if (!string.IsNullOrWhiteSpace(id)) c.Id = id;
         if (!string.IsNullOrWhiteSpace(name)) c.Name = name;
+        if (Order.HasValue) c.Order = Order.Value;
 
         if (Auth is not null)
         {

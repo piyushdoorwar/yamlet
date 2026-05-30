@@ -262,7 +262,6 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             SetActiveEnvironmentVariableAsync,
             () => SelectedEnvironment?.Name,
             () => (node.OwningCollection.PreRequestScript, node.OwningCollection.PostResponseScript),
-            _collectionService,
             _dialogs,
             request => Workspace is null
                 ? null
@@ -982,6 +981,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         var requestIndex = siblings.IndexOf(node.Request);
         siblings.Insert(requestIndex < 0 ? siblings.Count : requestIndex + 1, copy);
         await _requestFileService.SaveRequestAsync(copy);
+        // Renumber siblings so the copy's position persists.
+        await _collectionService.SaveContainerOrderAsync(node.OwningCollection, node.ParentFolder);
 
         var parentNode = node.Parent;
         var copyNode = new RequestNodeViewModel
@@ -1016,6 +1017,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private async Task MoveRequestNodeAsync(RequestNodeViewModel source, TreeNodeViewModel target)
     {
         ResolveDropTarget(target, out var targetCollection, out var targetFolder, out var targetParentNode, out var insertBefore);
+        var oldCollection = source.OwningCollection;
+        var oldFolder = source.ParentFolder;
         var oldRequests = source.ParentFolder?.Requests ?? source.OwningCollection.Requests;
         var newRequests = targetFolder?.Requests ?? targetCollection.Requests;
         oldRequests.Remove(source.Request);
@@ -1039,13 +1042,20 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         source.Parent = targetParentNode;
         InsertUiNode(source, targetParentNode, insertBefore);
 
-        await _requestFileService.SaveRequestAsync(source.Request);
+        // Persist the new order in the destination (saves the moved request too); also
+        // renumber the source container when the move crossed containers.
+        await _collectionService.SaveContainerOrderAsync(targetCollection, targetFolder);
+        if (!ReferenceEquals(oldCollection, targetCollection) || !ReferenceEquals(oldFolder, targetFolder))
+        {
+            await _collectionService.SaveContainerOrderAsync(oldCollection, oldFolder);
+        }
         StatusMessage = $"Moved request '{source.Name}'.";
     }
 
     private async Task MoveFolderNodeAsync(FolderNodeViewModel source, TreeNodeViewModel target)
     {
         var oldCollection = source.OwningCollection;
+        var oldParentFolder = (source.Parent as FolderNodeViewModel)?.Folder;
         ResolveDropTarget(target, out var targetCollection, out var targetFolder, out var targetParentNode, out var insertBeforeRequest);
         TreeNodeViewModel? insertBefore = insertBeforeRequest;
         if (target is FolderNodeViewModel targetFolderNode)
@@ -1083,10 +1093,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         SetOwningCollection(source, targetCollection);
         InsertUiNode(source, targetParentNode, insertBefore);
 
-        await _collectionService.SaveCollectionAsync(oldCollection);
-        if (!ReferenceEquals(oldCollection, targetCollection))
+        // Persist the new folder order in the destination (writes each folder.yaml,
+        // including the moved folder's at its new path); also renumber the source container
+        // when the move crossed containers.
+        await _collectionService.SaveContainerOrderAsync(targetCollection, targetFolder);
+        if (!ReferenceEquals(oldCollection, targetCollection) || !ReferenceEquals(oldParentFolder, targetFolder))
         {
-            await _collectionService.SaveCollectionAsync(targetCollection);
+            await _collectionService.SaveContainerOrderAsync(oldCollection, oldParentFolder);
         }
         StatusMessage = $"Moved folder '{source.Name}'.";
     }
@@ -1422,6 +1435,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
 
         var folder = _collectionService.CreateFolder(collection, parentFolder, name);
+        await _collectionService.SaveContainerOrderAsync(collection, parentFolder);
         var parentNode = FindNodeForFolderParent(collection, parentFolder);
         var node = new FolderNodeViewModel
         {
@@ -1449,6 +1463,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
         var request = _collectionService.CreateRequest(collection, parentFolder, name);
         await _requestFileService.SaveRequestAsync(request);
+        await _collectionService.SaveContainerOrderAsync(collection, parentFolder);
 
         var parentNode = FindNodeForFolderParent(collection, parentFolder);
         var node = new RequestNodeViewModel

@@ -31,6 +31,12 @@ public sealed class YamletRequest
     /// <summary>When true, SSL certificate errors are ignored for this request.</summary>
     public bool SkipSslVerification { get; set; }
 
+    /// <summary>
+    /// Position of this request among its siblings within the same directory. Persisted to
+    /// the request file so the tree order survives reloads; lower sorts first.
+    /// </summary>
+    public int Order { get; set; }
+
     /// <summary>Absolute path of the YAML file backing this request, if saved.</summary>
     public string? SourceFilePath { get; set; }
 }

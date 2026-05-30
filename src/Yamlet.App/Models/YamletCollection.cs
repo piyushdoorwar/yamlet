@@ -21,6 +21,12 @@ public sealed class YamletCollection
     /// <summary>Script run after every response in the collection (collection scope).</summary>
     public string PostResponseScript { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Position among sibling collections in the sidebar (lower sorts first). Persisted to
+    /// the collection's <c>collection.yaml</c>.
+    /// </summary>
+    public int Order { get; set; }
+
     /// <summary>Absolute path of the collection's root directory, if saved.</summary>
     public string? DirectoryPath { get; set; }
 

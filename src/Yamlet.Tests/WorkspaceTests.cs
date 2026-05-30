@@ -110,4 +110,70 @@ public class WorkspaceTests : IDisposable
         Assert.Single(loadedFolder.Requests);
         Assert.Equal("Get User", loadedFolder.Requests[0].Name);
     }
+
+    [Fact]
+    public async Task SaveCollection_WritesMetadataOnly_NotEmbeddedRequests()
+    {
+        var workspace = await _workspaces.CreateWorkspaceAsync(_tempDir);
+        var collection = await _collections.CreateCollectionAsync(workspace, "My API");
+        var request = _collections.CreateRequest(collection, parent: null, "Get Users");
+        await _requestFiles.SaveRequestAsync(request);
+        await _collections.SaveCollectionAsync(collection);
+
+        var yaml = await File.ReadAllTextAsync(collection.FilePath!);
+
+        // Native Yamlet metadata, not the Postman v2.1 shape with embedded requests.
+        Assert.Contains("name: My API", yaml);
+        Assert.DoesNotContain("item:", yaml);
+        Assert.DoesNotContain("info:", yaml);
+        Assert.DoesNotContain("Get Users", yaml);
+    }
+
+    [Fact]
+    public async Task RequestOrder_PersistsAcrossReopen()
+    {
+        var workspace = await _workspaces.CreateWorkspaceAsync(_tempDir);
+        var collection = await _collections.CreateCollectionAsync(workspace, "My API");
+
+        var a = _collections.CreateRequest(collection, parent: null, "Alpha");
+        var b = _collections.CreateRequest(collection, parent: null, "Bravo");
+        var c = _collections.CreateRequest(collection, parent: null, "Charlie");
+        foreach (var r in new[] { a, b, c })
+        {
+            await _requestFiles.SaveRequestAsync(r);
+        }
+
+        // Reorder in memory (Charlie, Alpha, Bravo) and persist the new positions.
+        collection.Requests.Clear();
+        collection.Requests.AddRange(new[] { c, a, b });
+        await _collections.SaveContainerOrderAsync(collection, folder: null);
+
+        var reopened = await _workspaces.OpenWorkspaceAsync(_tempDir);
+        var loaded = Assert.Single(reopened.Collections);
+
+        Assert.Equal(new[] { "Charlie", "Alpha", "Bravo" }, loaded.Requests.Select(r => r.Name));
+    }
+
+    [Fact]
+    public async Task FolderOrder_PersistsAcrossReopen()
+    {
+        var workspace = await _workspaces.CreateWorkspaceAsync(_tempDir);
+        var collection = await _collections.CreateCollectionAsync(workspace, "My API");
+
+        var x = _collections.CreateFolder(collection, parent: null, "Xray");
+        var y = _collections.CreateFolder(collection, parent: null, "Yankee");
+        var z = _collections.CreateFolder(collection, parent: null, "Zulu");
+
+        // Reorder in memory (Zulu, Xray, Yankee) and persist via folder.yaml.
+        collection.Folders.Clear();
+        collection.Folders.AddRange(new[] { z, x, y });
+        await _collections.SaveContainerOrderAsync(collection, folder: null);
+
+        Assert.True(File.Exists(Path.Combine(z.DirectoryPath!, CollectionService.FolderMetadataFileName)));
+
+        var reopened = await _workspaces.OpenWorkspaceAsync(_tempDir);
+        var loaded = Assert.Single(reopened.Collections);
+
+        Assert.Equal(new[] { "Zulu", "Xray", "Yankee" }, loaded.Folders.Select(f => f.Name));
+    }
 }
