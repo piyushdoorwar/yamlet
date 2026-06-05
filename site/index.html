@@ -226,6 +226,7 @@
       closeModal.addEventListener("click", () => { supportModal.classList.add("hidden"); document.body.style.overflow = ""; });
       supportModal.addEventListener("click", e => { if (e.target === supportModal) { supportModal.classList.add("hidden"); document.body.style.overflow = ""; } });
       document.addEventListener("keydown", e => { if (e.key === "Escape" && !supportModal.classList.contains("hidden")) { supportModal.classList.add("hidden"); document.body.style.overflow = ""; } });
+      <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "e9cd556fb46f4880a8842d37e2dfe3fb"}'></script><!-- End Cloudflare Web Analytics -->
     </script>
   </body>
 </html>
