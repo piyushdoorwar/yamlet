@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">Yamlet</title>
+  <desc id="description">Local-first YAML API client</desc>
+  <rect width="1200" height="630" fill="#1c1b19" />
+  <circle cx="1040" cy="78" r="340" fill="#4ca877" opacity="0.08" />
+  <circle cx="1138" cy="616" r="270" fill="#4ca877" opacity="0.05" />
+  <g transform="translate(100 120) scale(2.25)">
+    <rect x="11" y="11" width="42" height="42" rx="12" fill="none" stroke="#5dba88" stroke-width="3.4" />
+    <path d="M24 25 L32 34 L40 25 M32 34 L32 45" fill="none" stroke="#5dba88" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <text x="100" y="375" fill="#f5f4ef" font-family="Inter, Cantarell, Ubuntu, Segoe UI, sans-serif" font-size="112" font-weight="800">Yamlet</text>
+  <text x="106" y="454" fill="#dedad5" font-family="Inter, Cantarell, Ubuntu, Segoe UI, sans-serif" font-size="38">Local-first YAML API client</text>
+  <path d="M106 503 H510" stroke="#4ca877" stroke-width="6" stroke-linecap="round" />
+</svg>
