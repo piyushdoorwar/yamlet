@@ -25,11 +25,12 @@ Each request carries `pm.test` assertions, so it doubles as a CLI smoke test.
 ### Run it with the CLI
 
 ```bash
-# from the repo root, using the project directly:
-dotnet run --project cli/Yamlet.Cli -- run samples/demo --env samples/demo/environments/dev.yaml
+# from the repo root, using the CLI built from source:
+npm run build:cli
+node cli/dist/yamlet.js run samples/demo --env dev
 
-# or, once the tool is installed (dotnet tool install --global Yamlet.Cli):
-yamlet run samples/demo --env samples/demo/environments/dev.yaml
+# or with the published CLI:
+npx yamlet run samples/demo --env dev
 ```
 
 Expect every request to pass (exit code `0`).
@@ -37,14 +38,13 @@ Expect every request to pass (exit code `0`).
 ### Open it in the app
 
 ```bash
-dotnet run --project src/Yamlet.App
+docker run --rm -p 127.0.0.1:7878:7878 -v "$PWD/samples/demo:/workspace" ghcr.io/piyushdoorwar/yamlet:latest
 ```
 
-Then open the `samples/demo` folder — the app and CLI share the same loaders, so what runs
+Then open <http://localhost:7878>. The app and the CLI share the same engine, so what runs
 in CI is what you see in the UI.
 
 ### In CI
 
-[.github/workflows/verify-samples.yml](../.github/workflows/verify-samples.yml) installs the
-latest published `Yamlet.Cli` from nuget.org and runs this workspace on every push —
-dogfooding the released tool exactly as a consumer would.
+[.github/workflows/ci.yml](../.github/workflows/ci.yml) builds the CLI from source and runs
+this workspace on every push.

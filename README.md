@@ -1,224 +1,169 @@
 # Yamlet
 
-**Yamlet** is a local-first API client for Git-friendly, YAML-based API collections. Open a
-workspace folder, browse collections and requests in a sidebar, edit and send HTTP requests,
-and view responses — everything is stored as plain YAML you can commit to version control.
+**A local-first API client for Git-friendly YAML collections, running in your browser.**
 
-It ships as both a **dark-mode desktop app** (built on **.NET 10** + **Avalonia UI**, runs on
-Windows, Linux, and macOS) and a **`yamlet` command-line runner** you can install from NuGet to
-execute your collections in CI.
+Yamlet keeps every request, folder, environment and global as a small, readable YAML
+file on your disk. Open a folder, send requests, write tests, run collections, and
+commit the whole thing to Git next to your code. There's no account, no cloud sync and
+no telemetry. The app runs from a container on your machine, and your files stay where
+they are.
 
-> Everything lives on disk as readable YAML. No account, no cloud, no lock-in.
+Website: <https://piyushdoorwar.github.io/yamlet/>
 
----
+## Run it
+
+```bash
+docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet:latest
+```
+
+Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
+workspace. If it isn't one yet, Yamlet offers to set it up (it creates `collections/`,
+`environments/` and `globals/`).
+
+| Task | Command |
+|---|---|
+| Stop / start | `docker stop yamlet` / `docker start yamlet` |
+| Update | `docker pull ghcr.io/piyushdoorwar/yamlet:latest`, then `docker rm -f yamlet` and run again |
+| A specific version | `ghcr.io/piyushdoorwar/yamlet:1.2.3` |
+| Another port | `-p 127.0.0.1:9000:7878` and set `-e YAMLET_PUBLIC_URL=http://localhost:9000` |
+
+**Calling APIs on your own machine.** Inside the container, `localhost` is the container
+itself. Use `http://host.docker.internal:<port>` instead (on Linux, add
+`--add-host=host.docker.internal:host-gateway` to `docker run`), or run with
+`--network host` and drop the `-p` flag.
+
+**File ownership.** The container runs as uid 1000. If your user has a different uid,
+add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
+
+> Yamlet has no login: anyone who can reach the port can read and write the mounted
+> folder and send requests from your machine. Keep the `127.0.0.1:` prefix on `-p`.
 
 ## Features
 
-**Workspaces & storage**
-- Create or open a workspace — a folder with `collections/`, `environments/`, and `globals/`.
-- Collections, nested folders, and requests are mirrored 1:1 as directories and YAML files.
-- Each request is a self-contained file (verb, URL, params, headers, path vars, variables,
-  auth, body, scripts, SSL option) and carries its own `order`, so the sidebar arrangement —
-  including drag-and-drop reordering — survives reloads and commits cleanly.
-- Reads collections exported from other API clients (and their environment exports) for a
-  smooth migration; Yamlet always writes its own clean native format.
+- **Plain files, one per request.** Collections are folders, folders have a tiny
+  `folder.yaml`, and each request is its own `.yaml` file. Diffs and reviews stay small.
+- **Tabs, tree and quick open.** Drag and drop to reorder or move, rename inline,
+  duplicate, Ctrl+K to jump to any request. Open tabs come back when you reload.
+- **Variables.** Request, collection, environment and global scopes, with
+  `{{variable}}` highlighting. Hover a variable to see its value and edit it in place.
+  Dynamic values such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}` are built
+  in; type `{{$` for the full list.
+- **Requests.** Query and `:path` params, headers, and bodies as JSON, XML, text, HTML,
+  form-data (with files), urlencoded, GraphQL or binary. Per-request timeout, redirects
+  and SSL settings. Paste a cURL command into the URL box to import it.
+- **Auth.** Bearer, Basic, API key, cookie, and OAuth 2.0 (client credentials, password,
+  or authorization code with PKCE), set per request or inherited from the collection.
+- **Scripts and tests.** Pre-request and post-response JavaScript at request and
+  collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
+  `pm.response.json()` and more), with built-in snippets.
+- **Responses.** Pretty, raw and preview (HTML or images), headers, cookies, test
+  results, a console, timings and size. Save a response as an example.
+- **Collection runner.** Run a collection or folder with iterations, a delay, and a
+  CSV or JSON data file. Results stream in live.
+- **Import.** cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), and v2.1 collection and
+  environment JSON exports.
+- **Code snippets.** cURL, raw HTTP, JavaScript fetch, Node axios, Python requests, Go,
+  C#, Java, PHP, PowerShell and Ruby.
+- **Cookies and history.** A cookie jar shared across requests, and a per-workspace
+  history of what you sent.
 
-**Requests**
-- Method, URL, query params, headers, path variables, and request-scoped variables.
-- Body types: raw, JSON, `x-www-form-urlencoded`, and `multipart/form-data` with **file
-  fields** (file picker + `@path` convention).
-- Send with the local `HttpClient`; view status, duration, response size, headers, body, and a
-  raw request/response snapshot. Per-request send history and generated **cURL** snippets;
-  **import** a request by pasting a cURL command.
-
-**Authorization**
-- No Auth, Bearer Token, Basic Auth, API Key (header or query), Cookie, and **OAuth 2.0**
-  (client-credentials, and authorization-code with PKCE via the system browser).
-- Collection-level auth is inherited by requests set to *Inherit*.
-
-**Scripts & variables**
-- Pre-request and post-response **JavaScript** per request, plus collection-level scripts that
-  run around every request. A compact `pm` API surface (`pm.test`, `pm.expect`,
-  `pm.environment.set`, `pm.response.json()`, …) for assertions, request mutation, and chaining.
-- `{{variable}}` resolution with precedence (highest first): **request → collection →
-  environment → globals**. Unknown placeholders are left intact so missing values are visible.
-- **Dynamic variables** (`$guid`, `$timestamp`, `$random*`, …) generated locally — user
-  variables always win, each use gets a fresh value, with `$`-triggered autocomplete in editors.
-- Inline `{{}}` highlighting with hover-to-peek and click-to-edit in the code/URL editors.
-
-**Workbench**
-- Tabbed work area with session restore (open tabs + active tab + selected environment +
-  response layout), a single COLLECTIONS / ENVIRONMENTS accordion, collection/folder **runner**
-  tabs, and tree rename / move / duplicate / delete.
-
-**CLI** — see [below](#cli-running-collections-in-ci).
-
-**Packaging** — self-contained Linux `.deb`, Windows `.exe` installer, and `.msix`, built by CI.
-
----
-
-## CLI: running collections in CI
-
-Install the `yamlet` tool from NuGet and run a whole workspace headlessly — it sends every
-request in order, runs your `pm.test` assertions, and exits non-zero on failure, so it gates a
-CI job directly.
-
-```bash
-dotnet tool install --global Yamlet.Cli
-
-yamlet run ./my-workspace --env environments/dev.yml
-```
-
-```yaml
-# .github/workflows/api-tests.yml
-- name: Install Yamlet
-  run: dotnet tool install --global Yamlet.Cli
-- name: Run API tests
-  run: yamlet run . --env environments/dev.yml
-```
-
-A run **fails** (exit `1`) on a transport error, a non-2xx/3xx status, or any failed assertion.
-Output is a colored, box-drawn results table — resolved URL, status, per-request time, and
-tests passed/total — followed by a failures section and a summary with the total run time.
+## Workspace layout
 
 ```
-┌────────┬────────┬──────────────────────────────────────┬─────────┬────────┬───────┐
-│ Result │ Method │ URL                                  │ Status  │   Time │ Tests │
-├────────┼────────┼──────────────────────────────────────┼─────────┼────────┼───────┤
-│ PASS   │ GET    │ https://api.example.com/health       │ 200 OK  │  42 ms │   1/1 │
-│ FAIL   │ GET    │ https://api.example.com/users        │ 200 OK  │  51 ms │   1/2 │
-└────────┴────────┴──────────────────────────────────────┴─────────┴────────┴───────┘
-```
-
-Options: `--env <file>`, `--globals <file>`, `--bail` (stop at first failure), `--no-color`.
-A ready-to-run example workspace lives in [`samples/`](samples/).
-
----
-
-## On-disk layout
-
-A workspace is a directory (or its `yamlet/` subfolder):
-
-```
-yamlet/
+my-workspace/
   collections/
-    my-api/
-      collection.yaml        # collection metadata: name, variables, auth, scripts
-      get-status.yaml        # a request directly inside the collection (order: 0)
+    jsonplaceholder/
+      collection.yaml        # name, variables, auth, scripts
+      list-posts.yaml        # one request per file
       users/
-        folder.yaml          # folder metadata: name + order
-        get-users.yaml        # a request inside the "users" folder
-        create-user.yaml
+        folder.yaml          # name + order
+        list-users.yaml
   environments/
-    local.yaml
-    prod.yaml
+    dev.yaml
   globals/
     globals.yaml
+  files/                     # files attached to form-data / binary bodies
 ```
 
-`collection.yaml` holds only collection-level metadata — requests are **not** embedded; each
-request is its own file and is the single source of truth.
-
-### Request file example
+A request file looks like this:
 
 ```yaml
-id: "request-guid"
-name: "Get Users"
-order: 0
-method: "GET"
-url: "{{baseUrl}}/users"
-queryParams:
-  - key: "page"
-    value: "1"
-    description: "Page number"
-    enabled: true
-headers:
-  - key: "Accept"
-    value: "application/json"
-    enabled: true
-auth:
-  type: "bearer"
-  token: "{{token}}"
+id: demo-create-post
+name: Create Post
+order: 2
+method: POST
+url: '{{baseUrl}}/posts'
 body:
-  type: "none"
+  type: json
+  raw: |
+    { "title": "Yamlet", "userId": {{$randomInt}} }
 scripts:
   - type: afterResponse
     code: |
-      pm.test('status is 200', () => pm.expect(pm.response.code).to.equal(200));
+      pm.test('status is 201', () => pm.expect(pm.response.code).to.equal(201));
 ```
 
-### Environment file example
+Try [samples/demo](samples/demo): mount it with `-v "$PWD/samples/demo:/workspace"`.
 
-```yaml
-id: "environment-guid"
-name: "Local"
-variables:
-  - key: "baseUrl"
-    value: "http://localhost:5000"
-    enabled: true
-```
+## CLI for CI
 
----
-
-## Project structure
-
-```
-Yamlet/
-  src/
-    Yamlet.Core/        # UI-free library: domain models + all logic/IO services
-      Models/           # workspace, collection, folder, request, auth, …
-      Services/         # YAML IO, request executor, scripts, variables, OAuth2,
-                        #   CollectionRunner (the headless run engine), …
-    Yamlet.App/         # Avalonia desktop app (references Yamlet.Core)
-      ViewModels/ Views/ Controls/ Themes/ Stores/
-    Yamlet.Tests/       # xUnit unit tests
-  cli/
-    Yamlet.Cli/         # the `yamlet` dotnet tool (references Yamlet.Core)
-  samples/              # a ready-to-run example workspace
-  packaging/  scripts/  # installer assets and build scripts
-```
-
-The desktop app and the CLI share `Yamlet.Core`, so what runs in CI is exactly what you see in
-the UI. The on-disk YAML format is mapped to/from internal domain models by a dedicated
-serialization layer, so the UI never binds directly to the file format.
-
----
-
-## Running locally
-
-Requires the **.NET 10 SDK**.
+The `yamlet` CLI runs a workspace headlessly. It fails the build when a request errors,
+returns a non-2xx/3xx status, or a `pm.test` assertion fails.
 
 ```bash
-# desktop app
-dotnet run --project src/Yamlet.App
-
-# CLI against the bundled sample workspace
-dotnet run --project cli/Yamlet.Cli -- run samples/demo --env samples/demo/environments/dev.yaml
-
-# tests
-dotnet test src/Yamlet.Tests
+npm install -g yamlet
+yamlet run ./my-workspace --env dev
+# or without installing
+npx yamlet run ./my-workspace --env dev
 ```
 
----
+See [cli/README.md](cli/README.md) for every option (`--bail`, `--iterations`,
+`--data`, `--reporter junit`, …) and a GitHub Actions example.
 
-## Status
+## Development
 
-Yamlet is well past its initial MVP: the desktop client and a publishable CI runner share a
-single core, requests round-trip through a clean native YAML format with persisted ordering,
-and OAuth2, scripting, runners, dynamic variables, and imported-format compatibility are all in
-place.
+Requires Node 22 or newer (24 recommended).
 
-Still intentionally out of product scope: team/cloud sync, mock servers, hosted API docs, and
-collaboration features.
+```bash
+npm install
+npm run dev          # server on :7878 (watch) + Vite UI on :5173 (proxies /api)
+npm test             # engine, server, CLI and UI tests (Vitest)
+npm run typecheck
+npm run build        # dist/web + dist/server
+npm start            # serve the built app on 127.0.0.1:7878 (browses your home folder)
+npm run build:cli    # bundle the CLI into cli/dist
+docker build -t yamlet .
+```
 
----
+```
+core/     UI-free engine: models, YAML format, workspace store, variables, request
+          builder and executor, scripts, OAuth 2.0, runner, importers, snippets
+server/   Fastify API over the engine; serves the built UI
+web/      React + Vite + Tailwind UI
+shared/   JSON shapes shared by server and UI
+cli/      the `yamlet` npm package
+site/     the marketing site (GitHub Pages)
+samples/  a ready-to-run workspace
+```
 
-## Tech stack
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `7878` | Listen port |
+| `HOST` | `127.0.0.1` (`0.0.0.0` in the container) | Listen address |
+| `YAMLET_WORKSPACE` | `/workspace` in the container | Workspace opened on first visit |
+| `YAMLET_BROWSE_ROOT` | `/workspace` in the container, else your home folder | The folder browser can't leave this directory |
+| `YAMLET_PUBLIC_URL` | `http://localhost:$PORT` | Base URL for the OAuth 2.0 redirect |
+| `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
+| `YAMLET_TIMEOUT_MS` | `30000` | Default request timeout |
 
-- .NET 10 / C#
-- Avalonia UI (Fluent dark theme) + AvaloniaEdit
-- CommunityToolkit.Mvvm
-- YamlDotNet
-- Jint (JavaScript engine for request scripts)
-- `System.Net.Http.HttpClient`
-- xUnit for tests
+## Releases
+
+Every push to `main` publishes `ghcr.io/piyushdoorwar/yamlet:latest`. Pushing a `v1.2.3`
+tag publishes the `1.2.3` / `1.2` / `1` images, the `yamlet` CLI on npm, and a GitHub
+release.
+
+The last version of the earlier .NET desktop app is tagged `dotnet-final`.
+
+## License
+
+[MIT](LICENSE)
