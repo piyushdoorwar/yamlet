@@ -1,0 +1,40 @@
+{
+  "name": "yamlet",
+  "version": "0.0.0-dev",
+  "description": "Run Yamlet API collections (Git-friendly YAML) from the command line or CI.",
+  "type": "module",
+  "bin": {
+    "yamlet": "dist/yamlet.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "chai": "^5.3.3",
+    "undici": "^8.11.2",
+    "yaml": "^2.9.1"
+  },
+  "keywords": [
+    "api",
+    "http",
+    "rest",
+    "testing",
+    "yaml",
+    "cli",
+    "ci",
+    "api-client"
+  ],
+  "homepage": "https://piyushdoorwar.github.io/yamlet/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/piyushdoorwar/yamlet.git",
+    "directory": "cli"
+  },
+  "bugs": "https://github.com/piyushdoorwar/yamlet/issues",
+  "author": "Piyush Doorwar",
+  "license": "MIT"
+}
