@@ -7,7 +7,7 @@ on:
     branches: ["main"]
     paths:
       - "site/**"
-      - ".github/scripts/generate-site-releases.js"
+      - ".github/scripts/generate-site-releases.cjs"
       - ".github/workflows/static.yml"
   # Re-deploy after a release, to refresh the releases manifest.
   workflow_run:
@@ -41,7 +41,7 @@ jobs:
       - name: Generate release manifest
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node .github/scripts/generate-site-releases.js
+        run: node .github/scripts/generate-site-releases.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
