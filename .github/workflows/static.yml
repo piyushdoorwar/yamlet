@@ -9,9 +9,9 @@ on:
       - "site/**"
       - ".github/scripts/generate-site-releases.js"
       - ".github/workflows/static.yml"
-  # Re-deploy after a build/release run finishes, to refresh the releases manifest.
+  # Re-deploy after a release, to refresh the releases manifest.
   workflow_run:
-    workflows: ["Build artifacts"]
+    workflows: ["Release"]
     types: [completed]
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
