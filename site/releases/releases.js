@@ -1,174 +1,171 @@
-/* releases.js - powers the /releases/ page */
-
+/* releases.js — renders releases.json as container image tags + changelog. */
 (function () {
+  "use strict";
+
+  const IMAGE = "ghcr.io/piyushdoorwar/yamlet";
+  const ICONS = "../assets/icons.svg";
   const PER_PAGE = 10;
 
-  let allReleases = [];
-  let currentOS = "all";
-  let currentPage = 1;
+  let all = [];
+  let page = 1;
   let stableOnly = true;
 
-  const loadingEl = document.getElementById("releases-loading");
-  const errorEl = document.getElementById("releases-error");
-  const emptyEl = document.getElementById("releases-empty");
-  const itemsEl = document.getElementById("releases-items");
-  const pagination = document.getElementById("pagination");
-  const prevBtn = document.getElementById("page-prev");
-  const nextBtn = document.getElementById("page-next");
-  const pageLabel = document.getElementById("page-label");
-  const osTabs = document.querySelectorAll(".os-tab");
-  const stableToggle = document.getElementById("stableOnlyToggle");
+  const $ = (id) => document.getElementById(id);
+  const loadingEl = $("rel-loading");
+  const errorEl = $("rel-error");
+  const emptyEl = $("rel-empty");
+  const listEl = $("rel-list");
+  const pager = $("pager");
+  const prevBtn = $("page-prev");
+  const nextBtn = $("page-next");
+  const pageLabel = $("page-label");
+  const stableToggle = $("stableOnly");
 
-  async function fetchAllReleases() {
-    const res = await fetch("../releases.json");
-    if (!res.ok) throw new Error(`Release manifest ${res.status}`);
-    const results = await res.json();
-    results.sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-    return results;
-  }
+  const esc = (s) =>
+    String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
 
-  // ── Asset helpers ──────────────────────────────────────────────────────────
-  function linuxAsset(release) {
-    return release.assets.find((a) => /_amd64\.deb$/i.test(a.name));
-  }
-  function windowsExeAsset(release) {
-    return (
-      release.assets.find((a) => /win-x64.*_setup\.exe$/i.test(a.name)) ??
-      release.assets.find((a) => /win-x64.*\.exe$/i.test(a.name))
-    );
-  }
-  function windowsMsixAsset(release) {
-    return release.assets.find((a) => /win-x64.*\.msix$/i.test(a.name));
-  }
+  const icon = (name) => `<svg class="ic" aria-hidden="true"><use href="${ICONS}#i-${name}" /></svg>`;
 
-  function hasOsAsset(release, os) {
-    if (os === "all") return true;
-    if (os === "linux") return !!linuxAsset(release);
-    if (os === "windows") return !!windowsExeAsset(release) || !!windowsMsixAsset(release);
-    return true;
-  }
+  const imageTag = (r) => r.image_tag || String(r.tag_name || "").replace(/^v(?=\d)/, "");
 
   function formatDate(iso) {
     return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
-  function timeAgo(iso) {
-    const seconds = Math.floor((Date.now() - new Date(iso)) / 1000);
-    if (seconds < 60) return "just now";
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months}mo ago`;
-    return `${Math.floor(months / 12)}y ago`;
+  // Minimal, safe markdown for release notes: escape first, then format.
+  function inline(text) {
+    return esc(text)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" rel="noreferrer">$1</a>')
+      .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" rel="noreferrer">$2</a>');
   }
 
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function renderMarkdown(md) {
+    const lines = String(md || "").replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    let list = false;
+    let para = [];
+    const flushPara = () => {
+      if (para.length) out.push(`<p>${inline(para.join(" "))}</p>`);
+      para = [];
+    };
+    const closeList = () => {
+      if (list) out.push("</ul>");
+      list = false;
+    };
+    for (const raw of lines) {
+      const line = raw.trim();
+      const heading = /^#{1,6}\s+(.*)$/.exec(line);
+      const item = /^[-*+]\s+(.*)$/.exec(line);
+      if (!line) { flushPara(); closeList(); continue; }
+      if (heading) { flushPara(); closeList(); out.push(`<h4>${inline(heading[1])}</h4>`); continue; }
+      if (item) {
+        flushPara();
+        if (!list) { out.push("<ul>"); list = true; }
+        out.push(`<li>${inline(item[1])}</li>`);
+        continue;
+      }
+      closeList();
+      para.push(line);
+    }
+    flushPara();
+    closeList();
+    return out.join("");
   }
 
-  function dlBtn(asset, imgSrc, label) {
-    if (!asset) return "";
-    return `<a class="button secondary release-dl-btn" href="${escHtml(asset.browser_download_url)}" download title="Download ${escHtml(asset.name)}">
-      <img src="${imgSrc}" alt="" /><span>${label}</span>
-    </a>`;
+  function copyBlock(cmd, label) {
+    return `<div class="cmd">
+      <pre><code><span class="prompt">$ </span>${esc(cmd)}</code></pre>
+      <button class="copy-btn" type="button" data-copy="${esc(cmd)}" aria-label="${esc(label)}">
+        ${icon("copy").replace('class="ic"', 'class="ic i-copy"')}
+        ${icon("check").replace('class="ic"', 'class="ic i-check"')}
+        <span>Copy</span>
+      </button>
+    </div>`;
   }
 
-  function renderPage() {
-    const filtered = allReleases.filter((r) => hasOsAsset(r, currentOS) && (!stableOnly || !r.prerelease));
-    const latestStable = filtered.find((r) => !r.prerelease);
+  function renderRelease(r, latestId) {
+    const tag = imageTag(r);
+    const isLatest = r.id === latestId;
+    const notes = String(r.body || "").trim();
+    const title = r.name && r.name !== r.tag_name ? `<p class="release-name">${esc(r.name)}</p>` : "";
+    const npmVersion = /^\d+\.\d+\.\d+/.test(tag) ? tag : "";
 
-    if (filtered.length === 0) {
-      itemsEl.innerHTML = "";
+    return `<article class="release${isLatest ? " latest" : ""}">
+      <div class="release-head">
+        <h3>${esc(r.tag_name)}</h3>
+        ${isLatest ? '<span class="badge badge-latest">Latest</span>' : ""}
+        ${r.prerelease ? '<span class="badge badge-pre">Pre-release</span>' : ""}
+        <time class="release-date" datetime="${esc(r.published_at)}">${formatDate(r.published_at)}</time>
+      </div>
+      ${title}
+      ${copyBlock(`docker pull ${IMAGE}:${tag}`, `Copy pull command for ${tag}`)}
+      <div class="tags" aria-label="Image tags">
+        <span>${icon("tag")}${esc(tag)}</span>
+        ${isLatest ? `<span>${icon("tag")}latest</span>` : ""}
+      </div>
+      ${
+        notes
+          ? `<details class="changelog"${isLatest ? " open" : ""}>
+              <summary>${icon("chevron")}Changelog</summary>
+              <div class="md">${renderMarkdown(notes)}</div>
+            </details>`
+          : ""
+      }
+      <div class="release-links">
+        <a href="${esc(r.html_url)}" rel="noreferrer">${icon("github")}Release on GitHub</a>
+        ${npmVersion ? `<a href="https://www.npmjs.com/package/yamlet/v/${esc(npmVersion)}" rel="noreferrer">${icon("terminal")}CLI ${esc(npmVersion)} on npm</a>` : ""}
+      </div>
+    </article>`;
+  }
+
+  function render() {
+    const filtered = all.filter((r) => !stableOnly || !r.prerelease);
+    const latestStable = all.find((r) => !r.prerelease);
+
+    if (!filtered.length) {
+      listEl.innerHTML = "";
       emptyEl.classList.remove("hidden");
-      pagination.hidden = true;
+      pager.hidden = true;
       return;
     }
     emptyEl.classList.add("hidden");
 
-    const totalPages = Math.ceil(filtered.length / PER_PAGE);
-    currentPage = Math.min(currentPage, totalPages);
-    const start = (currentPage - 1) * PER_PAGE;
-    const page = filtered.slice(start, start + PER_PAGE);
+    const pages = Math.ceil(filtered.length / PER_PAGE);
+    page = Math.min(Math.max(page, 1), pages);
+    const slice = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+    listEl.innerHTML = slice.map((r) => renderRelease(r, latestStable?.id)).join("");
 
-    const showLinux = currentOS === "all" || currentOS === "linux";
-    const showWindows = currentOS === "all" || currentOS === "windows";
-
-    itemsEl.innerHTML = page.map((release) => {
-      const isLatest = latestStable?.id === release.id;
-
-      const downloads = [
-        showLinux ? dlBtn(linuxAsset(release), "../assets/ubuntu.svg", ".deb") : "",
-        showWindows ? dlBtn(windowsExeAsset(release), "../assets/windows.svg", ".exe") : "",
-        showWindows ? dlBtn(windowsMsixAsset(release), "../assets/windows.svg", ".msix") : "",
-      ].join("");
-
-      return `<article class="release-item">
-        <div class="release-meta">
-          <div class="release-tag-row">
-            <span class="release-version">${escHtml(release.tag_name)}</span>
-            ${isLatest ? '<span class="badge-latest">Latest</span>' : ""}
-            ${release.prerelease ? '<span class="badge-pre">Pre-release</span>' : ""}
-          </div>
-          <time class="release-date" datetime="${escHtml(release.published_at)}" title="${formatDate(release.published_at)}">${timeAgo(release.published_at)} · ${formatDate(release.published_at)}</time>
-        </div>
-        <div class="release-downloads">
-          ${downloads || `<a class="release-gh-link github-link" href="${escHtml(release.html_url)}" rel="noreferrer"><img src="../assets/github.svg" alt="" /><span>View on GitHub</span></a>`}
-        </div>
-      </article>`;
-    }).join("");
-
-    pagination.hidden = totalPages <= 1;
-    pageLabel.textContent = `Page ${currentPage} of ${totalPages}`;
-    prevBtn.disabled = currentPage <= 1;
-    nextBtn.disabled = currentPage >= totalPages;
+    pager.hidden = pages <= 1;
+    pageLabel.textContent = `Page ${page} of ${pages}`;
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= pages;
   }
-
-  osTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      osTabs.forEach((t) => { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
-      tab.classList.add("active");
-      tab.setAttribute("aria-selected", "true");
-      currentOS = tab.dataset.os;
-      currentPage = 1;
-      renderPage();
-    });
-  });
-
-  prevBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; renderPage(); window.scrollTo(0, 0); } });
-  nextBtn.addEventListener("click", () => { currentPage++; renderPage(); window.scrollTo(0, 0); });
 
   stableToggle.addEventListener("change", () => {
     stableOnly = stableToggle.checked;
-    currentPage = 1;
-    renderPage();
+    page = 1;
+    render();
   });
-
-  // Main tab switching (Versions / Installation)
-  const tabButtons = document.querySelectorAll(".releases-tabs .tab-button");
-  const tabContents = document.querySelectorAll(".releases-tabs .tab-content");
-  tabButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const tabName = button.dataset.tab;
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      tabContents.forEach((c) => c.classList.remove("active"));
-      button.classList.add("active");
-      document.querySelector(`.releases-tabs [data-tab="${tabName}"].tab-content`)?.classList.add("active");
-    });
-  });
+  prevBtn.addEventListener("click", () => { page -= 1; render(); window.scrollTo(0, listEl.offsetTop - 120); });
+  nextBtn.addEventListener("click", () => { page += 1; render(); window.scrollTo(0, listEl.offsetTop - 120); });
 
   (async function init() {
     try {
-      allReleases = await fetchAllReleases();
+      const res = await fetch("../releases.json", { cache: "no-cache" });
+      if (!res.ok) throw new Error(`Release manifest ${res.status}`);
+      const data = await res.json();
+      all = (Array.isArray(data) ? data : [])
+        .filter((r) => !r.draft)
+        .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
       loadingEl.classList.add("hidden");
-      renderPage();
+      render();
     } catch {
       loadingEl.classList.add("hidden");
       errorEl.classList.remove("hidden");

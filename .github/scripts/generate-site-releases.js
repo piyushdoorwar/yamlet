@@ -45,13 +45,14 @@ async function fetchReleases() {
     .map((release) => ({
       id: release.id,
       tag_name: release.tag_name,
+      name: release.name || release.tag_name,
+      // Container image tag published for this release (v1.2.3 -> 1.2.3).
+      image_tag: String(release.tag_name || "").replace(/^v(?=\d)/, ""),
+      // Release notes (markdown); rendered as the changelog on the site.
+      body: release.body || "",
       prerelease: release.prerelease,
       published_at: release.published_at,
       html_url: release.html_url,
-      assets: (release.assets || []).map((asset) => ({
-        name: asset.name,
-        browser_download_url: asset.browser_download_url,
-      })),
     }));
 }
 

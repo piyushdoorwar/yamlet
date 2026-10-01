@@ -1,177 +1,113 @@
-const linuxLink = document.querySelector("#linuxDownloadLink");
-const windowsLink = document.querySelector("#windowsDownloadLink");
-const heroDownloadLink = document.querySelector("#downloadLink");
-
-if (heroDownloadLink) heroDownloadLink.href = "#download";
-
-function enableDownload(link, url) {
-  if (!link) return;
-  link.href = url;
-  link.classList.remove("disabled");
-  link.removeAttribute("aria-disabled");
-}
-
-function linuxAsset(release) {
-  return release.assets.find((asset) => /_amd64\.deb$/i.test(asset.name));
-}
-
-function windowsAsset(release) {
-  return (
-    release.assets.find((asset) => /win-x64.*_setup\.exe$/i.test(asset.name)) ??
-    release.assets.find((asset) => /win-x64.*\.msix$/i.test(asset.name))
-  );
-}
-
-function latestAssetWithInstaller(releases, findAsset) {
-  for (const release of releases) {
-    const asset = findAsset(release);
-    if (asset?.browser_download_url) return asset;
-  }
-  return null;
-}
-
-async function hydrateDownloadLinks() {
-  try {
-    const response = await fetch("releases.json");
-    if (!response.ok) return;
-
-    const releases = await response.json();
-    const stableReleases = releases
-      .filter((item) => !item.draft && !item.prerelease && item.assets?.length)
-      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-
-    const linux = latestAssetWithInstaller(stableReleases, linuxAsset);
-    const windows = latestAssetWithInstaller(stableReleases, windowsAsset);
-
-    if (linux?.browser_download_url) enableDownload(linuxLink, linux.browser_download_url);
-    if (windows?.browser_download_url) enableDownload(windowsLink, windows.browser_download_url);
-  } catch {
-    // Keep the buttons disabled if GitHub is unreachable or matching assets are absent.
-  }
-}
-
-hydrateDownloadLinks();
-
-// ── Interactive API preview ───────────────────────────────────────────────
+/* Yamlet site — shared behaviour (nav, copy buttons, reveal, hero mock). */
 (function () {
-  const sendButton = document.getElementById("apiPreviewSend");
-  const responseEl = document.getElementById("apiPreviewResponse");
-  const pathEl = document.getElementById("apiPreviewPath");
-  const statusEl = document.getElementById("apiPreviewStatus");
-  const timeEl = document.getElementById("apiPreviewTime");
-  const sizeEl = document.getElementById("apiPreviewSize");
-  const resultEl = document.getElementById("apiPreviewResult");
-  const jsonEl = document.getElementById("apiPreviewJson");
-  const pageEl = document.getElementById("apiPreviewPage");
-  const prevButton = document.getElementById("apiPreviewPrev");
-  const nextButton = document.getElementById("apiPreviewNext");
+  "use strict";
 
-  if (!sendButton || !responseEl || !pathEl || !resultEl || !jsonEl || !pageEl || !prevButton || !nextButton) return;
-
-  const pages = [
-    [
-      { id: "course_pubpol", name: "MPhil in Public Policy", institutionName: "Cambridge University", isVisible: true },
-      { id: "course_analytics", name: "Product Analytics", institutionName: "Example Labs", isVisible: true },
-      { id: "course_dist_api", name: "Intro to Distributed APIs", institutionName: "Northwind School", isVisible: true },
-    ],
-    [
-      { id: "course_design", name: "Service Design Studio", institutionName: "Example Labs", isVisible: true },
-      { id: "course_ethics", name: "Data Ethics", institutionName: "Cambridge University", isVisible: true },
-      { id: "course_http", name: "HTTP Fundamentals", institutionName: "Northwind School", isVisible: true },
-    ],
-  ];
-
-  let pageIndex = 0;
-  let timer = null;
-
-  function setMeta(state) {
-    responseEl.dataset.state = state;
-    statusEl.textContent = state === "loaded" ? "200 OK" : state === "loading" ? "Sending" : "Ready";
-    timeEl.textContent = state === "loaded" ? "128 ms" : "-- ms";
-    sizeEl.textContent = state === "loaded" ? "1.8 KB" : "-- KB";
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function highlightJson(json) {
-    return escapeHtml(json).replace(
-      /("(?:\\.|[^"\\])*"(?=\s*:))|("(?:\\.|[^"\\])*")|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)/g,
-      (match, key, string, literal, number) => {
-        if (key) return `<span class="k">${key}</span>`;
-        if (string) return `<span class="s">${string}</span>`;
-        if (literal) return `<span class="n">${literal}</span>`;
-        if (number) return `<span class="n">${number}</span>`;
-        return match;
-      }
-    );
-  }
-
-  function renderPage() {
-    const body = {
-      page: pageIndex + 1,
-      pageSize: pages[pageIndex].length,
-      totalItems: pages.flat().length,
-      data: pages[pageIndex],
+  // Mobile navigation toggle
+  const topbar = document.querySelector(".topbar");
+  const toggle = document.querySelector(".nav-toggle");
+  if (topbar && toggle) {
+    const setOpen = (open) => {
+      topbar.classList.toggle("open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
     };
-
-    jsonEl.innerHTML = highlightJson(JSON.stringify(body, null, 2));
-    pathEl.textContent = `api/courses?page=${pageIndex + 1}`;
-    pageEl.textContent = `Page ${pageIndex + 1} of ${pages.length}`;
-    prevButton.disabled = pageIndex === 0;
-    nextButton.disabled = pageIndex === pages.length - 1;
+    toggle.addEventListener("click", () => setOpen(!topbar.classList.contains("open")));
+    topbar.querySelectorAll(".nav a").forEach((a) => a.addEventListener("click", () => setOpen(false)));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
   }
 
-  function showResponse() {
-    setMeta("loaded");
-    renderPage();
-    resultEl.hidden = false;
-    sendButton.disabled = false;
-    sendButton.textContent = "Send";
-  }
-
-  function sendPreviewRequest() {
-    window.clearTimeout(timer);
-    resultEl.hidden = true;
-    pageIndex = 0;
-    setMeta("loading");
-    sendButton.disabled = true;
-    sendButton.textContent = "Sending";
-    timer = window.setTimeout(showResponse, 380);
-  }
-
-  sendButton.addEventListener("click", sendPreviewRequest);
-  prevButton.addEventListener("click", () => {
-    if (pageIndex > 0) {
-      pageIndex -= 1;
-      renderPage();
+  // Copy-to-clipboard buttons (also used by releases.js for rendered blocks)
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch { ok = false; }
+      ta.remove();
+      return ok;
     }
-  });
-  nextButton.addEventListener("click", () => {
-    if (pageIndex < pages.length - 1) {
-      pageIndex += 1;
-      renderPage();
-    }
-  });
-})();
+  }
 
-// ── Scroll reveal ─────────────────────────────────────────────────────────
-(function () {
-  const obs = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("revealed");
-          obs.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.1 }
-  );
-  document.querySelectorAll("[data-reveal]").forEach((el) => obs.observe(el));
+  document.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".copy-btn");
+    if (!btn) return;
+    const text = btn.dataset.copy ?? btn.closest(".cmd")?.querySelector("code")?.innerText ?? "";
+    const ok = await copyText(text);
+    const label = btn.querySelector("span");
+    btn.classList.toggle("done", ok);
+    if (label) label.textContent = ok ? "Copied" : "Press Ctrl+C";
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => {
+      btn.classList.remove("done");
+      if (label) label.textContent = "Copy";
+    }, 1800);
+  });
+
+  // Scroll reveal
+  const revealEls = document.querySelectorAll("[data-reveal]");
+  if ("IntersectionObserver" in window) {
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // Also reveal anything already scrolled past (anchor jumps, reloads mid-page).
+          if (entry.isIntersecting || entry.boundingClientRect.top < 0) {
+            entry.target.classList.add("in");
+            obs.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08, rootMargin: "0px 0px -40px 0px" }
+    );
+    revealEls.forEach((el) => obs.observe(el));
+  } else {
+    revealEls.forEach((el) => el.classList.add("in"));
+  }
+
+  // Hero mock: variable hover peek + a pretend Send
+  const mock = document.getElementById("mock");
+  if (mock) {
+    const v = document.getElementById("mockVar");
+    const peek = mock.querySelector(".peek");
+    const send = document.getElementById("mockSend");
+    const resp = document.getElementById("mockResp");
+    const time = document.getElementById("mockTime");
+
+    const place = () => {
+      const m = mock.getBoundingClientRect();
+      const r = v.getBoundingClientRect();
+      const left = Math.max(8, Math.min(r.left - m.left, m.width - peek.offsetWidth - 8));
+      peek.style.left = left + "px";
+      peek.style.top = r.bottom - m.top + 8 + "px";
+    };
+    const show = () => { place(); mock.classList.add("peeking"); };
+    const hide = () => mock.classList.remove("peeking");
+
+    v.addEventListener("mouseenter", show);
+    v.addEventListener("mouseleave", hide);
+    window.addEventListener("resize", () => mock.classList.contains("peeking") && place());
+
+    // Briefly demonstrate the peek once the hero is visible.
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reduce) {
+      setTimeout(() => { show(); setTimeout(hide, 2600); }, 1100);
+    }
+
+    send.addEventListener("click", () => {
+      resp.classList.add("loading");
+      send.disabled = true;
+      setTimeout(() => {
+        time.textContent = 90 + Math.floor(Math.random() * 90) + " ms";
+        resp.classList.remove("loading");
+        send.disabled = false;
+      }, 420);
+    });
+  }
 })();

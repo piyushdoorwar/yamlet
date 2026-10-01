@@ -3,216 +3,177 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Yamlet privacy policy - local-first desktop API client, no account, no app telemetry, clear third-party disclosures."
-    />
+    <meta name="description" content="Yamlet privacy policy. Yamlet runs locally on your machine, has no account and sends no telemetry. This website uses privacy-friendly Cloudflare Web Analytics." />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#1c1b19" />
+    <meta name="theme-color" content="#FCFCFC" />
     <link rel="canonical" href="https://piyushdoorwar.github.io/yamlet/policy/" />
 
-    <meta property="og:type" content="article" />
+    <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Yamlet" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:title" content="Privacy Policy | Yamlet" />
-    <meta property="og:description" content="How Yamlet handles local data, network requests, credentials, and website analytics." />
+    <meta property="og:title" content="Yamlet privacy policy" />
+    <meta property="og:description" content="Yamlet runs locally, has no account and sends no telemetry. Your collections stay as YAML files on your disk." />
     <meta property="og:url" content="https://piyushdoorwar.github.io/yamlet/policy/" />
     <meta property="og:image" content="https://piyushdoorwar.github.io/yamlet/assets/social-card.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Yamlet, a local-first YAML API client" />
+    <meta property="og:image:alt" content="Yamlet, a local-first API client for Git-friendly YAML collections" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Privacy Policy | Yamlet" />
-    <meta name="twitter:description" content="How Yamlet handles local data, network requests, credentials, and website analytics." />
+    <meta name="twitter:title" content="Yamlet privacy policy" />
+    <meta name="twitter:description" content="Yamlet runs locally, has no account and sends no telemetry. Your collections stay as YAML files on your disk." />
     <meta name="twitter:image" content="https://piyushdoorwar.github.io/yamlet/assets/social-card.png" />
-    <meta name="twitter:image:alt" content="Yamlet, a local-first YAML API client" />
+    <meta name="twitter:image:alt" content="Yamlet, a local-first API client for Git-friendly YAML collections" />
 
     <title>Privacy Policy | Yamlet</title>
     <link rel="icon" href="../assets/yamlet.svg" type="image/svg+xml" />
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #1c1b19;
-        --panel: #232220;
-        --panel-2: #2b2926;
-        --line: #3c3a35;
-        --muted: #8a877d;
-        --text: #f5f4ef;
-        --soft: #dedad5;
-        --accent: #4ca877;
-        --accent-bright: #5dba88;
-        --accent-glow: rgba(76, 168, 119, 0.12);
-        --warn: #d6a84f;
-        --warn-glow: rgba(214, 168, 79, 0.12);
-      }
-      * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
-      body {
-        margin: 0;
-        min-width: 320px;
-        background: var(--bg);
-        color: var(--text);
-        font-family: Inter, Cantarell, Ubuntu, "Segoe UI", sans-serif;
-        line-height: 1.6;
-      }
-      img { pointer-events: none; user-select: none; -webkit-user-drag: none; }
-      a { color: var(--accent-bright); text-decoration: none; }
-      a:hover { color: var(--text); }
-      h1, h2, h3, p { margin-top: 0; }
-
-      .topbar {
-        position: sticky; top: 0; z-index: 10;
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 24px; min-height: 64px;
-        padding: 0 clamp(18px, 5vw, 64px);
-        background: rgba(28, 27, 25, 0.92);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-        backdrop-filter: blur(16px);
-      }
-      .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font-weight: 800; }
-      .brand img { width: 30px; height: 30px; }
-      nav { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: clamp(12px, 3vw, 28px); color: var(--soft); font-size: 14px; }
-      .icon-link { display: inline-flex; align-items: center; gap: 7px; }
-      .icon-link img { width: 16px; height: 16px; flex: 0 0 auto; filter: brightness(0) invert(1); opacity: 0.9; }
-      nav a:hover { color: var(--text); }
-
-      .page-inner { max-width: 900px; margin: 0 auto; padding: clamp(40px, 7vw, 80px) clamp(18px, 5vw, 48px) 80px; }
-      .page-hero { margin-bottom: clamp(28px, 5vw, 48px); padding-bottom: clamp(20px, 4vw, 36px); border-bottom: 1px solid var(--line); }
-      .eyebrow { margin: 0 0 10px; color: var(--accent-bright); font-size: 13px; font-weight: 800; text-transform: uppercase; }
-      .page-hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1; margin: 0 0 12px; }
-      .page-hero p { color: var(--muted); margin: 0; }
-      .updated { font-size: 13px; color: var(--muted); margin-top: 10px; }
-
-      section.card {
-        margin-bottom: 18px; padding: 22px 24px;
-        background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-      }
-      section.card h2 { font-size: 20px; margin: 0 0 10px; }
-      section.card p { color: var(--soft); margin: 0 0 10px; }
-      section.card p:last-child { margin-bottom: 0; }
-      ul { margin: 0; padding-left: 20px; color: var(--soft); }
-      li { margin-bottom: 6px; }
-      code { font-family: "Cascadia Code", "Ubuntu Mono", monospace; color: var(--accent-bright); }
-
-      .callout { border-left: 3px solid var(--accent); background: var(--accent-glow); }
-      .callout.warn { border-left-color: var(--warn); background: var(--warn-glow); }
-
-      footer {
-        display: flex; justify-content: space-between; align-items: center; gap: 16px;
-        padding: 24px clamp(18px, 5vw, 64px); color: var(--muted); border-top: 1px solid var(--line);
-      }
-      .footer-links { display: flex; align-items: center; gap: 20px; }
-      footer a { color: var(--soft); }
-      footer a:hover { color: var(--text); }
-      .github-link { display: inline-flex; align-items: center; gap: 7px; }
-      .github-link img { width: 16px; height: 16px; filter: brightness(0) invert(1); opacity: 0.9; }
-      @media (max-width: 620px) {
-        .topbar { flex-direction: column; align-items: flex-start; padding-top: 14px; padding-bottom: 14px; }
-        nav { width: 100%; justify-content: flex-start; gap: 12px 18px; }
-        footer { flex-direction: column; align-items: flex-start; }
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="../styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="topbar">
-      <a class="brand" href="../" aria-label="Yamlet home">
-        <img src="../assets/yamlet.svg" alt="" />
-        <span>Yamlet</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a class="icon-link" href="../#features"><img src="../assets/features.svg" alt="" /><span>Features</span></a>
-        <a class="icon-link" href="../#download"><img src="../assets/download.svg" alt="" /><span>Download</span></a>
-        <a class="icon-link" href="../releases/"><img src="../assets/releases.svg" alt="" /><span>Releases</span></a>
-        <a class="icon-link" href="./" aria-current="page"><img src="../assets/policy.svg" alt="" /><span>Privacy</span></a>
-        <a class="github-link icon-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer"><img src="../assets/github.svg" alt="" /><span>GitHub</span></a>
-      </nav>
+      <div class="wrap">
+        <a class="brand" href="../" aria-label="Yamlet home">
+          <img src="../assets/yamlet.svg" alt="" width="30" height="30" />
+          <span>Yamlet</span>
+        </a>
+        <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav">
+          <svg class="ic i-menu" aria-hidden="true"><use href="../assets/icons.svg#i-menu" /></svg>
+          <svg class="ic i-close" aria-hidden="true"><use href="../assets/icons.svg#i-close" /></svg>
+        </button>
+        <nav class="nav" id="site-nav" aria-label="Primary">
+          <a href="../#get-started">Get started</a>
+          <a href="../#features">Features</a>
+          <a href="../#cli">CLI</a>
+          <a href="../releases/">Releases</a>
+          <a href="./" aria-current="page">Privacy</a>
+          <a class="nav-gh" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+            <svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-github" /></svg>
+            <span>GitHub</span>
+          </a>
+        </nav>
+      </div>
     </header>
 
-    <main class="page-inner">
-      <div class="page-hero">
-        <p class="eyebrow">Privacy</p>
-        <h1>Privacy Policy</h1>
-        <p>Yamlet is a local-first desktop API client. It has no account, no sign-in, and collects no usage analytics.</p>
-        <p class="updated">Last updated: 24 May 2026</p>
+    <main id="main">
+      <section class="page-hero">
+        <div class="wrap narrow">
+          <span class="eyebrow">Privacy</span>
+          <h1>Privacy policy</h1>
+          <p>Yamlet runs on your machine. There is no account, no cloud service and no telemetry. Your API collections never leave your disk unless you send them somewhere yourself.</p>
+          <p class="updated">Last updated 1 October 2026</p>
+        </div>
+      </section>
+
+      <div class="page-body">
+        <div class="wrap narrow">
+          <section class="prose-card callout">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-shield" /></svg>The short version</h2>
+            <ul>
+              <li>The Yamlet app collects nothing about you and phones home to no one.</li>
+              <li>Your collections, environments and globals are plain YAML files in the folder you mount.</li>
+              <li>The only network traffic the app makes is the requests you choose to send, plus any OAuth token requests you configure.</li>
+              <li>This website uses Cloudflare Web Analytics, which does not use cookies or track you across sites.</li>
+            </ul>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-box" /></svg>The Yamlet app</h2>
+            <p>
+              Yamlet is a web app you run yourself from a Docker container. The container serves the
+              interface to your browser at <code>http://localhost:7878</code> and reads and writes files in
+              the workspace folder you mount at <code>/workspace</code>. The recommended command binds the
+              port to <code>127.0.0.1</code>, so the app is reachable only from your own machine.
+            </p>
+            <p>The app contains no analytics, crash reporting, update checks or usage tracking, and it does not require or offer an account.</p>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-file" /></svg>Where your data lives</h2>
+            <ul>
+              <li><strong>Collections, requests, folders, environments and globals</strong> are saved as YAML in your workspace folder. You decide whether to commit them to Git and where to push them.</li>
+              <li><strong>Interface preferences</strong> such as open tabs, the selected environment and layout choices are stored locally, either in your browser or alongside the container on your machine.</li>
+              <li><strong>Secrets</strong> such as tokens, passwords and API keys are stored wherever you put them. If they sit in an environment file that you commit, they will be in your repository, so keep sensitive values in a local, uncommitted environment.</li>
+            </ul>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-globe" /></svg>Network requests the app makes</h2>
+            <p>Yamlet only contacts the servers you point it at:</p>
+            <ul>
+              <li>The API requests you send, from the editor, the collection runner or the CLI.</li>
+              <li>OAuth 2.0 token and authorization endpoints that you configure for a collection or request.</li>
+              <li>Anything your own pre-request or post-response scripts call.</li>
+            </ul>
+            <p>Requests go directly from the container (or the CLI process) to those servers. Nothing is proxied through a Yamlet service, because there is no Yamlet service.</p>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-terminal" /></svg>The command-line tool</h2>
+            <p>
+              The <code>yamlet</code> CLI from npm runs your workspace headlessly, for example in CI. It reads
+              the same YAML files, sends the requests in them and prints results to your terminal or a
+              report file. Like the app, it has no telemetry. Installing it goes through the npm registry,
+              which is subject to npm's own policies.
+            </p>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-chart" /></svg>This website</h2>
+            <p>
+              This site is static and hosted on GitHub Pages. It uses <strong>Cloudflare Web Analytics</strong> to
+              count page views. It does not set cookies, does not use local storage for tracking and does not
+              fingerprint visitors; it records aggregate figures such as page path, referrer, country and
+              browser type. Fonts are loaded from Google Fonts.
+            </p>
+            <p>
+              GitHub, Cloudflare and Google may process standard request data such as your IP address when
+              they deliver this site to you, under their own privacy policies. Pulling the container image
+              from <code>ghcr.io</code> is handled by GitHub in the same way.
+            </p>
+          </section>
+
+          <section class="prose-card">
+            <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-mail" /></svg>Contact</h2>
+            <p>
+              Questions about this policy, or found something that does not match it? Open an issue on
+              <a href="https://github.com/piyushdoorwar/yamlet/issues" rel="noreferrer">GitHub</a> or email
+              <a href="mailto:piyushdoorwar+yamlet@gmail.com">piyushdoorwar+yamlet@gmail.com</a>.
+            </p>
+            <p>If this policy changes, the new version will be published on this page with an updated date.</p>
+          </section>
+        </div>
       </div>
-
-      <section class="card callout">
-        <h2>The short version</h2>
-        <p>
-          Yamlet stores your collections, requests and environments as plain YAML files on your own
-          machine. It does not send your data anywhere except to the API endpoints <em>you</em> choose to
-          call. There is no telemetry, no tracking, and no account.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2>What Yamlet stores, and where</h2>
-        <ul>
-          <li><strong>Your workspace</strong> — collections, requests, environments and globals — is read from and written to YAML files in the folder you open. Yamlet never uploads it.</li>
-          <li><strong>Local app cache</strong> — a small JSON file in your user app-data directory records recently opened workspaces and, per workspace, your open tabs, active tab and selected environment, so your session restores on reopen. It stays on your device.</li>
-          <li><strong>Secrets</strong> — tokens, client secrets and other credentials you enter live in your workspace YAML and/or the active environment, on disk. Treat those files accordingly (for example, keep secrets out of version control).</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>Network activity</h2>
-        <p>Yamlet only makes network connections that you initiate:</p>
-        <ul>
-          <li><strong>Sending a request</strong> contacts exactly the URL you configured, with the headers, body and auth you set. Every request includes a <code>User-Agent: Yamlet/1.0.0</code> header.</li>
-          <li><strong>OAuth 2.0</strong> contacts the token and authorization endpoints you configure (for example your identity provider). For the authorization-code flow, Yamlet opens your system browser and listens on a temporary local <code>127.0.0.1</code> address to receive the redirect — nothing leaves your machine beyond the provider you specified.</li>
-          <li>Yamlet does <strong>not</strong> phone home, check for updates automatically, or send diagnostics.</li>
-        </ul>
-      </section>
-
-      <section class="card">
-        <h2>This website</h2>
-        <p>
-          This marketing site is hosted on GitHub Pages and the <strong>Download</strong> and
-          <strong>Releases</strong> links point to GitHub Releases. When you visit the site or download a
-          build, your request is handled by GitHub, whose own data practices apply. The site sets no
-          cookies and embeds no advertising trackers.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2>Third parties</h2>
-        <ul>
-          <li><strong>GitHub</strong> — hosts the source, the release downloads and this site (<a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" rel="noreferrer">GitHub Privacy Statement</a>).</li>
-          <li><strong>API endpoints &amp; identity providers you configure</strong> — receive the requests and OAuth calls you make through Yamlet. Their handling of that data is governed by their own policies.</li>
-        </ul>
-      </section>
-
-      <section class="card callout warn">
-        <h2>Your responsibility for secrets</h2>
-        <p>
-          Because everything is local YAML, you control your credentials. Avoid committing files
-          containing real tokens or secrets to shared repositories, and prefer environment variables for
-          sensitive values.
-        </p>
-      </section>
-
-      <section class="card">
-        <h2>Contact</h2>
-        <p>
-          Questions about privacy, or anything else? Email
-          <a href="mailto:piyushdoorwar+yamlet@gmail.com">piyushdoorwar+yamlet@gmail.com</a>
-          or open an issue on
-          <a href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">GitHub</a>.
-        </p>
-      </section>
     </main>
 
-    <footer>
-      <span>Yamlet</span>
-      <div class="footer-links">
-        <a class="icon-link" href="../releases/"><img src="../assets/releases.svg" alt="" /><span>Releases</span></a>
-        <a class="icon-link" href="./" aria-current="page"><img src="../assets/policy.svg" alt="" /><span>Privacy</span></a>
-        <a class="github-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer"><img src="../assets/github.svg" alt="" /><span>GitHub</span></a>
+    <footer class="footer">
+      <div class="wrap">
+        <div>
+          <a class="brand" href="../">
+            <img src="../assets/yamlet.svg" alt="" width="26" height="26" />
+            <span>Yamlet</span>
+          </a>
+          <p>A local-first API client for Git-friendly YAML collections.</p>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="../releases/"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-tag" /></svg>Releases</a>
+          <a href="./"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-shield" /></svg>Privacy</a>
+          <a href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-github" /></svg>GitHub</a>
+          <a href="https://www.npmjs.com/package/yamlet" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-terminal" /></svg>npm</a>
+          <a href="https://github.com/piyushdoorwar/yamlet/issues" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-mail" /></svg>Support</a>
+        </nav>
       </div>
     </footer>
 
-    <script src="../image-guard.js"></script>
+    <script src="../app.js"></script>
+    <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "e9cd556fb46f4880a8842d37e2dfe3fb"}'></script><!-- End Cloudflare Web Analytics -->
   </body>
 </html>

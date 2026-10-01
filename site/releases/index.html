@@ -3,195 +3,170 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Download current and previous Yamlet releases for Linux and Windows, with installation instructions for each platform." />
+    <meta name="description" content="Yamlet releases: container image tags on ghcr.io and the changelog for every version of the local-first YAML API client." />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#1c1b19" />
+    <meta name="theme-color" content="#FCFCFC" />
     <link rel="canonical" href="https://piyushdoorwar.github.io/yamlet/releases/" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Yamlet" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:title" content="Download Yamlet for Linux and Windows" />
-    <meta property="og:description" content="Browse Yamlet releases and installation instructions for Linux and Windows." />
+    <meta property="og:title" content="Yamlet releases and changelog" />
+    <meta property="og:description" content="Container image tags and release notes for every version of Yamlet." />
     <meta property="og:url" content="https://piyushdoorwar.github.io/yamlet/releases/" />
     <meta property="og:image" content="https://piyushdoorwar.github.io/yamlet/assets/social-card.png" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Yamlet, a local-first YAML API client" />
+    <meta property="og:image:alt" content="Yamlet, a local-first API client for Git-friendly YAML collections" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Download Yamlet for Linux and Windows" />
-    <meta name="twitter:description" content="Browse Yamlet releases and installation instructions for Linux and Windows." />
+    <meta name="twitter:title" content="Yamlet releases and changelog" />
+    <meta name="twitter:description" content="Container image tags and release notes for every version of Yamlet." />
     <meta name="twitter:image" content="https://piyushdoorwar.github.io/yamlet/assets/social-card.png" />
-    <meta name="twitter:image:alt" content="Yamlet, a local-first YAML API client" />
+    <meta name="twitter:image:alt" content="Yamlet, a local-first API client for Git-friendly YAML collections" />
 
-    <title>Download Yamlet for Linux and Windows | Releases</title>
+    <title>Releases and Changelog | Yamlet</title>
     <link rel="icon" href="../assets/yamlet.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    />
     <link rel="stylesheet" href="../styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="topbar">
-      <a class="brand" href="../" aria-label="Yamlet home">
-        <img src="../assets/yamlet.svg" alt="" />
-        <span>Yamlet</span>
-      </a>
-      <nav aria-label="Primary navigation">
-        <a class="icon-link" href="../#features">
-          <img src="../assets/features.svg" alt="" />
-          <span>Features</span>
+      <div class="wrap">
+        <a class="brand" href="../" aria-label="Yamlet home">
+          <img src="../assets/yamlet.svg" alt="" width="30" height="30" />
+          <span>Yamlet</span>
         </a>
-        <a class="icon-link" href="../#download">
-          <img src="../assets/download.svg" alt="" />
-          <span>Download</span>
-        </a>
-        <a class="icon-link" href="../releases" aria-current="page">
-          <img src="../assets/releases.svg" alt="" />
-          <span>Releases</span>
-        </a>
-        <a class="icon-link" href="../policy/">
-          <img src="../assets/policy.svg" alt="" />
-          <span>Privacy</span>
-        </a>
-        <a class="github-link icon-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
-          <img src="../assets/github.svg" alt="" />
-          <span>GitHub</span>
-        </a>
-      </nav>
+        <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="site-nav">
+          <svg class="ic i-menu" aria-hidden="true"><use href="../assets/icons.svg#i-menu" /></svg>
+          <svg class="ic i-close" aria-hidden="true"><use href="../assets/icons.svg#i-close" /></svg>
+        </button>
+        <nav class="nav" id="site-nav" aria-label="Primary">
+          <a href="../#get-started">Get started</a>
+          <a href="../#features">Features</a>
+          <a href="../#cli">CLI</a>
+          <a href="./" aria-current="page">Releases</a>
+          <a href="../policy/">Privacy</a>
+          <a class="nav-gh" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
+            <svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-github" /></svg>
+            <span>GitHub</span>
+          </a>
+        </nav>
+      </div>
     </header>
 
-    <main class="releases-main">
-      <div class="releases-header">
-        <div>
-          <p class="eyebrow">All versions</p>
-          <h1 class="releases-title">Releases</h1>
-          <p class="releases-subtitle">Download any previous release. Stable builds are listed by default.</p>
+    <main id="main">
+      <section class="page-hero">
+        <div class="wrap">
+          <span class="eyebrow">Releases</span>
+          <h1>Image tags and changelog</h1>
+          <p>
+            Every release is published as a container image on
+            <code>ghcr.io/piyushdoorwar/yamlet</code>. Use <code>latest</code> to stay current, or pin
+            a version tag for a reproducible setup.
+          </p>
         </div>
+      </section>
 
-        <div class="releases-filters">
-          <div class="os-tabs" role="tablist" aria-label="Filter by operating system">
-            <button class="os-tab active" role="tab" aria-selected="true"  data-os="all"     aria-controls="releases-items">All</button>
-            <button class="os-tab"        role="tab" aria-selected="false" data-os="linux"   aria-controls="releases-items">
-              <img src="../assets/ubuntu.svg" alt="" /> Linux
-            </button>
-            <button class="os-tab"        role="tab" aria-selected="false" data-os="windows" aria-controls="releases-items">
-              <img src="../assets/windows.svg" alt="" /> Windows
-            </button>
+      <div class="page-body">
+        <div class="wrap">
+          <div class="rel-top">
+            <div class="note">
+              <h3><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-box" /></svg>Run the latest image</h3>
+              <p>Start it from your workspace folder, then open <a href="http://localhost:7878" rel="noreferrer">http://localhost:7878</a>.</p>
+              <div class="cmd">
+                <pre><code><span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy docker run command">
+                  <svg class="ic i-copy" aria-hidden="true"><use href="../assets/icons.svg#i-copy" /></svg>
+                  <svg class="ic i-check" aria-hidden="true"><use href="../assets/icons.svg#i-check" /></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+            <div class="note">
+              <h3><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-history" /></svg>Update an existing container</h3>
+              <p>Pull the new image, remove the old container and run the command again. Your YAML stays in your folder.</p>
+              <div class="cmd">
+                <pre><code><span class="prompt">$ </span>docker pull ghcr.io/piyushdoorwar/yamlet:latest
+<span class="prompt">$ </span>docker rm -f yamlet</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker pull ghcr.io/piyushdoorwar/yamlet:latest&#10;docker rm -f yamlet" aria-label="Copy update commands">
+                  <svg class="ic i-copy" aria-hidden="true"><use href="../assets/icons.svg#i-copy" /></svg>
+                  <svg class="ic i-check" aria-hidden="true"><use href="../assets/icons.svg#i-check" /></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <span class="releases-filters-sep" aria-hidden="true"></span>
-          <label class="stable-toggle" for="stableOnlyToggle">
-            <input type="checkbox" id="stableOnlyToggle" checked />
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            <span class="toggle-label">Stable only</span>
-          </label>
-        </div>
-      </div>
 
-      <div class="releases-tabs">
-        <div class="tab-buttons">
-          <button class="tab-button active" data-tab="versions">Versions</button>
-          <button class="tab-button" data-tab="installation">Installation</button>
-        </div>
-
-        <!-- Versions tab -->
-        <div class="tab-content active" data-tab="versions">
-          <div id="releases-loading" class="releases-state">
-            <span class="spinner" aria-hidden="true"></span>
-            <span>Fetching releases…</span>
+          <div class="rel-toolbar">
+            <h2>All versions</h2>
+            <label class="toggle">
+              <input type="checkbox" id="stableOnly" checked />
+              <span class="track" aria-hidden="true"></span>
+              <span>Stable releases only</span>
+            </label>
           </div>
-          <div id="releases-error" class="releases-state hidden">
-            Could not load releases.
-            <a class="github-link" href="https://github.com/piyushdoorwar/yamlet/releases" rel="noreferrer">
-              <img src="../assets/github.svg" alt="" />
-              <span>View on GitHub</span>
+
+          <div class="state" id="rel-loading">
+            <p>Loading releases...</p>
+          </div>
+          <div class="state hidden" id="rel-error">
+            <h3>Could not load the release list</h3>
+            <p>The full history is always available on GitHub.</p>
+            <a class="btn btn-secondary" href="https://github.com/piyushdoorwar/yamlet/releases" rel="noreferrer">
+              <svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-github" /></svg>
+              <span>Open GitHub releases</span>
             </a>
           </div>
-          <div id="releases-empty" class="releases-state hidden">
-            No releases found for this platform yet.
+          <div class="state hidden" id="rel-empty">
+            <h3>No releases published yet</h3>
+            <p>Until the first tagged release, run the <code>latest</code> image shown above.</p>
+            <a class="btn btn-secondary" href="https://github.com/piyushdoorwar/yamlet/pkgs/container/yamlet" rel="noreferrer">
+              <svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-box" /></svg>
+              <span>View the container package</span>
+            </a>
           </div>
-          <div id="releases-items"></div>
 
-          <nav class="pagination" id="pagination" aria-label="Releases pagination" hidden>
-            <button id="page-prev" class="page-btn" aria-label="Previous page" disabled>← Prev</button>
-            <span id="page-label" class="page-label"></span>
-            <button id="page-next" class="page-btn" aria-label="Next page">Next →</button>
-          </nav>
-        </div>
+          <div class="rel-list" id="rel-list" aria-live="polite"></div>
 
-        <!-- Installation tab -->
-        <div class="tab-content" data-tab="installation">
-          <div class="installation-guide">
-            <div class="install-method">
-              <h3>Linux (Debian / Ubuntu) – .deb</h3>
-              <p>Download the <code>.deb</code> from the Versions tab, then install it:</p>
-              <pre><code>sudo apt install ~/Downloads/yamlet_*_amd64.deb</code></pre>
-              <p class="install-note">The build is self-contained — no separate .NET runtime is required.</p>
-            </div>
-
-            <div class="install-method">
-              <h3>Windows – .exe installer</h3>
-              <p>Download the <code>.exe</code> installer from the Versions tab and run it. Self-contained; no extra runtime needed.</p>
-            </div>
-
-            <div class="install-method">
-              <h3>Windows – .msix package</h3>
-              <p>Prefer MSIX? Download the <code>.msix</code> from the Versions tab. It ships unsigned, so install it with a trusted certificate or via <code>Add-AppxPackage</code> in a developer environment.</p>
-            </div>
+          <div class="pager" id="pager" hidden>
+            <button class="btn btn-secondary" id="page-prev" type="button">Newer</button>
+            <span id="page-label"></span>
+            <button class="btn btn-secondary" id="page-next" type="button">Older</button>
           </div>
         </div>
       </div>
     </main>
 
-    <footer>
-      <span>Yamlet</span>
-      <div class="footer-links">
-        <a class="icon-link" href="./" aria-current="page">
-          <img src="../assets/releases.svg" alt="" />
-          <span>Releases</span>
-        </a>
-        <a class="icon-link" href="../policy/">
-          <img src="../assets/policy.svg" alt="" />
-          <span>Privacy</span>
-        </a>
-        <a class="github-link" href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer">
-          <img src="../assets/github.svg" alt="" />
-          <span>GitHub</span>
-        </a>
-        <button class="footer-support-link icon-link" id="footerSupportBtnReleases">
-          <img src="../assets/support.svg" alt="" />
-          <span>Support</span>
-        </button>
+    <footer class="footer">
+      <div class="wrap">
+        <div>
+          <a class="brand" href="../">
+            <img src="../assets/yamlet.svg" alt="" width="26" height="26" />
+            <span>Yamlet</span>
+          </a>
+          <p>A local-first API client for Git-friendly YAML collections.</p>
+        </div>
+        <nav class="footer-links" aria-label="Footer">
+          <a href="./"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-tag" /></svg>Releases</a>
+          <a href="../policy/"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-shield" /></svg>Privacy</a>
+          <a href="https://github.com/piyushdoorwar/yamlet" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-github" /></svg>GitHub</a>
+          <a href="https://www.npmjs.com/package/yamlet" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-terminal" /></svg>npm</a>
+          <a href="https://github.com/piyushdoorwar/yamlet/issues" rel="noreferrer"><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-mail" /></svg>Support</a>
+        </nav>
       </div>
     </footer>
 
-    <div class="modal-backdrop hidden" id="supportModalReleases" role="dialog" aria-modal="true" aria-labelledby="supportModalTitleReleases">
-      <div class="modal-box">
-        <div class="modal-header">
-          <p class="eyebrow" style="margin:0">Support and issues</p>
-          <button class="modal-close" aria-label="Close support dialog" id="closeSupportReleases">✕</button>
-        </div>
-        <h2 id="supportModalTitleReleases" class="modal-title">Need help with Yamlet?</h2>
-        <p class="modal-body">
-          Found a bug or have feedback? Open an issue on GitHub, or send an email and include your OS,
-          Yamlet version, and a short note about what happened.
-        </p>
-        <a class="button secondary large email-link" href="mailto:piyushdoorwar+yamlet@gmail.com">
-          <img src="../assets/mail.svg" alt="" />
-          <span>piyushdoorwar+yamlet@gmail.com</span>
-        </a>
-      </div>
-    </div>
-
-    <script src="../image-guard.js"></script>
+    <script src="../app.js"></script>
     <script src="releases.js"></script>
-    <script>
-      const btn = document.getElementById("footerSupportBtnReleases");
-      const modal = document.getElementById("supportModalReleases");
-      const closeBtn = document.getElementById("closeSupportReleases");
-      btn.addEventListener("click", () => { modal.classList.remove("hidden"); document.body.style.overflow = "hidden"; });
-      closeBtn.addEventListener("click", () => { modal.classList.add("hidden"); document.body.style.overflow = ""; });
-      modal.addEventListener("click", e => { if (e.target === modal) { modal.classList.add("hidden"); document.body.style.overflow = ""; } });
-      document.addEventListener("keydown", e => { if (e.key === "Escape" && !modal.classList.contains("hidden")) { modal.classList.add("hidden"); document.body.style.overflow = ""; } });
-    </script>
+    <!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "e9cd556fb46f4880a8842d37e2dfe3fb"}'></script><!-- End Cloudflare Web Analytics -->
   </body>
 </html>
