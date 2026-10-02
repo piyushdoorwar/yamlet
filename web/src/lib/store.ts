@@ -74,6 +74,8 @@ interface State {
   openTab: (tab: Tab, opts?: { replacePreview?: boolean }) => void;
   closeTab: (key: string) => void;
   closeOtherTabs: (key: string) => void;
+  closeTabsToRight: (key: string) => void;
+  closeAllTabs: () => void;
   setActive: (key: string) => void;
   moveTab: (from: number, to: number) => void;
 
@@ -210,6 +212,23 @@ export const useStore = create<State>((set, get) => ({
     const s = get();
     for (const t of s.tabs) if (t.kind === "request" && tabKey(t) !== key) void get().saveNow(t.id);
     set({ tabs: s.tabs.filter((t) => tabKey(t) === key), active: key });
+    persistSession({ ...get() });
+  },
+
+  closeTabsToRight: (key) => {
+    const s = get();
+    const idx = s.tabs.findIndex((t) => tabKey(t) === key);
+    if (idx < 0) return;
+    const closing = s.tabs.slice(idx + 1);
+    for (const t of closing) if (t.kind === "request") void get().saveNow(t.id);
+    const tabs = s.tabs.slice(0, idx + 1);
+    set({ tabs, active: tabs.some((t) => tabKey(t) === s.active) ? s.active : key });
+    persistSession({ ...get() });
+  },
+
+  closeAllTabs: () => {
+    for (const t of get().tabs) if (t.kind === "request") void get().saveNow(t.id);
+    set({ tabs: [], active: null });
     persistSession({ ...get() });
   },
 
