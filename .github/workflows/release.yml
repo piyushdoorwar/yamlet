@@ -1,5 +1,6 @@
-# On a v* tag: publish versioned container images, publish the CLI to npm, and
-# create the GitHub release (which the site's releases page reads).
+# On a v* tag (pushed with git, or created by publishing a release in the GitHub
+# UI): publish versioned container images, publish the CLI to npm, and create the
+# GitHub release if it doesn't exist yet (the site's releases page reads it).
 #   ghcr.io/piyushdoorwar/yamlet:1.2.3, :1.2, :1 and :latest (pre-releases
 #   such as v1.3.0-beta.1 only get their exact version tag)
 #   npm install -g @piyushdoorwar/yamlet@1.2.3
@@ -84,5 +85,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Publishing a release from the GitHub UI creates the tag that started this
+          # run, so the release may already exist; leave it as written.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving it as is."
+            exit 0
+          fi
           PRERELEASE=""; case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease";; esac
           gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag $PRERELEASE
