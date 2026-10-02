@@ -142,3 +142,17 @@ describe("codegen", () => {
     expect(s).toContain("writer.FormDataContentType()");
   });
 });
+
+describe("QUERY snippets", () => {
+  it("keeps the body and uses -CustomMethod for PowerShell", async () => {
+    const { buildRequest } = await import("../src/requestBuilder.js");
+    const { generateSnippet } = await import("../src/codegen.js");
+    const { newRequest, defaultBody } = await import("../src/models.js");
+    const built = buildRequest(newRequest({ method: "QUERY", url: "https://api.test/search", body: { ...defaultBody(), type: "json", raw: '{"q":1}' } }), { ctx: {} });
+    expect(built.method).toBe("QUERY");
+    expect(built.body).toMatchObject({ kind: "text", text: '{"q":1}' });
+    expect(generateSnippet("curl", built)).toContain("--request QUERY");
+    expect(generateSnippet("powershell", built)).toContain("-CustomMethod 'QUERY'");
+    expect(generateSnippet("powershell", { ...built, method: "GET" })).toContain("-Method 'GET'");
+  });
+});

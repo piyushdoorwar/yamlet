@@ -321,7 +321,8 @@ export function newEnvironment(partial: Partial<YamletEnvironment> = {}): Yamlet
   return { id: newId(), name: "New Environment", variables: [], ...partial };
 }
 
-export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
+/** QUERY is the safe, idempotent method that carries a body (like GET with a search payload). */
+export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "QUERY", "HEAD", "OPTIONS"] as const;
 
 /** The User-Agent every request carries; shown as a locked header row in the UI. */
 export const YAMLET_USER_AGENT = "Yamlet/1.0.0";

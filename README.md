@@ -48,7 +48,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   `{{variable}}` highlighting. Hover a variable to see its value and edit it in place.
   Dynamic values such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}` are built
   in; type `{{$` for the full list.
-- **Requests.** Query and `:path` params, headers, and bodies as JSON, XML, text, HTML,
+- **Requests.** Every HTTP method, including the new `QUERY` (a safe method with a body), or
+  any custom verb. Query and `:path` params, headers, and bodies as JSON, XML, text, HTML,
   form-data (with files), urlencoded, GraphQL or binary. Per-request timeout, redirects
   and SSL settings. Paste a cURL command into the URL box to import it.
 - **Auth.** Bearer, Basic, API key, cookie, and OAuth 2.0 (client credentials, password,
@@ -158,9 +159,10 @@ samples/  a ready-to-run workspace
 
 ## Releases
 
-Every push to `main` publishes `ghcr.io/piyushdoorwar/yamlet:latest`. Pushing a `v1.2.3`
-tag publishes the `1.2.3` / `1.2` / `1` images, the `@piyushdoorwar/yamlet` CLI on npm, and a GitHub
-release.
+Pushes to `main` are tested but not published. Pushing a `v1.2.3` tag publishes the
+`1.2.3` / `1.2` / `1` / `latest` images, the `@piyushdoorwar/yamlet` CLI on npm, and a
+GitHub release. Pre-release tags such as `v1.3.0-beta.1` publish only that exact version
+(npm tag `next`) and leave `latest` alone.
 
 The last version of the earlier .NET desktop app is tagged `dotnet-final`.
 

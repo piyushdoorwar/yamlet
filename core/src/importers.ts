@@ -297,7 +297,8 @@ export function importEnvironmentJson(json: unknown): YamletEnvironment {
 // ---------------------------------------------------------------------------
 // OpenAPI 3.x / Swagger 2.0
 
-const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
+// OpenAPI 3.2 adds `query` for the QUERY method.
+const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"] as const;
 
 class RefResolver {
   constructor(private readonly doc: Obj) {}

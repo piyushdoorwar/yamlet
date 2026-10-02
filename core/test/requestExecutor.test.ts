@@ -4,7 +4,7 @@ import path from "node:path";
 import { FormData, MockAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CookieJar } from "../src/cookieJar.js";
-import { defaultAuth, newCollection, newEnvironment, newRequest, type Variable } from "../src/models.js";
+import { defaultAuth, defaultBody, newCollection, newEnvironment, newRequest, type Variable } from "../src/models.js";
 import { clearTokenCache } from "../src/oauth2.js";
 import { execute, type ExecuteInput } from "../src/requestExecutor.js";
 
@@ -358,5 +358,24 @@ describe("transport error messages", () => {
     );
     expect(errMessage(Object.assign(new Error(""), { code: "UND_ERR_CONNECT_TIMEOUT" }))).toBe("UND_ERR_CONNECT_TIMEOUT: connection timed out");
     expect(errMessage({})).toMatch(/without an error message/);
+  });
+});
+
+describe("QUERY method", () => {
+  it("sends QUERY with its body, and keeps both across a 307 redirect", async () => {
+    const agent = new MockAgent();
+    agent.disableNetConnect();
+    const pool = agent.get("https://api.test");
+    pool.intercept({ path: "/search", method: "QUERY" }).reply(307, "", { headers: { location: "/v2/search" } });
+    pool
+      .intercept({ path: "/v2/search", method: "QUERY", body: (b) => b === '{"q":"cats"}' })
+      .reply(200, { hits: 3 }, { headers: { "content-type": "application/json" } });
+    const request = newRequest({ method: "QUERY", url: "https://api.test/search", body: { ...defaultBody(), type: "json", raw: '{"q":"cats"}' } });
+    const { response } = await execute({ request, globals: [], workspaceRoot: "/tmp", dispatcher: agent });
+    expect(response.isError).toBe(false);
+    expect(response.statusCode).toBe(200);
+    expect(response.method).toBe("QUERY");
+    expect(JSON.parse(response.body)).toEqual({ hits: 3 });
+    await agent.close();
   });
 });

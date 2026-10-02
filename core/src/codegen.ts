@@ -356,7 +356,9 @@ const phpCurl: Gen = (b) => {
 
 const powershell: Gen = (b) => {
   const out: string[] = [];
-  const params = [psq(b.url), `-Method ${psq(b.method)}`];
+  // Invoke-RestMethod's -Method only takes its built-in verbs; others need -CustomMethod.
+  const builtIn = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "MERGE", "DEFAULT"].includes(b.method);
+  const params = [psq(b.url), builtIn ? `-Method ${psq(b.method)}` : `-CustomMethod ${psq(b.method)}`];
   const ua = b.headers.find((h) => isUserAgent(h.key));
   const ct = contentTypeOf(b);
   const hs = sendHeaders(b).filter((h) => !isUserAgent(h.key) && !isContentType(h.key));

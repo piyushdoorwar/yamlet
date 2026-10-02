@@ -6,6 +6,7 @@ const METHOD_CLASS: Record<string, string> = {
   PUT: "text-m-put",
   PATCH: "text-m-patch",
   DELETE: "text-m-delete",
+  QUERY: "text-m-query",
 };
 
 const SHORT: Record<string, string> = { DELETE: "DEL", OPTIONS: "OPT", PATCH: "PATCH" };

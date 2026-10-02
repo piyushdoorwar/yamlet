@@ -325,3 +325,12 @@ describe("importOpenApi", () => {
     expect(() => importOpenApi("not: [valid")).toThrow();
   });
 });
+
+describe("OpenAPI 3.2 query operations", () => {
+  it("imports a query operation as a QUERY request", async () => {
+    const { importOpenApi } = await import("../src/importers.js");
+    const c = importOpenApi(JSON.stringify({ openapi: "3.2.0", info: { title: "Search", version: "1" }, paths: { "/items": { query: { summary: "Search items" } } } }));
+    const all = [...c.requests, ...c.folders.flatMap((f) => f.requests)];
+    expect(all.map((r) => r.method)).toContain("QUERY");
+  });
+});
