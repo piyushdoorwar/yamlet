@@ -50,17 +50,19 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
   const enabledHeaders = request.headers.filter((h) => h.enabled && h.key).length;
   const enabledParams = request.queryParams.filter((p) => p.enabled && p.key).length;
   const hasScripts = !!(request.preRequestScript.trim() || request.postResponseScript.trim());
+  const hasAuth = request.auth.type !== "inherit" && request.auth.type !== "none";
+  const count = (n: number) => (n ? String(n) : undefined);
 
   const tabs = [
-    { id: "params" as const, label: "Params", badge: <CountBadge n={enabledParams + request.pathVariables.length} /> },
-    { id: "auth" as const, label: "Authorization", badge: request.auth.type !== "inherit" && request.auth.type !== "none" ? <Dot /> : null },
-    { id: "headers" as const, label: "Headers", badge: <CountBadge n={enabledHeaders} /> },
-    { id: "body" as const, label: "Body", badge: request.body.type !== "none" ? <Dot /> : null },
-    { id: "scripts" as const, label: "Scripts", badge: hasScripts ? <Dot /> : null },
-    { id: "vars" as const, label: "Variables", badge: <CountBadge n={request.variables.length} /> },
+    { id: "params" as const, label: "Params", badge: <CountBadge n={enabledParams + request.pathVariables.length} />, hint: count(enabledParams + request.pathVariables.length) },
+    { id: "auth" as const, label: "Authorization", badge: hasAuth ? <Dot /> : null, hint: hasAuth ? "set" : undefined },
+    { id: "headers" as const, label: "Headers", badge: <CountBadge n={enabledHeaders} />, hint: count(enabledHeaders) },
+    { id: "body" as const, label: "Body", badge: request.body.type !== "none" ? <Dot /> : null, hint: request.body.type !== "none" ? "set" : undefined },
+    { id: "scripts" as const, label: "Scripts", badge: hasScripts ? <Dot /> : null, hint: hasScripts ? "set" : undefined },
+    { id: "vars" as const, label: "Variables", badge: <CountBadge n={request.variables.length} />, hint: count(request.variables.length) },
     { id: "settings" as const, label: "Settings" },
-    { id: "docs" as const, label: "Docs", badge: request.description.trim() ? <Dot /> : null },
-    ...(request.examples.length ? [{ id: "examples" as const, label: "Examples", badge: <CountBadge n={request.examples.length} /> }] : []),
+    { id: "docs" as const, label: "Docs", badge: request.description.trim() ? <Dot /> : null, hint: request.description.trim() ? "set" : undefined },
+    ...(request.examples.length ? [{ id: "examples" as const, label: "Examples", badge: <CountBadge n={request.examples.length} />, hint: count(request.examples.length) }] : []),
   ];
 
   return (

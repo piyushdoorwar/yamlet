@@ -1,10 +1,11 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
 import clsx from "clsx";
-import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, Download, Loader2, PanelBottom, PanelRight, Send } from "lucide-react";
+import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, Download, Loader2, MoreHorizontal, PanelBottom, PanelRight, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { IconButton } from "../../components/Button";
 import { useDialogs } from "../../components/Dialogs";
 import { StatusPill } from "../../components/Labels";
+import { useMenu } from "../../components/Menu";
 import { CountBadge, UnderlineTabs } from "../../components/Tabs";
 import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
@@ -66,6 +67,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   const setLayout = useStore((s) => s.setLayout);
   const toast = useToast();
   const { prompt } = useDialogs();
+  const actionsMenu = useMenu();
   const [view, setView] = useState<View>("body");
   const [mode, setMode] = useState<BodyMode>("pretty");
   const r = state?.response;
@@ -101,25 +103,32 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
     toast.success("Example saved", "Find it under the request's Examples tab.");
   };
 
+  const copyBody = async () => (await copyText(text)) && toast.success("Copied response body");
+  const saveBody = () => {
+    if (!r) return;
+    const bytes = r.bodyEncoding === "base64" ? Uint8Array.from(atob(r.body), (c) => c.charCodeAt(0)) : r.body;
+    downloadBlob(bytes, `response.${extensionFor(ct)}`, ct || "application/octet-stream");
+  };
+
   if (!state || (!state.loading && !r && !state.error)) {
     return (
       <div className="relative h-full bg-white">
-        <div className="absolute top-2 right-3">{layoutToggle}</div>
+        <div className="absolute top-2 right-3 flex h-7 items-center">{layoutToggle}</div>
         <Empty />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line-soft px-5 py-2">
-        <span className="text-12 font-medium tracking-wide text-muted uppercase">Response</span>
+    <div className="@container flex h-full min-h-0 flex-col bg-white">
+      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line-soft px-5">
+        <span className="hidden text-12 font-medium tracking-wide text-muted uppercase @md:inline">Response</span>
         {state.loading ? (
           <span className="flex items-center gap-2 text-13 text-grey">
             <Loader2 size={14} className="spin text-primary" aria-hidden /> Sending… <Elapsed since={state.startedAt} />
           </span>
         ) : r && !r.isError ? (
-          <span className="flex flex-wrap items-center gap-3 text-12 text-grey">
+          <span className="flex min-w-0 items-center gap-3 overflow-hidden text-12 whitespace-nowrap text-grey">
             <StatusPill status={r.statusCode} text={r.reasonPhrase} />
             <span title={r.timings.firstByte !== undefined ? `Waiting ${formatMs(r.timings.firstByte)} · Download ${formatMs(r.timings.download ?? 0)}` : undefined}>
               <span className="text-muted">Time</span> <b className="font-medium text-primary">{formatMs(r.durationMs)}</b>
@@ -129,23 +138,32 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
             </span>
           </span>
         ) : null}
-        <span className="ml-auto flex items-center gap-1">
+        <span className="ml-auto flex shrink-0 items-center gap-1">
           {r && !r.isError && (
-            <>
-              <IconButton icon={Copy} label="Copy body" onClick={async () => (await copyText(text)) && toast.success("Copied response body")} />
+            <span className="@md:hidden">
               <IconButton
-                icon={Download}
-                label="Save body to a file"
-                onClick={() => {
-                  const bytes = r.bodyEncoding === "base64" ? Uint8Array.from(atob(r.body), (c) => c.charCodeAt(0)) : r.body;
-                  downloadBlob(bytes, `response.${extensionFor(ct)}`, ct || "application/octet-stream");
-                }}
+                icon={MoreHorizontal}
+                label="Response actions"
+                onClick={(e) =>
+                  actionsMenu.openBelow(e.currentTarget as HTMLElement, [
+                    { label: "Copy body", icon: Copy, onSelect: () => void copyBody() },
+                    { label: "Save body to a file", icon: Download, onSelect: saveBody },
+                    { label: "Save as example", icon: BookmarkPlus, onSelect: () => void saveExample() },
+                  ], "end")
+                }
               />
+            </span>
+          )}
+          {r && !r.isError && (
+            <span className="hidden items-center gap-1 @md:flex">
+              <IconButton icon={Copy} label="Copy body" onClick={() => void copyBody()} />
+              <IconButton icon={Download} label="Save body to a file" onClick={saveBody} />
               <IconButton icon={BookmarkPlus} label="Save as example" onClick={() => void saveExample()} />
-            </>
+            </span>
           )}
           {layoutToggle}
         </span>
+        {actionsMenu.node}
       </div>
 
       {state.error && !state.loading && (
@@ -175,11 +193,12 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
             <UnderlineTabs
               tabs={[
                 { id: "body", label: "Body" },
-                { id: "headers", label: "Headers", badge: <CountBadge n={r.headers.length} /> },
-                { id: "cookies", label: "Cookies", badge: <CountBadge n={r.cookies.length} /> },
+                { id: "headers", label: "Headers", badge: <CountBadge n={r.headers.length} />, hint: String(r.headers.length) },
+                { id: "cookies", label: "Cookies", badge: <CountBadge n={r.cookies.length} />, hint: r.cookies.length ? String(r.cookies.length) : undefined },
                 {
                   id: "tests",
                   label: "Tests",
+                  hint: total ? `${passed}/${total}` : undefined,
                   badge: total ? (
                     <span className={clsx("rounded-full px-1.5 text-11 leading-4 font-medium", passed === total ? "bg-primary-soft text-primary" : "bg-danger-soft text-danger")}>
                       {passed}/{total}
