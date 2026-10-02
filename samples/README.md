@@ -30,7 +30,7 @@ npm run build:cli
 node cli/dist/yamlet.js run samples/demo --env dev
 
 # or with the published CLI:
-npx yamlet run samples/demo --env dev
+npx @piyushdoorwar/yamlet run samples/demo --env dev
 ```
 
 Expect every request to pass (exit code `0`).

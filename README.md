@@ -111,10 +111,10 @@ The `yamlet` CLI runs a workspace headlessly. It fails the build when a request 
 returns a non-2xx/3xx status, or a `pm.test` assertion fails.
 
 ```bash
-npm install -g yamlet
+npm install -g @piyushdoorwar/yamlet
 yamlet run ./my-workspace --env dev
 # or without installing
-npx yamlet run ./my-workspace --env dev
+npx @piyushdoorwar/yamlet run ./my-workspace --env dev
 ```
 
 See [cli/README.md](cli/README.md) for every option (`--bail`, `--iterations`,
@@ -141,7 +141,7 @@ core/     UI-free engine: models, YAML format, workspace store, variables, reque
 server/   Fastify API over the engine; serves the built UI
 web/      React + Vite + Tailwind UI
 shared/   JSON shapes shared by server and UI
-cli/      the `yamlet` npm package
+cli/      the `@piyushdoorwar/yamlet` npm package (installs the `yamlet` command)
 site/     the marketing site (GitHub Pages)
 samples/  a ready-to-run workspace
 ```
@@ -159,7 +159,7 @@ samples/  a ready-to-run workspace
 ## Releases
 
 Every push to `main` publishes `ghcr.io/piyushdoorwar/yamlet:latest`. Pushing a `v1.2.3`
-tag publishes the `1.2.3` / `1.2` / `1` images, the `yamlet` CLI on npm, and a GitHub
+tag publishes the `1.2.3` / `1.2` / `1` images, the `@piyushdoorwar/yamlet` CLI on npm, and a GitHub
 release.
 
 The last version of the earlier .NET desktop app is tagged `dotnet-final`.

@@ -1,5 +1,5 @@
 {
-  "name": "yamlet",
+  "name": "@piyushdoorwar/yamlet",
   "version": "0.0.0-dev",
   "description": "Run Yamlet API collections (Git-friendly YAML) from the command line or CI.",
   "type": "module",

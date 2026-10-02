@@ -1,7 +1,7 @@
 # On a v* tag: publish versioned container images, publish the CLI to npm, and
 # create the GitHub release (which the site's releases page reads).
 #   ghcr.io/piyushdoorwar/yamlet:1.2.3, :1.2, :1
-#   npm install -g yamlet@1.2.3
+#   npm install -g @piyushdoorwar/yamlet@1.2.3
 # Needs the NPM_TOKEN repository secret (an npm automation token).
 name: Release
 

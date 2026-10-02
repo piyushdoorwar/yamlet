@@ -1,4 +1,4 @@
-# yamlet
+# @piyushdoorwar/yamlet
 
 Run [Yamlet](https://github.com/piyushdoorwar/yamlet) API collections from the command
 line, for example in CI. It fails the build when a request errors, returns a status
@@ -7,12 +7,12 @@ outside 2xx/3xx, or a `pm.test` assertion fails.
 ## Install
 
 ```bash
-npm install -g yamlet
+npm install -g @piyushdoorwar/yamlet
 # or run without installing
-npx yamlet run ./my-workspace
+npx @piyushdoorwar/yamlet run ./my-workspace
 ```
 
-Requires Node.js 22 or newer.
+It installs the `yamlet` command. Requires Node.js 22 or newer.
 
 ## Usage
 
@@ -53,7 +53,7 @@ yamlet run ./api --env dev --data users.csv --reporter junit --out yamlet-result
   with:
     node-version: 24
 - name: API tests
-  run: npx --yes yamlet run ./api --env ci --reporter junit --out yamlet-results.xml
+  run: npx --yes @piyushdoorwar/yamlet run ./api --env ci --reporter junit --out yamlet-results.xml
 - name: Publish results
   if: always()
   uses: actions/upload-artifact@v4

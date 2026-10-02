@@ -120,7 +120,7 @@
       }
       <div class="release-links">
         <a href="${esc(r.html_url)}" rel="noreferrer">${icon("github")}Release on GitHub</a>
-        ${npmVersion ? `<a href="https://www.npmjs.com/package/yamlet/v/${esc(npmVersion)}" rel="noreferrer">${icon("terminal")}CLI ${esc(npmVersion)} on npm</a>` : ""}
+        ${npmVersion ? `<a href="https://www.npmjs.com/package/@piyushdoorwar/yamlet/v/${esc(npmVersion)}" rel="noreferrer">${icon("terminal")}CLI ${esc(npmVersion)} on npm</a>` : ""}
       </div>
     </article>`;
   }
