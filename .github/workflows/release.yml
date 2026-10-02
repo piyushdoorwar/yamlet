@@ -1,6 +1,7 @@
 # On a v* tag: publish versioned container images, publish the CLI to npm, and
 # create the GitHub release (which the site's releases page reads).
-#   ghcr.io/piyushdoorwar/yamlet:1.2.3, :1.2, :1
+#   ghcr.io/piyushdoorwar/yamlet:1.2.3, :1.2, :1 and :latest (pre-releases
+#   such as v1.3.0-beta.1 only get their exact version tag)
 #   npm install -g @piyushdoorwar/yamlet@1.2.3
 # Needs the NPM_TOKEN repository secret (an npm automation token).
 name: Release
@@ -38,6 +39,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - uses: docker/build-push-action@v6
         with:
           context: .

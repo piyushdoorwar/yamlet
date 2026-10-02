@@ -167,6 +167,8 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   (+ `.btn-sm`), `.input`, `.label`, `.check`, `.kv-table`. Scrollbars are thin and
   green app-wide.
 - Method labels are bold uppercase text colored by method (`--color-m-*`), with no box.
+  The method menu lists `HTTP_METHODS` (including QUERY, the safe method with a body)
+  plus "Custom method…" for any valid token.
   Status pills use soft fills with dark text.
 - Sidebar: white panel with the wordmark, a workspace switcher, a segmented control
   (Collections / Environments / History) and a tree whose selected row is solid green
@@ -181,10 +183,10 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 ## Distribution
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): typecheck, test, build, run
-  `samples/demo` with the CLI; on `main`, build and push the multi-arch image as
-  `latest` and the short sha.
-- [.github/workflows/release.yml](.github/workflows/release.yml): on `v*` tags, push the
-  `X.Y.Z` / `X.Y` / `X` images, publish the CLI to npm as `@piyushdoorwar/yamlet` (needs the `NPM_TOKEN` secret;
+  `samples/demo` with the CLI. It never publishes anything.
+- [.github/workflows/release.yml](.github/workflows/release.yml): on `v*` tags (the only
+  thing that publishes), push the multi-arch `X.Y.Z` / `X.Y` / `X` / `latest` images
+  (pre-release tags get only their exact version), publish the CLI to npm as `@piyushdoorwar/yamlet` (needs the `NPM_TOKEN` secret;
   the bare name `yamlet` is refused by npm as too close to `yaml`),
   and create the GitHub release.
 - [.github/workflows/static.yml](.github/workflows/static.yml): deploys `site/` to Pages
