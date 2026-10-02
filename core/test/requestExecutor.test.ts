@@ -346,3 +346,17 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(h(seen.find((s) => s.origin === "https://api.test")!, "x-v")).toBe("9");
   });
 });
+
+describe("transport error messages", () => {
+  it("explains AggregateErrors with empty messages", async () => {
+    const { errMessage } = await import("../src/requestExecutor.js");
+    const inner = Object.assign(new Error("connect ECONNREFUSED 10.0.0.1:443"), { code: "ECONNREFUSED" });
+    const agg = Object.assign(new AggregateError([inner], ""), { code: "ECONNREFUSED" });
+    expect(errMessage(agg)).toBe("connect ECONNREFUSED 10.0.0.1:443; (connection refused)");
+    expect(errMessage(new TypeError("fetch failed", { cause: Object.assign(new Error("getaddrinfo ENOTFOUND api.test"), { code: "ENOTFOUND" }) }))).toBe(
+      "getaddrinfo ENOTFOUND api.test; (host name could not be resolved)",
+    );
+    expect(errMessage(Object.assign(new Error(""), { code: "UND_ERR_CONNECT_TIMEOUT" }))).toBe("UND_ERR_CONNECT_TIMEOUT: connection timed out");
+    expect(errMessage({})).toMatch(/without an error message/);
+  });
+});

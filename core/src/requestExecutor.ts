@@ -43,14 +43,56 @@ export const MAX_REDIRECTS = 10;
 let insecure: Agent | undefined;
 const insecureAgent = () => (insecure ??= new Agent({ connect: { rejectUnauthorized: false } }));
 
-const errMessage = (e: unknown): string => {
-  if (e && typeof e === "object") {
-    const err = e as { message?: unknown; cause?: { code?: unknown; message?: unknown }; code?: unknown };
-    const base = String(err.message ?? e);
-    const cause = err.cause?.code ?? err.cause?.message;
-    return cause && !base.includes(String(cause)) ? `${base} (${cause})` : base;
-  }
-  return String(e);
+const NETWORK_HINTS: Record<string, string> = {
+  ENOTFOUND: "host name could not be resolved",
+  EAI_AGAIN: "DNS lookup timed out",
+  ECONNREFUSED: "connection refused",
+  ECONNRESET: "connection reset by the server",
+  ETIMEDOUT: "connection timed out",
+  EHOSTUNREACH: "host unreachable",
+  ENETUNREACH: "network unreachable",
+  CERT_HAS_EXPIRED: "the server's certificate has expired",
+  DEPTH_ZERO_SELF_SIGNED_CERT: "self-signed certificate (turn on Skip SSL verification in Settings)",
+  SELF_SIGNED_CERT_IN_CHAIN: "self-signed certificate in chain (turn on Skip SSL verification in Settings)",
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: "certificate could not be verified (turn on Skip SSL verification in Settings)",
+  UND_ERR_CONNECT_TIMEOUT: "connection timed out",
+  UND_ERR_HEADERS_TIMEOUT: "timed out waiting for response headers",
+  UND_ERR_BODY_TIMEOUT: "timed out reading the response body",
+  UND_ERR_SOCKET: "the connection closed unexpectedly",
+};
+
+type ErrLike = { message?: unknown; code?: unknown; cause?: unknown; errors?: unknown; hostname?: unknown; address?: unknown; port?: unknown };
+
+/**
+ * A readable reason for a failed exchange. Node and undici often wrap the real
+ * cause: `fetch failed` with a `cause`, or an AggregateError with an empty
+ * message whose `errors` hold one failure per address tried.
+ */
+export const errMessage = (e: unknown): string => {
+  const parts: string[] = [];
+  const add = (s: string) => {
+    const t = s.trim();
+    if (t && !parts.some((p) => p.includes(t))) parts.push(t);
+  };
+  const walk = (x: unknown, depth: number) => {
+    if (!x || typeof x !== "object" || depth > 4) {
+      if (typeof x === "string") add(x);
+      return;
+    }
+    const err = x as ErrLike;
+    const code = typeof err.code === "string" ? err.code : undefined;
+    const msg = typeof err.message === "string" ? err.message : "";
+    if (msg && msg !== "fetch failed") add(msg);
+    const hasInner = Array.isArray(err.errors) && err.errors.length > 0;
+    if (code && !msg && hasInner) {
+      // An AggregateError: the inner errors carry the detail.
+    } else if (code && !msg.includes(code)) add(NETWORK_HINTS[code] ? `${code}: ${NETWORK_HINTS[code]}` : code);
+    else if (code && NETWORK_HINTS[code]) add(`(${NETWORK_HINTS[code]})`);
+    if (Array.isArray(err.errors)) for (const inner of err.errors.slice(0, 3)) walk(inner, depth + 1);
+    walk(err.cause, depth + 1);
+  };
+  walk(e, 0);
+  return parts.join("; ") || "The request failed without an error message (network error).";
 };
 
 function headerValue(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
