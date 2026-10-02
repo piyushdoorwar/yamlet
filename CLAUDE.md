@@ -34,6 +34,7 @@ tagged `dotnet-final`.
 ```bash
 npm install
 npm run dev          # server on :7878 (tsx watch) + Vite on :5173 (proxies /api)
+                     # if a Yamlet container already owns 7878: PORT=7880 YAMLET_API_PORT=7880 npm run dev
 npm test             # all Vitest projects: node (core, server, cli) + web (jsdom)
 npm run typecheck    # tsconfig.server.json (core, server, shared, cli) + tsconfig.web.json
 npm run build        # vite build -> dist/web, tsc -> dist/server, dist/core, dist/shared

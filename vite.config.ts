@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 // The UI lives in web/ and builds into dist/web, which the server serves.
-// In dev, Vite proxies /api to the server on :7878.
+// In dev, Vite proxies /api to the server on :7878 (or $YAMLET_API_PORT).
 export default defineConfig({
   root: "web",
   plugins: [react(), tailwindcss()],
@@ -13,6 +13,6 @@ export default defineConfig({
   build: { outDir: "../dist/web", emptyOutDir: true, chunkSizeWarningLimit: 2500 },
   server: {
     port: 5173,
-    proxy: { "/api": { target: "http://127.0.0.1:7878", ws: true } },
+    proxy: { "/api": { target: `http://127.0.0.1:${process.env.YAMLET_API_PORT ?? 7878}`, ws: true } },
   },
 });
