@@ -160,7 +160,7 @@ describe("execute", () => {
         ],
       }),
     });
-    expect(h(seen[0], "user-agent")).toBe("Yamlet/1.0.0");
+    expect(h(seen[0], "user-agent")).toBe("Yamlet/dev");
     expect(h(seen[0], "x-on")).toBe("1");
     expect(h(seen[0], "x-off")).toBeUndefined();
   });

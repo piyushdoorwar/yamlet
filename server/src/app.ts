@@ -3,6 +3,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { setYamletVersion } from "../../core/src/models.js";
 import { type ServerConfig, Workspaces } from "./context.js";
 import { toHttpError } from "./errors.js";
 import { cookieRoutes } from "./routes/cookies.js";
@@ -41,6 +42,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   await app.register(fastifyMultipart, { limits: { fileSize: 100 * 1024 * 1024, files: 1 } });
 
+  setYamletVersion(opts.config.version);
   const workspaces = new Workspaces(opts.config);
   const deps = { config: opts.config, workspaces };
 

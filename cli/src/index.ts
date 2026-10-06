@@ -3,12 +3,13 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { parseDataFile, runCollection, type RunRequestResult, type RunSummary } from "../../core/src/collectionRunner.js";
 import { CookieJar } from "../../core/src/cookieJar.js";
-import type { YamletEnvironment, YamletWorkspace } from "../../core/src/models.js";
+import { setYamletVersion, type YamletEnvironment, type YamletWorkspace } from "../../core/src/models.js";
 import { WorkspaceStore } from "../../core/src/workspaceStore.js";
 import { environmentFromYaml, globalsFromYaml } from "../../core/src/yamlDtos.js";
 
 declare const __YAMLET_VERSION__: string;
 const VERSION = typeof __YAMLET_VERSION__ === "string" ? __YAMLET_VERSION__ : "0.0.0-dev";
+setYamletVersion(VERSION);
 
 class CliError extends Error {}
 

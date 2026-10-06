@@ -1,7 +1,7 @@
 // Turns a YamletRequest into the concrete HTTP request that will be sent: variables
 // resolved, query and path parameters applied, auth and default headers added.
 // Isomorphic: shared by the executor and the UI's code snippets.
-import { YAMLET_USER_AGENT, type Auth, type KeyValue, type YamletCollection, type YamletRequest } from "./models.js";
+import { yamletUserAgent, type Auth, type KeyValue, type YamletCollection, type YamletRequest } from "./models.js";
 import { resolveVariables, type VariableContext } from "./variableResolver.js";
 
 export type BuiltBody =
@@ -100,7 +100,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     .map((p) => ({ key: r(p.key), value: r(p.value) }));
   url = appendQuery(url, query);
 
-  const headers: KeyValue[] = [{ key: "User-Agent", value: YAMLET_USER_AGENT, enabled: true }];
+  const headers: KeyValue[] = [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }];
   for (const h of request.headers ?? []) {
     if (h.enabled === false || !h.key?.trim()) continue;
     const key = r(h.key).trim();

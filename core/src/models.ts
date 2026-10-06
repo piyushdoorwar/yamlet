@@ -324,5 +324,14 @@ export function newEnvironment(partial: Partial<YamletEnvironment> = {}): Yamlet
 /** QUERY is the safe, idempotent method that carries a body (like GET with a search payload). */
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "QUERY", "HEAD", "OPTIONS"] as const;
 
-/** The User-Agent every request carries; shown as a locked header row in the UI. */
-export const YAMLET_USER_AGENT = "Yamlet/1.0.0";
+let yamletVersion = "dev";
+
+/** Sets the version in the User-Agent; the server, CLI and UI call this at startup. */
+export function setYamletVersion(version: string): void {
+  yamletVersion = version.trim().replace(/^v(?=\d)/, "") || "dev";
+}
+
+/** The User-Agent every request carries, e.g. `Yamlet/1.2.0`; shown as a locked header row in the UI. */
+export function yamletUserAgent(): string {
+  return `Yamlet/${yamletVersion}`;
+}

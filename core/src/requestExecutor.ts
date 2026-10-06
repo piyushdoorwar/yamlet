@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import { FormData, request, type Dispatcher } from "undici";
 import { defaultAgent, insecureAgent } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
-import { defaultSettings, YAMLET_USER_AGENT, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
+import { defaultSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
 import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
@@ -310,7 +310,7 @@ async function scriptSend(spec: SendRequestSpec, input: ExecuteInput, dispatcher
   try {
     const headers = spec.headers.some((h) => h.key.toLowerCase() === "user-agent")
       ? spec.headers
-      : [{ key: "User-Agent", value: YAMLET_USER_AGENT, enabled: true }, ...spec.headers];
+      : [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }, ...spec.headers];
     const ex = await exchange({ url: spec.url, method: spec.method, headers, body: spec.body, dispatcher, signal: input.signal, followRedirects: true, jar: input.cookieJar });
     const contentType = headerValue(ex.headers, "content-type") ?? "";
     const textual = isTextual(contentType, ex.bytes);

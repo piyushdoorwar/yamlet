@@ -1,4 +1,4 @@
-import { type KeyValue, type PathVariable, type Variable, YAMLET_USER_AGENT, type YamletCollection, type YamletRequest } from "@core/models";
+import { type KeyValue, type PathVariable, type Variable, yamletUserAgent, type YamletCollection, type YamletRequest } from "@core/models";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AuthEditor } from "../../components/AuthEditor";
@@ -118,7 +118,7 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
             variables={variables}
             showDescription
             keyPlaceholder="Header"
-            locked={[{ key: "User-Agent", value: YAMLET_USER_AGENT, note: "Sent with every request" }]}
+            locked={[{ key: "User-Agent", value: yamletUserAgent(), note: "Sent with every request" }]}
           />
         )}
 

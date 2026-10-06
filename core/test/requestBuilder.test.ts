@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateSnippet, SNIPPET_LANGUAGES } from "../src/codegen.js";
-import { defaultAuth, newCollection, newRequest, YAMLET_USER_AGENT } from "../src/models.js";
+import { defaultAuth, newCollection, newRequest, yamletUserAgent } from "../src/models.js";
 import { applyPathVariables, buildRequest } from "../src/requestBuilder.js";
 
 const header = (b: ReturnType<typeof buildRequest>, name: string) => b.headers.find((h) => h.key.toLowerCase() === name.toLowerCase())?.value;
@@ -39,7 +39,7 @@ describe("buildRequest", () => {
       ],
     });
     const b = buildRequest(r, { ctx: {} });
-    expect(b.headers.filter((h) => h.key.toLowerCase() === "user-agent")).toEqual([{ key: "User-Agent", value: YAMLET_USER_AGENT, enabled: true }]);
+    expect(b.headers.filter((h) => h.key.toLowerCase() === "user-agent")).toEqual([{ key: "User-Agent", value: yamletUserAgent(), enabled: true }]);
     expect(header(b, "X-On")).toBe("1");
     expect(header(b, "X-Off")).toBeUndefined();
   });
@@ -121,7 +121,7 @@ describe("codegen", () => {
   });
 
   it("produces correct curl", () => {
-    expect(generateSnippet("curl", samples[0])).toBe("curl --location 'https://api.test/users?x=1' \\\n  --header 'User-Agent: Yamlet/1.0.0'");
+    expect(generateSnippet("curl", samples[0])).toBe("curl --location 'https://api.test/users?x=1' \\\n  --header 'User-Agent: Yamlet/dev'");
     const post = generateSnippet("curl", samples[1]);
     expect(post).toContain("--request POST");
     expect(post).toContain(`--header 'X-T: it'\\''s'`);

@@ -69,7 +69,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          npm run build:cli
+          YAMLET_VERSION="$VERSION" npm run build:cli
           cd cli
           npm version "$VERSION" --no-git-tag-version --allow-same-version
           TAG=latest; case "$VERSION" in *-*) TAG=next;; esac

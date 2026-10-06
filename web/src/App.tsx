@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { setYamletVersion } from "@core/models";
 import { DialogProvider } from "./components/Dialogs";
 import { ToastProvider } from "./components/Toast";
 import { api, errorMessage } from "./lib/api";
@@ -27,6 +28,7 @@ function useBoot(): { booting: boolean; bootError: string | null } {
       try {
         const info = await api.info();
         if (cancelled) return;
+        setYamletVersion(info.version);
         setInfo(info);
         const candidates = [recentWorkspaces()[0]?.root, info.defaultWorkspace].filter((p): p is string => !!p);
         for (const path of candidates) {

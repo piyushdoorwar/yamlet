@@ -114,7 +114,8 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 - **Requests are built once, in the engine.** `requestBuilder.ts` turns a request and
   its scopes into a `BuiltRequest`. The executor sends it; the UI's code snippets
   render it. Auth inheritance (`inherit` uses the collection's auth) lives there.
-- **Every request sends `User-Agent: Yamlet/1.0.0`.** Shown as a locked row in the
+- **Every request sends `User-Agent: Yamlet/<version>`** (the running build's version, set
+  at startup with `setYamletVersion`; `dev` in development). Shown as a locked row in the
   Headers tab; not persisted.
 - **Scripts** run in `node:vm` with a timeout: collection pre, request pre, send,
   request post, collection post. Request-script errors abort the send;
