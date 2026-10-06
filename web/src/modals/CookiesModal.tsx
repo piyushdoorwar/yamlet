@@ -8,6 +8,8 @@ import { api, errorMessage } from "../lib/api";
 
 export function CookiesModal({ onClose }: { onClose: () => void }) {
   const [cookies, setCookies] = useState<CookieInfo[] | null>(null);
+  const [pairing, setPairing] = useState<{ code: string; expiresInSeconds: number } | null>(null);
+  const [paired, setPaired] = useState(false);
   const toast = useToast();
   const load = useCallback(async () => {
     try {
@@ -17,6 +19,7 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
     }
   }, [toast]);
   useEffect(() => void load(), [load]);
+  useEffect(() => { void api.interceptorStatus().then((result) => setPaired(result.paired)).catch(() => {}); }, []);
 
   const domains = new Map<string, CookieInfo[]>();
   for (const c of cookies ?? []) domains.set(c.domain, [...(domains.get(c.domain) ?? []), c]);
@@ -47,6 +50,15 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
         </>
       }
     >
+      <section className="mb-5 rounded-lg border border-line bg-primary-tint p-4">
+        <h3 className="text-14 font-semibold text-ink">Chrome cookie sync</h3>
+        <p className="mt-1 text-12 text-body">Pair the Yamlet Interceptor extension, then approve individual sites in its popup. Approved cookies refresh while Chrome and Yamlet are running.</p>
+        {pairing && <p className="mt-3 text-12 text-body">Paste this one-time code into the extension within five minutes: <code className="block select-all break-all rounded bg-white p-2 font-mono text-12 text-ink">{pairing.code}</code></p>}
+        <div className="mt-3 flex gap-2">
+          <Button variant="primary" onClick={() => void api.interceptorPairStart().then(setPairing).catch((err: unknown) => toast.error("Could not start pairing", errorMessage(err)))}>Pair extension</Button>
+          {paired && <Button variant="cancel" onClick={() => void act(async () => { await api.interceptorDisconnect(); setPaired(false); setPairing(null); })}>Disconnect extensions</Button>}
+        </div>
+      </section>
       {cookies === null ? (
         <p className="text-13 text-muted">Loading…</p>
       ) : cookies.length === 0 ? (

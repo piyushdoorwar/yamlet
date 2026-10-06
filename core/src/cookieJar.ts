@@ -15,6 +15,8 @@ export interface StoredCookie {
   /** ISO timestamp; undefined for session cookies. */
   expires?: string;
   createdAt: string;
+  /** Browser imports are replaced as a group when Chrome sends a new snapshot. */
+  browserSite?: string;
 }
 
 /** Parses one Set-Cookie header value into its parts (no domain defaulting). */
@@ -156,6 +158,16 @@ export class CookieJar {
     this.cookies.push({ ...cookie, domain, hostOnly: cookie.hostOnly ?? false, createdAt: cookie.createdAt ?? new Date().toISOString() });
   }
 
+  /** Replace only cookies previously imported for this site. */
+  replaceBrowserSite(site: string, cookies: Omit<StoredCookie, "createdAt" | "browserSite">[]): void {
+    this.cookies = this.cookies.filter((cookie) => cookie.browserSite !== site);
+    for (const cookie of cookies) this.set({ ...cookie, browserSite: site });
+  }
+
+  clearBrowserSites(): void {
+    this.cookies = this.cookies.filter((cookie) => !cookie.browserSite);
+  }
+
   remove(domain: string, name: string, path?: string): void {
     const d = domain.replace(/^\./, "").toLowerCase();
     this.cookies = this.cookies.filter((c) => !(c.domain === d && c.name === name && (path === undefined || c.path === path)));
@@ -190,6 +202,7 @@ export class CookieJar {
             sameSite: c.sameSite,
             expires: c.expires,
             createdAt: c.createdAt ?? new Date().toISOString(),
+            browserSite: typeof c.browserSite === "string" ? c.browserSite : undefined,
           });
         }
       }

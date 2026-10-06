@@ -67,7 +67,15 @@ export function registerSecurity(app: FastifyInstance, allowed = allowedHostname
       return reply.code(403).send({ error: "Yamlet only accepts requests addressed to localhost." });
     }
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
-    if (!isSameOrigin(origin, host)) {
+    const extensionOrigin = origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin) && req.url.startsWith("/api/interceptor/");
+    if (extensionOrigin) {
+      reply.header("Access-Control-Allow-Origin", origin);
+      reply.header("Vary", "Origin");
+      reply.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+      reply.header("Access-Control-Allow-Headers", "content-type, x-yamlet");
+      if (req.method === "OPTIONS") return reply.code(204).send();
+    }
+    if (!extensionOrigin && !isSameOrigin(origin, host)) {
       return reply.code(403).send({ error: "Cross-origin requests are not allowed." });
     }
     // The OAuth redirect is a top-level GET from the provider, so it needs no header.

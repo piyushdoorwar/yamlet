@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Yamlet Interceptor</title>
+    <link rel="stylesheet" href="popup.css">
+    <script defer src="popup.js"></script>
+  </head>
+  <body>
+    <header><img src="icons/icon48.png" alt="" width="32" height="32"><div><strong>Yamlet Interceptor</strong><span>Chrome cookies to local Yamlet</span></div></header>
+    <main>
+      <div id="status" role="status">Checking connection…</div>
+      <section id="pairSection">
+        <h2>Connect to Yamlet</h2>
+        <p>In Yamlet, open Cookies and select <b>Pair extension</b>. Paste its one-time code here.</p>
+        <label for="base">Yamlet address</label><input id="base" value="http://localhost:7878/" spellcheck="false">
+        <label for="code">Pairing code</label><input id="code" placeholder="Paste code" spellcheck="false">
+        <button id="pair">Connect</button>
+      </section>
+      <section id="connectedSection" hidden>
+        <h2>Current site</h2>
+        <p id="site">Open a website to choose its cookies.</p>
+        <p class="notice">Allowing a site lets this extension read its cookies, including sign-in cookies, and send them only to Yamlet on this computer. Approved sites refresh automatically while Chrome is running.</p>
+        <button id="approve">Allow &amp; sync this site</button>
+        <button id="sync" class="secondary">Sync approved sites now</button>
+        <h2>Approved sites</h2><ul id="sites"></ul>
+        <p id="lastSync"></p>
+        <button id="forget" class="text-button">Forget connection on this browser</button>
+      </section>
+    </main>
+  </body>
+</html>

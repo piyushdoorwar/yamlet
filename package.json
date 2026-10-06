@@ -15,6 +15,7 @@
     "build:web": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "build:cli": "node cli/build.mjs",
+    "package:extension": "bash extension/package.sh",
     "start": "node dist/server/src/index.js",
     "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "vitest run",

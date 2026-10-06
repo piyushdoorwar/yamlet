@@ -23,6 +23,7 @@ const app = await buildApp({
     inContainer,
     publicUrl: process.env.YAMLET_PUBLIC_URL ?? `http://localhost:${port}`,
     defaultTimeoutMs: Number(process.env.YAMLET_TIMEOUT_MS ?? 30_000),
+    interceptorDataDir: process.env.YAMLET_INTERCEPTOR_DATA_DIR ?? (inContainer ? "/data" : resolve(homedir(), ".config/yamlet")),
   },
   webRoot,
   logger: true,

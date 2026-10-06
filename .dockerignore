@@ -7,4 +7,6 @@ coverage
 site
 samples
 cli/dist
+extension
+store-assets
 *.md

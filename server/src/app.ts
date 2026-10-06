@@ -8,6 +8,7 @@ import { toHttpError } from "./errors.js";
 import { cookieRoutes } from "./routes/cookies.js";
 import { fileRoutes } from "./routes/files.js";
 import { importRoutes } from "./routes/import.js";
+import { interceptorRoutes } from "./routes/interceptor.js";
 import { itemRoutes } from "./routes/items.js";
 import { oauthRoutes } from "./routes/oauth.js";
 import { runnerRoutes } from "./routes/runner.js";
@@ -51,6 +52,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   runnerRoutes(app, deps);
   importRoutes(app, deps);
   cookieRoutes(app, deps);
+  interceptorRoutes(app, deps);
   fileRoutes(app, deps);
 
   const webRoot = opts.webRoot && existsSync(join(opts.webRoot, "index.html")) ? opts.webRoot : undefined;

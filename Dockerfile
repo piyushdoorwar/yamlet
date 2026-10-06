@@ -26,12 +26,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
-RUN mkdir -p /workspace && chown node:node /workspace
+RUN mkdir -p /workspace /data && chown node:node /workspace /data
 
 # Non-root. The node user is uid 1000, which owns the mounted folder on most
 # Linux desktops; otherwise pass --user "$(id -u):$(id -g)".
 USER node
 VOLUME ["/workspace"]
+VOLUME ["/data"]
 EXPOSE 7878
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD wget -qO- http://127.0.0.1:7878/api/health >/dev/null || exit 1

@@ -14,6 +14,8 @@ export interface ServerConfig {
   /** Injected in tests so no real network is used. */
   dispatcher?: Dispatcher;
   defaultTimeoutMs: number;
+  /** Private state outside the workspace YAML files. */
+  interceptorDataDir?: string;
 }
 
 interface OpenWorkspace {

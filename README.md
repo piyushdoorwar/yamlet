@@ -13,7 +13,7 @@ Website: <https://piyushdoorwar.github.io/yamlet/>
 ## Run it
 
 ```bash
-docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet:latest
+docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest
 ```
 
 Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
@@ -25,6 +25,16 @@ workspace. If it isn't one yet, Yamlet offers to set it up (it creates `collecti
 Screen** on mobile). The installed app uses the Yamlet logo and opens in its own window.
 Keep the container running to use your workspaces and send requests. If you access
 Yamlet from another device, serve it over HTTPS for browser installation.
+
+**Chrome cookie sync (local test).** Build the updated container from this checkout:
+
+```bash
+docker build -t yamlet:interceptor .
+docker rm -f yamlet 2>/dev/null || true
+docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data yamlet:interceptor
+```
+
+In Chrome, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `extension/` folder. Open Yamlet's **Cookies** modal and choose **Pair extension**. Paste the code into the extension popup. Open a site, choose **Allow & sync this site**, and inspect the cookies in Yamlet. Approved sites refresh while Chrome is running. The `/data` volume keeps pairing across container recreation; cookie values remain in memory and are refreshed from Chrome. For another host port, enter that `http://localhost:<port>/` address in the extension popup. See [extension/README.md](extension/README.md) for packaging and test details.
 
 | Task | Command |
 |---|---|
@@ -162,6 +172,7 @@ samples/  a ready-to-run workspace
 | `YAMLET_PUBLIC_URL` | `http://localhost:$PORT` | Base URL for the OAuth 2.0 redirect |
 | `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
 | `YAMLET_TIMEOUT_MS` | `30000` | Default request timeout |
+| `YAMLET_INTERCEPTOR_DATA_DIR` | `/data` in the container | Private pairing state; mount a persistent volume for container recreation |
 
 ## Releases
 
