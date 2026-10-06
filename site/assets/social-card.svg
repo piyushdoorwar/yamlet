@@ -17,8 +17,9 @@
   <rect x="0" y="0" width="1200" height="8" fill="#0E7A43"/>
 
   <g transform="translate(88 104) scale(1.75)">
-    <rect x="11" y="11" width="42" height="42" rx="12" fill="#FFFFFF" stroke="#0E7A43" stroke-width="3.4"/>
-    <path d="M24 25 L32 34 L40 25 M32 34 L32 45" fill="none" stroke="#0E7A43" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="2" y="2" width="60" height="60" rx="14" fill="#0E7A43"/>
+    <rect x="12" y="12" width="40" height="40" rx="10" fill="none" stroke="#FFFFFF" stroke-width="3.4"/>
+    <path d="M24 25 L32 34 L40 25 M32 34 L32 45" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <text x="96" y="318" fill="#0F1A14" font-family="DM Sans, Inter, Segoe UI, sans-serif" font-size="104" font-weight="700" letter-spacing="-3">Yamlet</text>
   <text x="100" y="384" fill="#24302A" font-family="DM Sans, Inter, Segoe UI, sans-serif" font-size="34" font-weight="500">Local-first API client for</text>
