@@ -57,6 +57,11 @@ export class Workspaces {
     }
   }
 
+  /** An open workspace by root path without reloading it from disk; opens it if needed. */
+  async peek(root: string): Promise<OpenWorkspace> {
+    return this.open.get(root) ?? this.openAt(root);
+  }
+
   /** The workspace named by the request's x-yamlet-workspace header, opening it on demand. */
   async fromHeaders(headers: Record<string, string | string[] | undefined>): Promise<OpenWorkspace> {
     const raw = headers[WORKSPACE_HEADER];

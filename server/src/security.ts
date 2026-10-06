@@ -14,6 +14,15 @@ import { CSRF_HEADER } from "../../shared/api.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+// The Yamlet Interceptor extension may call only these two routes. Starting a
+// pairing, reading status and revoking stay same-origin (the Yamlet UI).
+const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
+const EXTENSION_ROUTES = new Set(["/api/interceptor/pair/finish", "/api/interceptor/sync"]);
+
+export function isExtensionRequest(origin: string | undefined, url: string): boolean {
+  return !!origin && EXTENSION_ORIGIN.test(origin) && EXTENSION_ROUTES.has(url.split("?")[0]);
+}
+
 function hostnameOf(host: string): string | null {
   try {
     return new URL(`http://${host}`).hostname;
@@ -67,7 +76,7 @@ export function registerSecurity(app: FastifyInstance, allowed = allowedHostname
       return reply.code(403).send({ error: "Yamlet only accepts requests addressed to localhost." });
     }
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
-    const extensionOrigin = origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin) && req.url.startsWith("/api/interceptor/");
+    const extensionOrigin = isExtensionRequest(origin, req.url);
     if (extensionOrigin) {
       reply.header("Access-Control-Allow-Origin", origin);
       reply.header("Vary", "Origin");

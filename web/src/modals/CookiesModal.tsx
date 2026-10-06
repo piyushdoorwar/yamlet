@@ -19,7 +19,31 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
     }
   }, [toast]);
   useEffect(() => void load(), [load]);
-  useEffect(() => { void api.interceptorStatus().then((result) => setPaired(result.paired)).catch(() => {}); }, []);
+  useEffect(() => {
+    void api.interceptorStatus().then((result) => setPaired(result.paired)).catch(() => {});
+  }, []);
+
+  // While a code is on screen, watch for the extension to use it.
+  useEffect(() => {
+    if (!pairing) return;
+    const timer = setInterval(() => {
+      void api
+        .interceptorStatus()
+        .then(async (result) => {
+          if (!result.paired || paired) return;
+          setPaired(true);
+          setPairing(null);
+          toast.success("Extension paired", "Approve sites in the extension popup to sync their cookies.");
+          await load();
+        })
+        .catch(() => {});
+    }, 2000);
+    const expire = setTimeout(() => setPairing(null), pairing.expiresInSeconds * 1000);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(expire);
+    };
+  }, [pairing, paired, toast, load]);
 
   const domains = new Map<string, CookieInfo[]>();
   for (const c of cookies ?? []) domains.set(c.domain, [...(domains.get(c.domain) ?? []), c]);
@@ -51,7 +75,10 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
       }
     >
       <section className="mb-5 rounded-lg border border-line bg-primary-tint p-4">
-        <h3 className="text-14 font-semibold text-ink">Chrome cookie sync</h3>
+        <h3 className="text-13 font-semibold text-ink">
+          Chrome cookie sync
+          {paired && <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-11 font-medium text-primary">Paired</span>}
+        </h3>
         <p className="mt-1 text-12 text-body">Pair the Yamlet Interceptor extension, then approve individual sites in its popup. Approved cookies refresh while Chrome and Yamlet are running.</p>
         {pairing && <p className="mt-3 text-12 text-body">Paste this one-time code into the extension within five minutes: <code className="block select-all break-all rounded bg-white p-2 font-mono text-12 text-ink">{pairing.code}</code></p>}
         <div className="mt-3 flex gap-2">
@@ -77,6 +104,7 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
                 {list.map((c) => (
                   <li key={`${c.path}:${c.name}`} className="flex items-center gap-3 border-b border-line-soft px-4 py-2 last:border-0">
                     <span className="w-40 shrink-0 truncate text-13 font-medium text-ink">{c.name}</span>
+                    {c.fromBrowser && <span className="shrink-0 rounded-full bg-primary-soft px-2 py-0.5 text-11 font-medium text-primary">Chrome</span>}
                     <span className="min-w-0 flex-1 truncate font-mono text-12 text-body" title={c.value}>
                       {c.value}
                     </span>

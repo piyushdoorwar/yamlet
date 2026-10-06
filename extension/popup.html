@@ -8,25 +8,41 @@
     <script defer src="popup.js"></script>
   </head>
   <body>
-    <header><img src="icons/icon48.png" alt="" width="32" height="32"><div><strong>Yamlet Interceptor</strong><span>Chrome cookies to local Yamlet</span></div></header>
+    <header>
+      <svg class="logo" width="30" height="30" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="4" y="4" width="56" height="56" rx="14" fill="#0e7a43"/>
+        <rect x="13" y="13" width="38" height="38" rx="10" fill="none" stroke="#fff" stroke-width="3.4"/>
+        <path d="M24 25 L32 34 L40 25 M32 34 L32 45" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="title">
+        <strong>Yamlet</strong>
+        <span>Interceptor</span>
+      </div>
+    </header>
     <main>
-      <div id="status" role="status">Checking connection…</div>
-      <section id="pairSection">
+      <div id="status" class="status" role="status">Checking connection…</div>
+
+      <section id="pairSection" hidden>
         <h2>Connect to Yamlet</h2>
-        <p>In Yamlet, open Cookies and select <b>Pair extension</b>. Paste its one-time code here.</p>
-        <label for="base">Yamlet address</label><input id="base" value="http://localhost:7878/" spellcheck="false">
-        <label for="code">Pairing code</label><input id="code" placeholder="Paste code" spellcheck="false">
-        <button id="pair">Connect</button>
+        <p>In Yamlet, open <b>Cookies</b> and choose <b>Pair extension</b>. Paste the one-time code here.</p>
+        <label class="label" for="base">Yamlet address</label>
+        <input id="base" class="input mono" value="http://localhost:7878/" spellcheck="false" autocomplete="off">
+        <label class="label" for="code">Pairing code</label>
+        <input id="code" class="input mono" placeholder="Paste code" spellcheck="false" autocomplete="off">
+        <button id="pair" type="button" class="btn btn-primary btn-block">Connect</button>
       </section>
+
       <section id="connectedSection" hidden>
         <h2>Current site</h2>
-        <p id="site">Open a website to choose its cookies.</p>
+        <p id="site" class="site mono">Open a website to choose its cookies.</p>
         <p class="notice">Allowing a site lets this extension read its cookies, including sign-in cookies, and send them only to Yamlet on this computer. Approved sites refresh automatically while Chrome is running.</p>
-        <button id="approve">Allow &amp; sync this site</button>
-        <button id="sync" class="secondary">Sync approved sites now</button>
-        <h2>Approved sites</h2><ul id="sites"></ul>
-        <p id="lastSync"></p>
-        <button id="forget" class="text-button">Forget connection on this browser</button>
+        <button id="approve" type="button" class="btn btn-primary btn-block">Allow and sync this site</button>
+        <button id="sync" type="button" class="btn btn-cancel btn-block">Sync approved sites now</button>
+
+        <h2>Approved sites</h2>
+        <ul id="sites" class="sites"></ul>
+        <p id="lastSync" class="meta"></p>
+        <button id="forget" type="button" class="btn btn-ghost btn-block">Forget connection on this browser</button>
       </section>
     </main>
   </body>

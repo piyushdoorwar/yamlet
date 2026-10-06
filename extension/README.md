@@ -8,7 +8,7 @@ This Manifest V3 extension syncs cookies for sites you explicitly approve into a
 2. Open `chrome://extensions`, enable Developer mode, select **Load unpacked**, and choose this `extension/` folder.
 3. Open `http://localhost:7878`, then Cookies → **Pair extension**.
 4. Open the extension popup, paste the pairing code, and select **Connect**.
-5. Open a normal browser tab on a site that has cookies. Select **Allow & sync this site** in the extension popup.
+5. Open a normal browser tab on a site that has cookies. Select **Allow and sync this site** in the extension popup.
 6. Refresh Yamlet's Cookies modal. Try a request to the approved site. Change or delete a browser cookie, wait about a minute, and refresh the modal again.
 7. Restart the container and choose **Sync approved sites now** in the popup. Pairing should still work when `/data` is mounted.
 

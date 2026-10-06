@@ -13,6 +13,7 @@ export function cookieRoutes(app: FastifyInstance, { workspaces }: Deps): void {
       expires: c.expires,
       httpOnly: c.httpOnly,
       secure: c.secure,
+      fromBrowser: c.browserSite !== undefined,
     }));
   });
 

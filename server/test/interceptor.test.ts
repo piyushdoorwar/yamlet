@@ -55,3 +55,32 @@ it("pairs a local extension, imports encrypted cookies, reconciles deletion, and
   expect((await sync([])).statusCode).toBe(200);
   expect((await app.inject({ method: "GET", url: "/api/cookies", headers: webHeaders() })).json()).toEqual([]);
 });
+
+it("only lets the extension reach the pairing finish and sync routes", async () => {
+  const started = await app.inject({ method: "POST", url: "/api/interceptor/pair/start", headers: { ...extHeaders, "x-yamlet-workspace": encodeURIComponent(join(root, "ws")) } });
+  expect(started.statusCode).toBe(403);
+  const status = await app.inject({ method: "GET", url: "/api/interceptor/status", headers: { ...extHeaders, "x-yamlet-workspace": encodeURIComponent(join(root, "ws")) } });
+  expect(status.statusCode).toBe(403);
+  const preflight = await app.inject({ method: "OPTIONS", url: "/api/interceptor/sync", headers: { host, origin: extensionOrigin } });
+  expect(preflight.statusCode).toBe(204);
+  expect(preflight.headers["access-control-allow-origin"]).toBe(extensionOrigin);
+});
+
+it("maps Chrome sameSite values and marks synced cookies", async () => {
+  const started = await app.inject({ method: "POST", url: "/api/interceptor/pair/start", headers: webHeaders() });
+  const paired = await app.inject({ method: "POST", url: "/api/interceptor/pair/finish", headers: extHeaders, payload: { code: ` ${started.json().code} ` } });
+  const { pairingId, secret } = paired.json();
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from(secret, "base64url"), iv);
+  const cookies = [
+    { name: "a", value: "1", domain: ".example.com", path: "/", hostOnly: false, secure: true, httpOnly: false, sameSite: "no_restriction" },
+    { name: "b", value: "2", domain: "app.example.com", path: "/", hostOnly: true, secure: false, httpOnly: false, sameSite: "unspecified" },
+  ];
+  const body = Buffer.from(JSON.stringify({ site: "https://app.example.com", cookies }));
+  const encrypted = Buffer.concat([cipher.update(body), cipher.final(), cipher.getAuthTag()]);
+  const synced = await app.inject({ method: "POST", url: "/api/interceptor/sync", headers: extHeaders, payload: { pairingId, iv: iv.toString("base64url"), ciphertext: encrypted.toString("base64url") } });
+  expect(synced.json()).toEqual({ ok: true, count: 2 });
+  const list = (await app.inject({ method: "GET", url: "/api/cookies", headers: webHeaders() })).json();
+  expect(list).toHaveLength(2);
+  expect(list.every((c: { fromBrowser?: boolean }) => c.fromBrowser)).toBe(true);
+});

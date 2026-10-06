@@ -154,6 +154,8 @@ export interface CookieInfo {
   expires?: string;
   httpOnly?: boolean;
   secure?: boolean;
+  /** Set when the cookie was synced from Chrome by the Yamlet Interceptor extension. */
+  fromBrowser?: boolean;
 }
 
 export interface UploadResult {
