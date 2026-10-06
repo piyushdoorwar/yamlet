@@ -8,11 +8,15 @@ on:
     paths:
       - "site/**"
       - ".github/scripts/generate-site-releases.cjs"
+      - ".github/scripts/generate-site-stats.cjs"
       - ".github/workflows/static.yml"
   # Re-deploy after a release, to refresh the releases manifest.
   workflow_run:
     workflows: ["Release"]
     types: [completed]
+  # Refresh the displayed image download count between releases.
+  schedule:
+    - cron: "17 3 * * *"
   # Allow manual runs from the Actions tab.
   workflow_dispatch:
 
@@ -42,6 +46,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .github/scripts/generate-site-releases.cjs
+      - name: Generate download stats
+        run: node .github/scripts/generate-site-stats.cjs
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
