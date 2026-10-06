@@ -20,6 +20,11 @@ Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
 workspace. If it isn't one yet, Yamlet offers to set it up (it creates `collections/`,
 `environments/` and `globals/`).
 
+The `yamlet-data` volume holds private app state outside your workspace, such as the
+Chrome extension pairing. Keep the same `-v yamlet-data:/data` whenever you recreate the
+container (for example after an update); without it each new container starts with an
+empty `/data` and the extension has to pair again.
+
 **Install as an app.** With the container running, open Yamlet at
 <http://localhost:7878> and use your browser's **Install app** option (or **Add to Home
 Screen** on mobile). The installed app uses the Yamlet logo and opens in its own window.
@@ -39,7 +44,7 @@ In Chrome, open `chrome://extensions`, enable Developer mode, choose **Load unpa
 | Task | Command |
 |---|---|
 | Stop / start | `docker stop yamlet` / `docker start yamlet` |
-| Update | `docker pull ghcr.io/piyushdoorwar/yamlet:latest`, then `docker rm -f yamlet` and run again |
+| Update | `docker pull ghcr.io/piyushdoorwar/yamlet:latest`, then `docker rm -f yamlet` and run the same command again (keep `-v yamlet-data:/data`) |
 | A specific version | `ghcr.io/piyushdoorwar/yamlet:1.2.3` |
 | Another port | `-p 127.0.0.1:9000:7878` and set `-e YAMLET_PUBLIC_URL=http://localhost:9000` |
 

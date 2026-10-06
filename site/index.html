@@ -222,10 +222,10 @@
           <div class="steps">
             <div class="step" data-reveal>
               <h3>Start Yamlet in your workspace folder</h3>
-              <p>Run this from the directory that holds (or will hold) your collections. It is mounted at <code>/workspace</code> and bound to your machine only.</p>
+              <p>Run this from the directory that holds (or will hold) your collections. It is mounted at <code>/workspace</code> and bound to your machine only. The <code>yamlet-data</code> volume keeps private app state, such as the Chrome extension pairing, across updates.</p>
               <div class="cmd">
-                <pre><code><span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
-                <button class="copy-btn" type="button" data-copy="docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy docker run command">
+                <pre><code><span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy docker run command">
                   <svg class="ic i-copy" aria-hidden="true"><use href="assets/icons.svg#i-copy" /></svg>
                   <svg class="ic i-check" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg>
                   <span>Copy</span>
@@ -245,11 +245,12 @@
           <div class="notes">
             <div class="note" data-reveal>
               <h3><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-history" /></svg>Updating</h3>
-              <p>Pull the newest image, then remove and recreate the container with the same command. Your data lives in your folder, not in the container.</p>
+              <p>Pull the newest image, then remove and recreate the container with the same command. Your YAML lives in your folder, and keeping the same <code>yamlet-data</code> volume keeps the Chrome extension paired.</p>
               <div class="cmd">
                 <pre><code><span class="prompt">$ </span>docker pull ghcr.io/piyushdoorwar/yamlet:latest
-<span class="prompt">$ </span>docker rm -f yamlet</code></pre>
-                <button class="copy-btn" type="button" data-copy="docker pull ghcr.io/piyushdoorwar/yamlet:latest&#10;docker rm -f yamlet" aria-label="Copy update commands">
+<span class="prompt">$ </span>docker rm -f yamlet
+<span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker pull ghcr.io/piyushdoorwar/yamlet:latest&#10;docker rm -f yamlet&#10;docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy update commands">
                   <svg class="ic i-copy" aria-hidden="true"><use href="assets/icons.svg#i-copy" /></svg>
                   <svg class="ic i-check" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg>
                   <span>Copy</span>

@@ -83,8 +83,8 @@
               <h3><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-box" /></svg>Run the latest image</h3>
               <p>Start it from your workspace folder, then open <a href="http://localhost:7878" rel="noreferrer">http://localhost:7878</a>.</p>
               <div class="cmd">
-                <pre><code><span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
-                <button class="copy-btn" type="button" data-copy="docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy docker run command">
+                <pre><code><span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy docker run command">
                   <svg class="ic i-copy" aria-hidden="true"><use href="../assets/icons.svg#i-copy" /></svg>
                   <svg class="ic i-check" aria-hidden="true"><use href="../assets/icons.svg#i-check" /></svg>
                   <span>Copy</span>
@@ -93,11 +93,12 @@
             </div>
             <div class="note">
               <h3><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-history" /></svg>Update an existing container</h3>
-              <p>Pull the new image, remove the old container and run the command again. Your YAML stays in your folder.</p>
+              <p>Pull the new image, remove the old container and run the command again. Your YAML stays in your folder, and the <code>yamlet-data</code> volume keeps the Chrome extension paired.</p>
               <div class="cmd">
                 <pre><code><span class="prompt">$ </span>docker pull ghcr.io/piyushdoorwar/yamlet:latest
-<span class="prompt">$ </span>docker rm -f yamlet</code></pre>
-                <button class="copy-btn" type="button" data-copy="docker pull ghcr.io/piyushdoorwar/yamlet:latest&#10;docker rm -f yamlet" aria-label="Copy update commands">
+<span class="prompt">$ </span>docker rm -f yamlet
+<span class="prompt">$ </span>docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest</code></pre>
+                <button class="copy-btn" type="button" data-copy="docker pull ghcr.io/piyushdoorwar/yamlet:latest&#10;docker rm -f yamlet&#10;docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v &quot;$PWD:/workspace&quot; -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest" aria-label="Copy update commands">
                   <svg class="ic i-copy" aria-hidden="true"><use href="../assets/icons.svg#i-copy" /></svg>
                   <svg class="ic i-check" aria-hidden="true"><use href="../assets/icons.svg#i-check" /></svg>
                   <span>Copy</span>

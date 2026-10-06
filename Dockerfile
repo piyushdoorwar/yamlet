@@ -1,5 +1,6 @@
 # Yamlet: a local-first API client served in your browser.
-#   docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" ghcr.io/piyushdoorwar/yamlet
+#   docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet
+# Keep the named /data volume when recreating the container: it holds the extension pairing.
 # then open http://localhost:7878
 
 FROM node:24-alpine AS build
