@@ -1,60 +1,114 @@
-"""Render listing art from the current extension popup; requires Chrome and Pillow."""
-from pathlib import Path
+"""Render Web Store images from the current popup with its bundled DM Sans font."""
+
+import base64
 import subprocess
 import tempfile
-from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
+
+import cairosvg
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
+EXT = ROOT / "extension"
 OUT = ROOT / "store-assets"
-HTML = (ROOT / "extension/popup.html").read_text()
-CSS = (ROOT / "extension/popup.css").read_text()
-ICON = ROOT / "extension/icons/icon128.png"
+POPUP_HTML = (EXT / "popup.html").read_text()
+POPUP_CSS = (EXT / "popup.css").read_text()
+POPUP_JS = (EXT / "popup.js").read_text()
+MARK = (EXT / "icons/icon.svg").read_text()
 
-STAGE = """
+
+def data_url(path: Path, mime: str) -> str:
+    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode()}"
+
+
+def bundled_fonts(css: str) -> str:
+    for font in (EXT / "fonts").glob("*.woff2"):
+        css = css.replace(f'url("fonts/{font.name}")', f'url("{data_url(font, "font/woff2")}")')
+    return css
+
+
+FONT_CSS = bundled_fonts(POPUP_CSS)
+
+
+def capture(html: str, target: Path, width: int, height: int, scale: int = 1) -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        page = Path(temporary) / "image.html"
+        page.write_text(html)
+        raw = Path(temporary) / "capture.png"
+        subprocess.run(
+            ["google-chrome", "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
+             "--hide-scrollbars", "--virtual-time-budget=1500", f"--window-size={width * scale},{height * scale}",
+             f"--screenshot={raw}", page.as_uri()],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        image = Image.open(raw).convert("RGB")
+        assert image.size == (width * scale, height * scale), image.size
+        if scale != 1:
+            image = image.resize((width, height), Image.Resampling.LANCZOS)
+        image.save(target, optimize=True)
+
+
+STAGE_CSS = """
 <style>
-body { width:1280px; height:800px; margin:0; background:#eaf3ed; font-family:Arial,sans-serif; }
-.stage { width:1280px; height:800px; display:flex; align-items:center; justify-content:center; gap:100px; }
-.copy { width:500px; } .copy small {font-size:19px;color:#0e7a43;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-.copy h1 {font-size:58px;line-height:1.08;color:#173226;letter-spacing:-.04em;margin:24px 0}
-.copy p {font-size:24px;line-height:1.35;color:#52685b;max-width:480px}
-.popup-frame {width:350px; min-height:520px; background:#f8fbf9; box-shadow:0 24px 80px #17322630; border:1px solid #c9d9ce; border-radius:12px; overflow:hidden}
-.popup-frame header {border-radius:12px 12px 0 0}
+body { width:1280px; height:800px; margin:0; background:#fcfcfc; font-family:var(--font-sans); }
+.stage { box-sizing:border-box; width:1280px; height:800px; display:flex; align-items:center; justify-content:center; gap:80px;
+  border-top:8px solid #0e7a43; background-image:linear-gradient(#e9eeeb 1px,transparent 1px),linear-gradient(90deg,#e9eeeb 1px,transparent 1px); background-size:40px 40px; }
+.copy { width:540px; background:#fcfcfcef; padding:18px 0; }
+.copy small { font-size:17px; color:#0e7a43; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
+.copy h1 { font-size:54px; line-height:1.08; color:#0f1a14; letter-spacing:-.035em; margin:20px 0; }
+.copy p { font-size:23px; line-height:1.38; color:#4b5a52; max-width:510px; margin:0; }
+.popup-frame { box-sizing:border-box; width:360px; min-height:500px; background:#fff; box-shadow:0 24px 70px #0f1a1426;
+  border:1px solid #dce3de; border-radius:12px; overflow:hidden; }
 </style>
 """
 
-def screenshot(name, heading, subtitle, mock):
-    stage = f'<div class="stage"><div class="copy"><small>Yamlet Interceptor</small><h1>{heading}</h1><p>{subtitle}</p></div><div class="popup-frame">'
-    mocked = f'<script>window.chrome={{storage:{{local:{{get:async()=>({mock})}}}},tabs:{{query:async()=>[{{url:"https://example.com/account",incognito:false}}]}}}};</script>'
-    html = HTML.replace('<link rel="stylesheet" href="popup.css">', f'<style>{CSS}</style>{STAGE}')
-    html = html.replace('<script defer src="popup.js"></script>', mocked + '<script defer src="file://' + str(ROOT / 'extension/popup.js') + '"></script>')
-    html = html.replace('<img src="icons/icon48.png"', '<img src="file://' + str(ROOT / 'extension/icons/icon48.png') + '"')
-    html = html.replace('<body>', '<body>' + stage).replace('</body>', '</div></div></body>')
-    with tempfile.TemporaryDirectory() as temp:
-        page = Path(temp) / "shot.html"
-        page.write_text(html)
-        subprocess.run(["google-chrome", "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--hide-scrollbars", "--virtual-time-budget=1500", "--window-size=1280,800", f"--screenshot={OUT / name}", page.as_uri()], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    image = Image.open(OUT / name).convert("RGB")
-    assert image.size == (1280, 800), image.size
-    image.save(OUT / name)
+
+def screenshot(filename: str, heading: str, subtitle: str, state: str) -> None:
+    mock = ('<script>window.chrome={'
+            f'storage:{{local:{{get:async()=>({state})}},onChanged:{{addListener:()=>{{}}}}}},'
+            'tabs:{query:async()=>[{url:"https://example.com/account",incognito:false}]}'
+            '};</script>')
+    page = POPUP_HTML.replace('<link rel="stylesheet" href="popup.css">', f"<style>{FONT_CSS}</style>{STAGE_CSS}")
+    page = page.replace('<script defer src="popup.js"></script>', mock)
+    page = page.replace(
+        "<body>",
+        f'<body><div class="stage"><div class="copy"><small>Yamlet Interceptor</small><h1>{heading}</h1><p>{subtitle}</p></div><div class="popup-frame">',
+    ).replace("</body>", f"<script>{POPUP_JS}</script></div></div></body>")
+    capture(page, OUT / filename, 1280, 800)
+
+
+for size in (16, 32, 48, 128):
+    cairosvg.svg2png(bytestring=MARK.encode(), write_to=str(EXT / f"icons/icon{size}.png"), output_width=size, output_height=size)
 
 screenshot("1-connect-1280x800.png", "Pair with local Yamlet", "Connect the extension to the workspace running on your computer.", "{}")
 screenshot("2-approve-1280x800.png", "Approve one site", "Choose exactly which site's cookies Yamlet can use.", '{pairing:{base:"http://localhost:7878/",pairingId:"demo",secret:"demo"},sites:[]}')
 screenshot("3-synced-1280x800.png", "Keep cookies current", "Approved sites refresh while Chrome and Yamlet are running.", '{pairing:{base:"http://localhost:7878/",pairingId:"demo",secret:"demo"},sites:["https://example.com"],lastSync:{site:"https://example.com",count:3,at:"2026-10-06T08:00:00.000Z"}}')
 
-def font(size, bold=False):
-    path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    return ImageFont.truetype(path, size)
 
-for size, label in [((440, 280), "promo-small-440x280.png"), ((1400, 560), "promo-marquee-1400x560.png")]:
-    im = Image.new("RGB", size, "#0e7a43")
-    draw = ImageDraw.Draw(im)
-    w, h = size
-    icon_size = 112 if w == 440 else 184
-    icon = Image.open(ICON).convert("RGBA").resize((icon_size, icon_size), Image.Resampling.LANCZOS)
-    im.paste(icon, (32 if w == 440 else 76, (h - icon_size) // 2), icon)
-    x = 155 if w == 440 else 300
-    draw.text((x, h // 2 - (50 if w == 440 else 90)), "Yamlet", fill="white", font=font(38 if w == 440 else 75, True))
-    draw.text((x, h // 2 + (5 if w == 440 else 8)), "Interceptor", fill="white", font=font(23 if w == 440 else 48, True))
-    if w > 440:
-        draw.text((x, h // 2 + 82), "Browser cookies for your local workspace", fill="#d6f2e2", font=font(23))
-    im.save(OUT / label)
+def promo(width: int, height: int, filename: str, scale: int = 1) -> None:
+    word_size = 43 if width == 440 else 94
+    subtitle_size = 18 if width == 440 else 35
+    icon_size = 112 if width == 440 else 212
+    left = 25 if width == 440 else 95
+    text_left = 150 if width == 440 else 335
+    detail = "Browser cookies for Yamlet" if width == 440 else "Browser cookies for your local workspace"
+    medium = data_url(EXT / "fonts/dm-sans-latin-500-normal.woff2", "font/woff2")
+    bold = data_url(EXT / "fonts/dm-sans-latin-700-normal.woff2", "font/woff2")
+    logo = data_url(EXT / "icons/icon128.png", "image/png")
+    page = f"""<!doctype html><html><head><meta charset="utf-8"><style>
+    @font-face {{ font-family:'DM Sans'; font-weight:500; src:url('{medium}') format('woff2'); }}
+    @font-face {{ font-family:'DM Sans'; font-weight:700; src:url('{bold}') format('woff2'); }}
+    * {{ box-sizing:border-box }} body {{ margin:0; width:{width*scale}px; height:{height*scale}px; background:#fcfcfc; font-family:'DM Sans',sans-serif; }}
+    .canvas {{ width:{width}px;height:{height}px;transform:scale({scale});transform-origin:top left;position:relative;overflow:hidden;
+      background:linear-gradient(90deg,#fcfcfc 60%,#eef7f1);border-top:7px solid #0e7a43; }}
+    .mark {{ position:absolute;left:{left}px;top:{(height-icon_size)//2}px;width:{icon_size}px;height:{icon_size}px }}
+    .copy {{ position:absolute;left:{text_left}px;top:{height//2 - (53 if width == 440 else 105)}px;white-space:nowrap; }}
+    .name {{ color:#0f1a14;font-size:{word_size}px;font-weight:700;letter-spacing:-.04em;line-height:1.1 }}
+    .label {{ color:#0e7a43;font-size:{subtitle_size+3}px;font-weight:700;line-height:1.25 }}
+    .detail {{ color:#4b5a52;font-size:{subtitle_size}px;font-weight:500;margin-top:{10 if width == 440 else 20}px }}
+    </style></head><body><div class="canvas"><img class="mark" src="{logo}" alt=""><div class="copy"><div class="name">Yamlet</div><div class="label">Interceptor</div><div class="detail">{detail}</div></div></div></body></html>"""
+    capture(page, OUT / filename, width, height, scale)
+
+
+promo(440, 280, "promo-small-440x280.png", scale=2)
+promo(1400, 560, "promo-marquee-1400x560.png")
