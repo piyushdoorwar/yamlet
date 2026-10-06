@@ -20,6 +20,12 @@ Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
 workspace. If it isn't one yet, Yamlet offers to set it up (it creates `collections/`,
 `environments/` and `globals/`).
 
+**Install as an app.** With the container running, open Yamlet at
+<http://localhost:7878> and use your browser's **Install app** option (or **Add to Home
+Screen** on mobile). The installed app uses the Yamlet logo and opens in its own window.
+Keep the container running to use your workspaces and send requests. If you access
+Yamlet from another device, serve it over HTTPS for browser installation.
+
 | Task | Command |
 |---|---|
 | Stop / start | `docker stop yamlet` / `docker start yamlet` |
