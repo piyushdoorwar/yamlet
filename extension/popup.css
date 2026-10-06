@@ -146,3 +146,6 @@ b { font-weight: 500; color: var(--color-ink); }
 .sites li:last-child { border-bottom: 0; }
 .sites li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sites li.empty { color: var(--color-muted); font-family: var(--font-sans); }
+
+/* --- Confirmation window (opened when a Yamlet page asks to pair) --- */
+body.confirm { width: auto; }

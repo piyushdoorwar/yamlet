@@ -39,7 +39,7 @@ docker rm -f yamlet 2>/dev/null || true
 docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data yamlet:interceptor
 ```
 
-In Chrome, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `extension/` folder. Open Yamlet's **Cookies** modal and choose **Pair extension**. Paste the code into the extension popup. Open a site, choose **Allow and sync this site**, and inspect the cookies in Yamlet. Approved sites refresh while Chrome is running. The `/data` volume keeps pairing across container recreation; cookie values remain in memory and are refreshed from Chrome. For another host port, enter that `http://localhost:<port>/` address in the extension popup. See [extension/README.md](extension/README.md) for packaging and test details.
+In Chrome, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `extension/` folder. Open Yamlet's **Cookies** modal, choose **Pair extension**, and confirm in the window the extension opens (or paste the code into the extension popup). Open a site, choose **Allow and sync this site**, and inspect the cookies in Yamlet. Approved sites refresh while Chrome is running. The `/data` volume keeps pairing across container recreation; if it is lost, the extension pairs again by itself while a Yamlet tab is open; cookie values remain in memory and are refreshed from Chrome. For another host port, enter that `http://localhost:<port>/` address in the extension popup. See [extension/README.md](extension/README.md) for packaging and test details.
 
 | Task | Command |
 |---|---|

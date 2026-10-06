@@ -5,11 +5,13 @@ import { Button, IconButton } from "../components/Button";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { api, errorMessage } from "../lib/api";
+import { sendPairCode, useInterceptorExtension } from "../lib/interceptor";
 
 export function CookiesModal({ onClose }: { onClose: () => void }) {
   const [cookies, setCookies] = useState<CookieInfo[] | null>(null);
   const [pairing, setPairing] = useState<{ code: string; expiresInSeconds: number } | null>(null);
   const [paired, setPaired] = useState(false);
+  const extension = useInterceptorExtension();
   const toast = useToast();
   const load = useCallback(async () => {
     try {
@@ -44,6 +46,17 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
       clearTimeout(expire);
     };
   }, [pairing, paired, toast, load]);
+
+  // With the extension on this page the code goes straight to it; otherwise it is shown to paste.
+  const startPairing = async () => {
+    try {
+      const started = await api.interceptorPairStart();
+      setPairing(started);
+      if (extension) sendPairCode(started.code);
+    } catch (err) {
+      toast.error("Could not start pairing", errorMessage(err));
+    }
+  };
 
   const domains = new Map<string, CookieInfo[]>();
   for (const c of cookies ?? []) domains.set(c.domain, [...(domains.get(c.domain) ?? []), c]);
@@ -80,9 +93,14 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
           {paired && <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-11 font-medium text-primary">Paired</span>}
         </h3>
         <p className="mt-1 text-12 text-body">Pair the Yamlet Interceptor extension, then approve individual sites in its popup. Approved cookies refresh while Chrome and Yamlet are running.</p>
-        {pairing && <p className="mt-3 text-12 text-body">Paste this one-time code into the extension within five minutes: <code className="block select-all break-all rounded bg-white p-2 font-mono text-12 text-ink">{pairing.code}</code></p>}
+        {pairing && (
+          <p className="mt-3 text-12 text-body">
+            {extension ? "Confirm in the window the extension opened. If none opened, paste this one-time code into the extension popup within five minutes:" : "Paste this one-time code into the extension within five minutes:"}
+            <code className="block select-all break-all rounded bg-white p-2 font-mono text-12 text-ink">{pairing.code}</code>
+          </p>
+        )}
         <div className="mt-3 flex gap-2">
-          <Button variant="primary" onClick={() => void api.interceptorPairStart().then(setPairing).catch((err: unknown) => toast.error("Could not start pairing", errorMessage(err)))}>Pair extension</Button>
+          <Button variant="primary" onClick={() => void startPairing()}>Pair extension</Button>
           {paired && <Button variant="cancel" onClick={() => void act(async () => { await api.interceptorDisconnect(); setPaired(false); setPairing(null); })}>Disconnect extensions</Button>}
         </div>
       </section>

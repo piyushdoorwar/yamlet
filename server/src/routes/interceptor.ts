@@ -7,7 +7,9 @@ import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
 import { isExtensionRequest } from "../security.js";
 
-interface Pairing { id: string; secret: string; workspace: string; createdAt: string }
+// A revoked pairing keeps its id (secret cleared) so its extension is told it was
+// disconnected on purpose (403) rather than forgotten, e.g. a lost /data volume (401).
+interface Pairing { id: string; secret: string; workspace: string; createdAt: string; revokedAt?: string }
 interface Pending { workspace: string; expires: number }
 interface BrowserCookie {
   name: string; value: string; domain: string; path: string; hostOnly: boolean;
@@ -58,12 +60,13 @@ export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: 
 
   app.get("/api/interceptor/status", async (req) => {
     const { store } = await workspaces.fromHeaders(req.headers);
-    return { paired: (await pairings()).some((pair) => pair.workspace === store.workspace.rootPath) };
+    return { paired: (await pairings()).some((pair) => pair.workspace === store.workspace.rootPath && !pair.revokedAt) };
   });
 
   app.delete("/api/interceptor/pairings", async (req) => {
     const { store, cookies } = await workspaces.fromHeaders(req.headers);
-    cache = (await pairings()).filter((pair) => pair.workspace !== store.workspace.rootPath);
+    const revokedAt = new Date().toISOString();
+    cache = (await pairings()).map((pair) => (pair.workspace === store.workspace.rootPath && !pair.revokedAt ? { ...pair, secret: "", revokedAt } : pair));
     await save();
     cookies.clearBrowserSites();
     return { ok: true };
@@ -83,8 +86,11 @@ export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: 
 
   app.post<{ Body: { pairingId?: string; iv?: string; ciphertext?: string } }>("/api/interceptor/sync", { bodyLimit: 1024 * 1024 }, async (req) => {
     if (!extensionRequest(req)) throw new HttpError(403, "Sync must come from the extension.");
+    if (typeof req.body?.pairingId !== "string" || typeof req.body?.iv !== "string" || typeof req.body?.ciphertext !== "string") throw new HttpError(403, "Invalid pairing.");
     const pair = (await pairings()).find((item) => item.id === req.body?.pairingId);
-    if (!pair || typeof req.body?.iv !== "string" || typeof req.body?.ciphertext !== "string") throw new HttpError(403, "Invalid pairing.");
+    // 401 lets the extension pair again on its own; 403 means the user disconnected it.
+    if (!pair) throw new HttpError(401, "Unknown pairing.");
+    if (pair.revokedAt) throw new HttpError(403, "Pairing was disconnected in Yamlet.");
     let data: { site?: unknown; cookies?: unknown };
     try {
       const iv = Buffer.from(req.body.iv, "base64url");

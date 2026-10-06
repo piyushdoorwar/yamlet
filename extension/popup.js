@@ -48,7 +48,7 @@ function siteRow(site) {
 }
 
 async function refresh() {
-  const { pairing, sites = [], lastSync, lastError, lastBase } = await chrome.storage.local.get(["pairing", "sites", "lastSync", "lastError", "lastBase"]);
+  const { pairing, needsRepair, sites = [], lastSync, lastError, lastBase } = await chrome.storage.local.get(["pairing", "needsRepair", "sites", "lastSync", "lastError", "lastBase"]);
   $("pairSection").hidden = !!pairing;
   $("connectedSection").hidden = !pairing;
   if (pairing) {
@@ -62,7 +62,8 @@ async function refresh() {
     }
     $("lastSync").textContent = lastSync ? `Last sync ${new Date(lastSync.at).toLocaleString()} · ${lastSync.count} ${lastSync.count === 1 ? "cookie" : "cookies"}` : "No cookies synced yet.";
   } else {
-    status(lastError || "Not connected to Yamlet", !!lastError);
+    if (needsRepair) status(`Yamlet forgot this browser's pairing. Open Yamlet at ${needsRepair} and it reconnects automatically.`);
+    else status(lastError || "Not connected to Yamlet", !!lastError);
     if (lastBase && document.activeElement !== $("base")) $("base").value = lastBase;
   }
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

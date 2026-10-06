@@ -84,3 +84,37 @@ it("maps Chrome sameSite values and marks synced cookies", async () => {
   expect(list).toHaveLength(2);
   expect(list.every((c: { fromBrowser?: boolean }) => c.fromBrowser)).toBe(true);
 });
+
+it("tells a forgotten pairing (401) apart from a disconnected one (403)", async () => {
+  const pair = async () => {
+    const started = await app.inject({ method: "POST", url: "/api/interceptor/pair/start", headers: webHeaders() });
+    return (await app.inject({ method: "POST", url: "/api/interceptor/pair/finish", headers: extHeaders, payload: { code: started.json().code } })).json() as { pairingId: string; secret: string };
+  };
+  const sync = (pairingId: string, secret: string) => {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", Buffer.from(secret, "base64url"), iv);
+    const encrypted = Buffer.concat([cipher.update(JSON.stringify({ site: "https://example.com", cookies: [] })), cipher.final(), cipher.getAuthTag()]);
+    return app.inject({ method: "POST", url: "/api/interceptor/sync", headers: extHeaders, payload: { pairingId, iv: iv.toString("base64url"), ciphertext: encrypted.toString("base64url") } });
+  };
+  const status = async () => (await app.inject({ method: "GET", url: "/api/interceptor/status", headers: webHeaders() })).json();
+
+  const first = await pair();
+  expect((await sync(first.pairingId, first.secret)).statusCode).toBe(200);
+
+  // Lost private data: the server has never heard of the pairing, so the extension may re-pair.
+  await app.close();
+  await rm(join(root, "private"), { recursive: true, force: true });
+  app = await makeApp();
+  expect((await sync(first.pairingId, first.secret)).statusCode).toBe(401);
+
+  // Disconnected in Yamlet: the pairing is remembered as revoked, even across a restart.
+  const second = await pair();
+  expect(await status()).toEqual({ paired: true });
+  await app.inject({ method: "DELETE", url: "/api/interceptor/pairings", headers: webHeaders() });
+  expect(await status()).toEqual({ paired: false });
+  await app.close();
+  app = await makeApp();
+  const revoked = await sync(second.pairingId, second.secret);
+  expect(revoked.statusCode).toBe(403);
+  expect(revoked.json().error).toMatch(/disconnected/);
+});
