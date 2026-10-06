@@ -4,7 +4,8 @@ import { existsSync, promises as fs } from "node:fs";
 import { STATUS_CODES } from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { Agent, FormData, request, type Dispatcher } from "undici";
+import { FormData, request, type Dispatcher } from "undici";
+import { defaultAgent, insecureAgent } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { defaultSettings, YAMLET_USER_AGENT, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
@@ -40,8 +41,6 @@ export interface ExecuteResult {
 
 export const MAX_REDIRECTS = 10;
 
-let insecure: Agent | undefined;
-const insecureAgent = () => (insecure ??= new Agent({ connect: { rejectUnauthorized: false } }));
 
 const NETWORK_HINTS: Record<string, string> = {
   ENOTFOUND: "host name could not be resolved",
@@ -348,7 +347,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   const tests: ScriptTestResult[] = [];
   const logs: string[] = [];
   const settings = { ...defaultSettings(), ...req.settings };
-  const dispatcher = input.dispatcher ?? (settings.skipSslVerification ? insecureAgent() : undefined);
+  const dispatcher = input.dispatcher ?? (settings.skipSslVerification ? insecureAgent() : defaultAgent());
   const scriptBase = {
     request: req,
     variables: vars,

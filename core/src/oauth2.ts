@@ -2,6 +2,7 @@
 // authorization-code + PKCE helpers, refresh, and a small in-memory token cache.
 import { createHash, randomBytes } from "node:crypto";
 import { request, type Dispatcher } from "undici";
+import { defaultAgent } from "./agents.js";
 import type { OAuth2Config } from "./models.js";
 
 export interface TokenResponse {
@@ -95,7 +96,7 @@ async function requestToken(
     method: "POST",
     headers,
     body: body.toString(),
-    dispatcher: opts.dispatcher,
+    dispatcher: opts.dispatcher ?? defaultAgent(),
     signal: opts.signal,
   });
   const text = await res.body.text();
