@@ -218,6 +218,8 @@ export interface YamletResponse {
   bodyEncoding: "utf8" | "base64";
   contentType: string;
   timings: ResponseTimings;
+  /** Redirects followed before the final response, in order: the status and the URL that sent it. */
+  redirects?: { statusCode: number; url: string }[];
   testResults: ScriptTestResult[];
   /** console.log output from pre/post scripts. */
   scriptLogs: string[];

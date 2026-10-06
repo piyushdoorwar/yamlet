@@ -122,6 +122,31 @@ describe("importCollectionV2", () => {
     expect(bare).toMatchObject({ method: "GET", url: "https://bare.test/x", queryParams: [{ key: "y", value: "1", enabled: true }] });
   });
 
+  it("maps protocolProfileBehavior onto request settings, inherited from collection and folders", () => {
+    const c = importCollectionV2({
+      info: { name: "Redirects" },
+      protocolProfileBehavior: { strictSSL: false },
+      item: [
+        { name: "Follows", request: "https://a.test" },
+        { name: "Stops", protocolProfileBehavior: { followRedirects: false }, request: "https://a.test" },
+        {
+          name: "Folder",
+          protocolProfileBehavior: { followRedirects: false },
+          item: [
+            { name: "Inherits", request: "https://a.test" },
+            { name: "Overrides", protocolProfileBehavior: { followRedirects: true, strictSSL: true }, request: "https://a.test" },
+          ],
+        },
+      ],
+    });
+    const [follows, stops] = c.requests;
+    const [inherits, overrides] = c.folders[0].requests;
+    expect(follows.settings).toMatchObject({ followRedirects: true, skipSslVerification: true });
+    expect(stops.settings.followRedirects).toBe(false);
+    expect(inherits.settings.followRedirects).toBe(false);
+    expect(overrides.settings).toMatchObject({ followRedirects: true, skipSslVerification: false });
+  });
+
   it("detects formats", () => {
     expect(detectImportFormat(JSON.stringify(v21))).toBe("collection-v2");
     expect(detectImportFormat(JSON.stringify({ collection: v21 }))).toBe("collection-v2");

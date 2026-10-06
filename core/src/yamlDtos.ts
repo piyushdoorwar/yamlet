@@ -472,11 +472,14 @@ export function writeBody(b: RequestBody): Obj | undefined {
 export function readSettings(o: Obj): RequestSettings {
   const s = defaultSettings();
   const raw = isObj(o.settings) ? o.settings : {};
+  const behavior = isObj(o.protocolProfileBehavior) ? o.protocolProfileBehavior : {};
   s.timeoutMs = int(raw.timeoutMs ?? raw.timeout) ?? 0;
-  s.followRedirects = bool(raw.followRedirects) ?? true;
+  s.followRedirects = bool(raw.followRedirects) ?? bool(behavior.followRedirects) ?? true;
   const ssl = isObj(o.ssl) ? o.ssl : {};
+  const strict = bool(raw.strictSSL) ?? bool(behavior.strictSSL);
   s.skipSslVerification =
     bool(raw.skipSslVerification) ??
+    (strict === undefined ? undefined : !strict) ??
     bool(o.skipSslVerification) ??
     bool(ssl.skipVerification) ??
     (bool(ssl.verify) === false ? true : undefined) ??
@@ -527,7 +530,7 @@ function writeExamples(list: ResponseExample[] | undefined): Obj[] | undefined {
 
 export const REQUEST_KEYS: ReadonlySet<string> = new Set([
   "id", "name", "description", "order", "method", "url", "queryParams", "headers", "pathVariables", "variables",
-  "auth", "body", "scripts", "settings", "examples", "skipSslVerification", "ssl",
+  "auth", "body", "scripts", "settings", "examples", "skipSslVerification", "ssl", "protocolProfileBehavior",
 ]);
 
 /** `Get All.request.yaml` -> `Get All`; `health.yaml` -> `health`. */

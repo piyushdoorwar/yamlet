@@ -195,6 +195,7 @@ interface HttpExchange {
   sentHeaders: KeyValue[];
   firstByteMs: number;
   totalMs: number;
+  redirects: { statusCode: number; url: string }[];
 }
 
 /** One HTTP exchange including redirects (cookies are stored and re-sent on every hop). */
@@ -212,6 +213,7 @@ async function exchange(opts: {
   let headers = opts.headers.filter((h) => !(body instanceof FormData && h.key.toLowerCase() === "content-type" && !/boundary=/i.test(h.value)));
   let explicitCookie = headers.find((h) => h.key.toLowerCase() === "cookie")?.value;
   const start = performance.now();
+  const redirects: HttpExchange["redirects"] = [];
   for (let hop = 0; ; hop++) {
     const sent = headers.filter((h) => h.key.toLowerCase() !== "cookie");
     const fromJar = opts.jar?.cookieHeaderFor(url);
@@ -231,6 +233,7 @@ async function exchange(opts: {
     const location = headerValue(res.headers, "location");
     if (opts.followRedirects && location && [301, 302, 303, 307, 308].includes(res.statusCode) && hop < MAX_REDIRECTS) {
       await res.body.dump();
+      redirects.push({ statusCode: res.statusCode, url });
       const next = new URL(location, url);
       if (next.host !== new URL(url).host) {
         // Credentials set for one host are not forwarded to another.
@@ -246,7 +249,7 @@ async function exchange(opts: {
       continue;
     }
     const bytes = Buffer.from(await res.body.arrayBuffer());
-    return { status: res.statusCode, headers: res.headers, bytes, sentHeaders: sent, firstByteMs, totalMs: performance.now() - start };
+    return { status: res.statusCode, headers: res.headers, bytes, sentHeaders: sent, firstByteMs, totalMs: performance.now() - start, redirects };
   }
 }
 
@@ -270,6 +273,7 @@ function consoleText(r: YamletResponse): string {
   const lines = [`${r.method} ${r.resolvedUrl}`, "", "Request Headers", formatHeaders(r.requestHeaders), "", "Request Body", r.requestBody || "[empty]", "", "Response"];
   if (r.isError) lines.push(`Error: ${r.errorMessage ?? "Request failed."}`);
   else {
+    for (const hop of r.redirects ?? []) lines.push(`${`HTTP ${hop.statusCode} ${STATUS_CODES[hop.statusCode] ?? ""}`.trim()} from ${hop.url} (followed)`);
     lines.push(`HTTP ${r.statusCode} ${r.reasonPhrase}`, "Response Headers", formatHeaders(r.headers), "", "Response Body");
     lines.push(r.bodyEncoding === "base64" ? `[binary body, ${r.sizeBytes} bytes]` : r.body || "[empty]");
   }
@@ -433,6 +437,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       bodyEncoding: textual ? "utf8" : "base64",
       contentType,
       timings: { total: Math.round(ex.totalMs), firstByte: Math.round(ex.firstByteMs), download: Math.max(0, Math.round(ex.totalMs - ex.firstByteMs)) },
+      ...(ex.redirects.length ? { redirects: ex.redirects } : {}),
     };
   } catch (e) {
     const message = input.signal?.aborted

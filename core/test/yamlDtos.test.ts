@@ -130,6 +130,17 @@ describe("request files", () => {
     expect(requestFromYaml("ssl:\n  skipVerification: true\n").settings.skipSslVerification).toBe(true);
   });
 
+  it("reads protocolProfileBehavior and drops it on save", () => {
+    const original = "url: https://a.test\nprotocolProfileBehavior:\n  followRedirects: false\n  strictSSL: false\n";
+    const r = requestFromYaml(original);
+    expect(r.settings).toMatchObject({ followRedirects: false, skipSslVerification: true });
+    // Turning redirects back on must stick: the old key is not written back to override it.
+    r.settings = { ...r.settings, followRedirects: true };
+    const saved = requestToYaml(r, original);
+    expect(saved).not.toContain("protocolProfileBehavior");
+    expect(requestFromYaml(saved).settings.followRedirects).toBe(true);
+  });
+
   it("keeps numeric-looking values as written", () => {
     const r = requestFromYaml("queryParams:\n  - key: v\n    value: 1.0\n  - key: h\n    value: 0x10\n");
     expect(r.queryParams.map((q) => q.value)).toEqual(["1.0", "0x10"]);

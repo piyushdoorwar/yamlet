@@ -1,6 +1,6 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
 import clsx from "clsx";
-import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, Download, Loader2, MoreHorizontal, PanelBottom, PanelRight, Send } from "lucide-react";
+import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Loader2, MoreHorizontal, PanelBottom, PanelRight, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { IconButton } from "../../components/Button";
 import { useDialogs } from "../../components/Dialogs";
@@ -130,6 +130,16 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
         ) : r && !r.isError ? (
           <span className="flex min-w-0 items-center gap-3 overflow-hidden text-12 whitespace-nowrap text-grey">
             <StatusPill status={r.statusCode} text={r.reasonPhrase} />
+            {r.redirects?.length ? (
+              <span
+                className="flex items-center gap-1"
+                title={`Followed ${r.redirects.map((h) => `${h.statusCode} from ${h.url}`).join(", ")}. Turn off "Follow redirects" in the request's Settings to see the redirect itself.`}
+              >
+                <CornerDownRight size={13} className="text-muted" aria-hidden />
+                <span className="text-muted">Redirected</span>{" "}
+                <b className="font-medium text-primary">{r.redirects.map((h) => h.statusCode).join(" > ")}</b>
+              </span>
+            ) : null}
             <span title={r.timings.firstByte !== undefined ? `Waiting ${formatMs(r.timings.firstByte)} · Download ${formatMs(r.timings.download ?? 0)}` : undefined}>
               <span className="text-muted">Time</span> <b className="font-medium text-primary">{formatMs(r.durationMs)}</b>
             </span>

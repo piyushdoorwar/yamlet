@@ -322,10 +322,13 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     const { response } = await send({ request: newRequest({ method: "POST", url: "https://site.test/login", body: { ...newRequest().body, type: "text", raw: "x" } }), cookieJar });
     expect(seen.map((s) => `${s.method} ${s.path}`)).toEqual(["POST /login", "GET /home"]);
     expect(response.body).toBe("cookie=sid=abc");
+    expect(response.redirects).toEqual([{ statusCode: 302, url: "https://site.test/login" }]);
+    expect(response.consoleText).toContain("HTTP 302 Found from https://site.test/login (followed)");
     expect(cookieJar.cookieHeaderFor("https://site.test/")).toBe("sid=abc");
 
     const noFollow = await send({ request: newRequest({ url: "https://site.test/login", settings: { timeoutMs: 0, followRedirects: false, skipSslVerification: false } }), cookieJar });
     expect(noFollow.response.statusCode).toBe(302);
+    expect(noFollow.response.redirects).toBeUndefined();
     expect(noFollow.response.cookies).toContainEqual(expect.objectContaining({ name: "sid", value: "abc", domain: "site.test", path: "/" }));
   });
 

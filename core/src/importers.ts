@@ -219,6 +219,13 @@ interface Inherited {
   auth?: Auth;
   pre: string[];
   post: string[];
+  /** `protocolProfileBehavior` merged from the collection and enclosing folders. */
+  behavior: Obj;
+}
+
+/** Overlays an item's `protocolProfileBehavior` on what it inherits. */
+function behaviorOf(raw: unknown, inherited: Obj): Obj {
+  return isObj(raw) ? { ...inherited, ...raw } : inherited;
 }
 
 function v2Request(item: Obj, inherited: Inherited): YamletRequest {
@@ -242,6 +249,9 @@ function v2Request(item: Obj, inherited: Inherited): YamletRequest {
   req.postResponseScript = [eventScript(item.event, "test"), ...inherited.post].filter(Boolean).join("\n\n");
   const vars = readVariables(item.variable);
   if (vars.length) req.variables = vars;
+  const behavior = behaviorOf(item.protocolProfileBehavior, inherited.behavior);
+  if (behavior.followRedirects === false) req.settings.followRedirects = false;
+  if (behavior.strictSSL === false) req.settings.skipSslVerification = true;
   return req;
 }
 
@@ -258,6 +268,7 @@ function v2Items(items: unknown, node: YamletCollection | YamletFolder, inherite
         auth: auth?.type === "inherit" ? inherited.auth : auth,
         pre: [...inherited.pre, eventScript(raw.event, "prerequest")].filter(Boolean),
         post: [eventScript(raw.event, "test"), ...inherited.post].filter(Boolean),
+        behavior: behaviorOf(raw.protocolProfileBehavior, inherited.behavior),
       });
       node.folders.push(folder);
     } else {
@@ -282,7 +293,7 @@ export function importCollectionV2(json: unknown): YamletCollection {
   c.auth = auth.type === "inherit" ? defaultAuth("none") : auth;
   c.preRequestScript = eventScript(root.event, "prerequest");
   c.postResponseScript = eventScript(root.event, "test");
-  v2Items(root.item, c, { pre: [], post: [] });
+  v2Items(root.item, c, { pre: [], post: [], behavior: behaviorOf(root.protocolProfileBehavior, {}) });
   return c;
 }
 
