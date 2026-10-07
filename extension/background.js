@@ -123,14 +123,41 @@ function tryRepair() {
  * confirm it in the extension's own window, so another local page cannot pair the
  * extension with itself.
  */
-async function pagePair(base, code) {
+async function pagePair(base, code, tabId) {
   endpoint(base, "/");
   const { pairing, needsRepair, lastBase } = await chrome.storage.local.get(["pairing", "needsRepair", "lastBase"]);
   if (base === (pairing?.base ?? needsRepair ?? lastBase)) return finishPair(base, code);
-  await chrome.storage.session.set({ pendingPagePair: { base, code } });
-  await chrome.windows.create({ url: chrome.runtime.getURL("confirm.html"), type: "popup", width: 400, height: 330, focused: true });
+  // A second click while the window is open refreshes it instead of opening another.
+  const { pendingPagePair: previous } = await chrome.storage.session.get("pendingPagePair");
+  const open = previous?.windowId && (await chrome.windows.get(previous.windowId).catch(() => null));
+  if (open) {
+    if (previous.tabId !== tabId) notifyPairCancelled(previous.tabId);
+    await chrome.storage.session.set({ pendingPagePair: { base, code, tabId, windowId: open.id } });
+    await chrome.windows.update(open.id, { focused: true });
+  } else {
+    const created = await chrome.windows.create({ url: chrome.runtime.getURL("confirm.html"), type: "popup", width: 400, height: 330, focused: true });
+    await chrome.storage.session.set({ pendingPagePair: { base, code, tabId, windowId: created.id } });
+  }
   return { pending: true };
 }
+
+/** Tells the Yamlet page that asked to pair that the user declined, so it stops waiting. */
+function notifyPairCancelled(tabId) {
+  if (tabId !== undefined) void chrome.tabs.sendMessage(tabId, { type: "pairCancelled" }).catch(() => {});
+}
+
+async function cancelPagePair() {
+  const { pendingPagePair } = await chrome.storage.session.get("pendingPagePair");
+  await chrome.storage.session.remove("pendingPagePair");
+  notifyPairCancelled(pendingPagePair?.tabId);
+}
+
+// Closing the confirmation window counts as Cancel.
+chrome.windows.onRemoved.addListener((windowId) => {
+  void chrome.storage.session.get("pendingPagePair").then(({ pendingPagePair }) => {
+    if (pendingPagePair?.windowId === windowId) return cancelPagePair();
+  });
+});
 
 async function syncSite(site) {
   const { pairing } = await chrome.storage.local.get("pairing");
@@ -259,7 +286,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   (async () => {
     if (!fromExtensionPage) {
       const base = `${sender.origin}/`;
-      if (message.type === "pagePair" && typeof message.code === "string") return pagePair(base, message.code);
+      if (message.type === "pagePair" && typeof message.code === "string") return pagePair(base, message.code, sender.tab?.id);
       if (message.type === "pageReady") {
         const { needsRepair } = await chrome.storage.local.get("needsRepair");
         if (needsRepair === base) await tryRepair();
@@ -275,7 +302,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
       return finishPair(pendingPagePair.base, pendingPagePair.code);
     }
     if (message.type === "cancelPagePair") {
-      await chrome.storage.session.remove("pendingPagePair");
+      await cancelPagePair();
       return { ok: true };
     }
     if (message.type === "approve") return addSite(new URL(message.site).origin);

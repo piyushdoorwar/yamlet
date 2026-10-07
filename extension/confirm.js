@@ -29,12 +29,19 @@ $("cancel").addEventListener("click", () => {
   void send("cancelPagePair").finally(() => window.close());
 });
 
-void chrome.storage.session.get("pendingPagePair").then(({ pendingPagePair }) => {
+function show(pendingPagePair) {
   if (!pendingPagePair) {
     $("base").textContent = "No pairing request is waiting.";
+    $("connect").disabled = true;
     return;
   }
   $("base").textContent = pendingPagePair.base;
   $("connect").disabled = false;
   $("connect").focus();
+}
+
+void chrome.storage.session.get("pendingPagePair").then(({ pendingPagePair }) => show(pendingPagePair));
+// Another Pair extension click reuses this window with a fresh request.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "session" && changes.pendingPagePair?.newValue) show(changes.pendingPagePair.newValue);
 });

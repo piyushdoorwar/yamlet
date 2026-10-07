@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/lib/api";
-import { sendPairCode, startInterceptorBridge, useInterceptorExtension } from "../src/lib/interceptor";
+import { onPairCancelled, sendPairCode, startInterceptorBridge, useInterceptorExtension } from "../src/lib/interceptor";
 
 /** Plays the extension's bridge script: posts on this window from this origin. */
 function fromExtension(message: Record<string, unknown>) {
@@ -32,10 +32,32 @@ describe("interceptor bridge", () => {
     await waitFor(() => expect(messages.seen).toContainEqual({ source: "yamlet", type: "code", id: "r1", code: "fresh" }));
     expect(start).toHaveBeenCalledOnce();
 
-    sendPairCode("abc");
+    const outcome = sendPairCode("abc");
     await waitFor(() => expect(messages.seen).toContainEqual({ source: "yamlet", type: "pair", code: "abc" }));
+    fromExtension({ type: "pairResult", ok: true, pending: true });
+    await expect(outcome).resolves.toEqual({ status: "confirm" });
     messages.stop();
     start.mockRestore();
+  });
+
+  it("reports what the extension did with a pairing code", async () => {
+    const paired = sendPairCode("a");
+    fromExtension({ type: "pairResult", ok: true, pending: false });
+    await expect(paired).resolves.toEqual({ status: "paired" });
+
+    const failed = sendPairCode("b");
+    fromExtension({ type: "pairResult", ok: false, error: "Yamlet is not reachable." });
+    await expect(failed).resolves.toEqual({ status: "failed", error: "Yamlet is not reachable." });
+  });
+
+  it("tells listeners when the confirmation window is cancelled", () => {
+    const cancelled = vi.fn();
+    const stop = onPairCancelled(cancelled);
+    fromExtension({ type: "pairCancelled" });
+    expect(cancelled).toHaveBeenCalledOnce();
+    stop();
+    fromExtension({ type: "pairCancelled" });
+    expect(cancelled).toHaveBeenCalledOnce();
   });
 
   it("ignores messages from other windows or origins", async () => {
