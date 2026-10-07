@@ -263,7 +263,7 @@
                 Inside the container, <code>localhost</code> is the container itself. Use
                 <code>http://host.docker.internal:&lt;port&gt;</code> instead (on Linux add
                 <code>--add-host=host.docker.internal:host-gateway</code>), or run with
-                <code>--network host</code>.
+                <code>--network host -e HOST=127.0.0.1</code> (keep the <code>HOST</code> setting so Yamlet is not exposed to your network).
               </p>
             </div>
           </div>

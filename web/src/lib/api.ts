@@ -123,7 +123,7 @@ export const api = {
 
   cookies: () => request<CookieInfo[]>("GET", "/api/cookies"),
   interceptorPairStart: () => request<{ code: string; expiresInSeconds: number }>("POST", "/api/interceptor/pair/start"),
-  interceptorStatus: () => request<{ paired: boolean }>("GET", "/api/interceptor/status"),
+  interceptorStatus: () => request<{ paired: boolean; pairedAt: string | null }>("GET", "/api/interceptor/status"),
   interceptorDisconnect: () => request<{ ok: true }>("DELETE", "/api/interceptor/pairings"),
   deleteCookie: (domain: string, name: string, path?: string) =>
     request<{ ok: true }>("DELETE", `/api/cookies?${new URLSearchParams({ domain, name, ...(path ? { path } : {}) })}`),

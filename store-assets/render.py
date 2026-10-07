@@ -77,7 +77,7 @@ def stage(heading: str, subtitle: str) -> str:
 def confirm_screenshot(filename: str, heading: str, subtitle: str, base: str) -> None:
     """The window the extension opens when a Yamlet page asks to pair."""
     mock = ('<script>window.chrome={'
-            f'storage:{{session:{{get:async()=>({{pendingPagePair:{{base:"{base}"}}}})}}}},'
+            f'storage:{{session:{{get:async()=>({{pendingPagePair:{{id:"demo",base:"{base}"}}}})}},onChanged:{{addListener:()=>{{}}}}}},'
             'runtime:{sendMessage:async()=>({ok:true})}'
             '};</script>')
     page = CONFIRM_HTML.replace('<link rel="stylesheet" href="popup.css">', f"<style>{FONT_CSS}</style>{STAGE_CSS}")

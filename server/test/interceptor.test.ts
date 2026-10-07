@@ -1,5 +1,5 @@
 import { createCipheriv, randomBytes } from "node:crypto";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
@@ -109,12 +109,57 @@ it("tells a forgotten pairing (401) apart from a disconnected one (403)", async 
 
   // Disconnected in Yamlet: the pairing is remembered as revoked, even across a restart.
   const second = await pair();
-  expect(await status()).toEqual({ paired: true });
+  expect(await status()).toMatchObject({ paired: true });
   await app.inject({ method: "DELETE", url: "/api/interceptor/pairings", headers: webHeaders() });
-  expect(await status()).toEqual({ paired: false });
+  expect(await status()).toMatchObject({ paired: false });
   await app.close();
   app = await makeApp();
   const revoked = await sync(second.pairingId, second.secret);
   expect(revoked.statusCode).toBe(403);
   expect(revoked.json().error).toMatch(/disconnected/);
+});
+
+async function pair() {
+  const started = await app.inject({ method: "POST", url: "/api/interceptor/pair/start", headers: webHeaders() });
+  return (await app.inject({ method: "POST", url: "/api/interceptor/pair/finish", headers: extHeaders, payload: { code: started.json().code } })).json() as { pairingId: string; secret: string };
+}
+
+function envelope(secret: string, value: unknown) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from(secret, "base64url"), iv);
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(value))), cipher.final(), cipher.getAuthTag()]);
+  return { iv: iv.toString("base64url"), ciphertext: encrypted.toString("base64url") };
+}
+
+const status = async () => (await app.inject({ method: "GET", url: "/api/interceptor/status", headers: webHeaders() })).json() as { paired: boolean; pairedAt: string | null };
+
+it("lets the extension end its own pairing, proven by the pairing secret", async () => {
+  const { pairingId, secret } = await pair();
+  expect(await status()).toMatchObject({ paired: true });
+  const forged = await app.inject({ method: "POST", url: "/api/interceptor/unpair", headers: extHeaders, payload: { pairingId, ...envelope(randomBytes(32).toString("base64url"), { unpair: pairingId }) } });
+  expect(forged.statusCode).toBe(400);
+  const fromPage = await app.inject({ method: "POST", url: "/api/interceptor/unpair", headers: webHeaders(), payload: { pairingId, ...envelope(secret, { unpair: pairingId }) } });
+  expect(fromPage.statusCode).toBe(403);
+  const ended = await app.inject({ method: "POST", url: "/api/interceptor/unpair", headers: extHeaders, payload: { pairingId, ...envelope(secret, { unpair: pairingId }) } });
+  expect(ended.statusCode).toBe(200);
+  expect(await status()).toEqual({ paired: false, pairedAt: null });
+  const sync = await app.inject({ method: "POST", url: "/api/interceptor/sync", headers: extHeaders, payload: { pairingId, ...envelope(secret, { site: "https://example.com", cookies: [] }) } });
+  expect(sync.statusCode).toBe(403);
+});
+
+it("reports a new pairedAt for each pairing, so pairing again is visible", async () => {
+  await pair();
+  const first = (await status()).pairedAt;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await pair();
+  expect((await status()).pairedAt).not.toBe(first);
+});
+
+it("sets a damaged pairings file aside instead of failing every request", async () => {
+  await mkdir(join(root, "private"), { recursive: true });
+  await writeFile(join(root, "private", "interceptor-pairings.json"), "");
+  expect(await status()).toEqual({ paired: false, pairedAt: null });
+  await pair();
+  expect(await status()).toMatchObject({ paired: true });
+  expect((await readdir(join(root, "private"))).some((name) => name.startsWith("interceptor-pairings.json.corrupt-"))).toBe(true);
 });

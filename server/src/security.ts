@@ -17,7 +17,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 // The Yamlet Interceptor extension may call only these two routes. Starting a
 // pairing, reading status and revoking stay same-origin (the Yamlet UI).
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
-const EXTENSION_ROUTES = new Set(["/api/interceptor/pair/finish", "/api/interceptor/sync"]);
+const EXTENSION_ROUTES = new Set(["/api/interceptor/pair/finish", "/api/interceptor/sync", "/api/interceptor/unpair"]);
 
 export function isExtensionRequest(origin: string | undefined, url: string): boolean {
   return !!origin && EXTENSION_ORIGIN.test(origin) && EXTENSION_ROUTES.has(url.split("?")[0]);

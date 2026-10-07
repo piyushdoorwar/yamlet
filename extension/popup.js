@@ -96,7 +96,7 @@ $("approve").addEventListener("click", () => {
   void busy(null, async () => {
     // Recorded first: if Chrome's prompt closes the popup, the background finishes the
     // approval. Not awaited, so the request below still runs inside the click gesture.
-    const recorded = chrome.storage.local.set({ pendingApproval: site });
+    const recorded = chrome.storage.local.set({ pendingApproval: { site, at: Date.now() } });
     const granted = await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] });
     await recorded;
     if (!granted) {

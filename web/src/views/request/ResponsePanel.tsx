@@ -179,7 +179,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
           {/localhost|127\.0\.0\.1/.test(r.resolvedUrl) && useStore.getState().info?.inContainer && (
             <p className="mt-2 text-12 text-grey">
               Yamlet runs in a container, where <span className="font-mono">localhost</span> means the container itself. To reach a server on your machine, use{" "}
-              <span className="font-mono">host.docker.internal</span> or start Yamlet with <span className="font-mono">--network host</span>.
+              <span className="font-mono">host.docker.internal</span> or start Yamlet with <span className="font-mono">--network host -e HOST=127.0.0.1</span>.
             </p>
           )}
         </div>

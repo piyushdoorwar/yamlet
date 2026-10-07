@@ -28,9 +28,13 @@ window.addEventListener("message", (event) => {
 // The background asks for a fresh code to re-pair after Yamlet forgot this browser.
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return false;
-  // The user cancelled or closed the confirmation window.
-  if (message?.type === "pairCancelled") {
-    toPage({ type: "pairCancelled" });
+  // How the confirmation window ended: cancelled or closed, paired, or failed.
+  if (message?.type === "pairCancelled" || message?.type === "pairDone") {
+    toPage({ type: message.type });
+    return false;
+  }
+  if (message?.type === "pairFailed") {
+    toPage({ type: "pairFailed", error: typeof message.error === "string" ? message.error : "Pairing failed." });
     return false;
   }
   if (message?.type !== "requestCode") return false;

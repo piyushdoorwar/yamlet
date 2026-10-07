@@ -5,7 +5,7 @@ import { Button, IconButton } from "../components/Button";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { api, errorMessage } from "../lib/api";
-import { onPairCancelled, refreshInterceptorStatus, sendPairCode, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
+import { onPairWindow, refreshInterceptorStatus, sendPairCode, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
 
 export function CookiesModal({ onClose }: { onClose: () => void }) {
   const [cookies, setCookies] = useState<CookieInfo[] | null>(null);
@@ -47,7 +47,7 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-      <ExtensionPairing onPaired={() => void load()} />
+      <ExtensionPairing onPaired={load} />
       {cookies === null ? (
         <p className="text-13 text-muted">Loading…</p>
       ) : cookies.length === 0 ? (
@@ -87,12 +87,15 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** A live one-time code; `expiresAt` is absolute so re-renders cannot extend it. */
+interface LiveCode { code: string; expiresAt: number }
+
 type PairFlow =
   | { kind: "idle"; note?: string }
   | { kind: "starting" }
-  | { kind: "confirm"; code: string; expiresInSeconds: number }
-  | { kind: "failed"; error: string; code: string; expiresInSeconds: number }
-  | { kind: "code"; code: string; expiresInSeconds: number };
+  | ({ kind: "confirm" } & LiveCode)
+  | ({ kind: "failed"; error: string } & LiveCode)
+  | ({ kind: "code" } & LiveCode);
 
 /**
  * Pairs the Yamlet Interceptor extension. With the extension on this page the code goes
@@ -100,48 +103,66 @@ type PairFlow =
  * extension's own window. The code is shown only when asked for, or when the extension
  * is not on this page.
  */
-function ExtensionPairing({ onPaired }: { onPaired: () => void }) {
+function ExtensionPairing({ onPaired }: { onPaired: () => Promise<void> }) {
   const extension = useInterceptorExtension();
   const toast = useToast();
   const paired = useInterceptorPaired((s) => s.paired) ?? false;
+  const pairedAt = useInterceptorPaired((s) => s.pairedAt);
   const [flow, setFlow] = useState<PairFlow>({ kind: "idle" });
 
   useEffect(() => void refreshInterceptorStatus(), []);
 
   const done = useCallback(() => {
     useInterceptorPaired.setState({ paired: true });
+    void refreshInterceptorStatus();
     setFlow({ kind: "idle" });
     toast.success("Extension paired", "Approve sites in the extension popup to sync their cookies.");
-    onPaired();
+    void onPaired();
   }, [toast, onPaired]);
 
-  useEffect(() => onPairCancelled(() => setFlow((current) => (current.kind === "confirm" ? { kind: "idle", note: "Pairing cancelled in the extension." } : current))), []);
+  // The extension reports how its confirmation window ended.
+  useEffect(
+    () =>
+      onPairWindow((outcome) => {
+        if (outcome.status === "paired") return done();
+        setFlow((current) =>
+          current.kind !== "confirm"
+            ? current
+            : outcome.status === "cancelled"
+              ? { kind: "idle", note: "Pairing cancelled in the extension." }
+              : { kind: "failed", error: outcome.error, code: current.code, expiresAt: current.expiresAt },
+        );
+      }),
+    [done],
+  );
 
   // While a code is live, watch for it to be used, and drop it when it expires.
   const live = flow.kind === "confirm" || flow.kind === "failed" || flow.kind === "code" ? flow : null;
   const liveCode = live?.code;
-  const liveSeconds = live?.expiresInSeconds ?? 0;
+  const liveExpiresAt = live?.expiresAt ?? 0;
   useEffect(() => {
     if (!liveCode) return;
+    // A new pairedAt means a pairing was made, even when one already existed ("Pair again").
     const timer = setInterval(() => {
-      void api.interceptorStatus().then((result) => result.paired && !paired && done()).catch(() => {});
+      void api.interceptorStatus().then((result) => result.paired && result.pairedAt !== pairedAt && done()).catch(() => {});
     }, 1500);
-    const expire = setTimeout(() => setFlow({ kind: "idle", note: "The pairing code expired. Start again." }), liveSeconds * 1000);
+    const expire = setTimeout(() => setFlow({ kind: "idle", note: "The pairing code expired. Start again." }), Math.max(0, liveExpiresAt - Date.now()));
     return () => {
       clearInterval(timer);
       clearTimeout(expire);
     };
-  }, [liveCode, liveSeconds, paired, done]);
+  }, [liveCode, liveExpiresAt, pairedAt, done]);
 
   const start = async (showCode: boolean) => {
     setFlow({ kind: "starting" });
     try {
-      const started = await api.interceptorPairStart();
-      if (showCode || !extension) return setFlow({ kind: "code", ...started });
-      const outcome = await sendPairCode(started.code);
+      const { code, expiresInSeconds } = await api.interceptorPairStart();
+      const live = { code, expiresAt: Date.now() + expiresInSeconds * 1000 };
+      if (showCode || !extension) return setFlow({ kind: "code", ...live });
+      const outcome = await sendPairCode(code);
       if (outcome.status === "paired") done();
-      else if (outcome.status === "confirm") setFlow({ kind: "confirm", ...started });
-      else setFlow({ kind: "failed", error: outcome.error, ...started });
+      else if (outcome.status === "confirm") setFlow({ kind: "confirm", ...live });
+      else setFlow({ kind: "failed", error: outcome.error, ...live });
     } catch (err) {
       setFlow({ kind: "idle", note: `Could not start pairing: ${errorMessage(err)}` });
     }
@@ -150,15 +171,15 @@ function ExtensionPairing({ onPaired }: { onPaired: () => void }) {
   const disconnect = async () => {
     try {
       await api.interceptorDisconnect();
-      useInterceptorPaired.setState({ paired: false });
+      useInterceptorPaired.setState({ paired: false, pairedAt: null });
       setFlow({ kind: "idle" });
-      onPaired();
+      void onPaired();
     } catch (err) {
       toast.error("Could not disconnect", errorMessage(err));
     }
   };
 
-  const showCode = live && flow.kind !== "code" ? () => setFlow({ kind: "code", code: live.code, expiresInSeconds: live.expiresInSeconds }) : null;
+  const showCode = live && flow.kind !== "code" ? () => setFlow({ kind: "code", code: live.code, expiresAt: live.expiresAt }) : null;
 
   return (
     <section className="mb-5 rounded-lg border border-line bg-primary-tint p-4">

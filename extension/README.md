@@ -19,10 +19,10 @@ Yamlet has no login, so the one-time pairing code proves that you, in Yamlet's o
 
 If Yamlet no longer knows the pairing (it answers 401, for example after its `/data` volume was replaced), the extension keeps your approved sites and pairs again by itself the next time a Yamlet tab at the same address is open. A pairing you end with **Disconnect extensions** is remembered as disconnected (403); the extension then forgets it and does not reconnect until you pair again.
 
-Chrome grants access per site. The extension excludes incognito and partitioned cookies in this version. Cookies remain in the Yamlet server's memory; pairing credentials are stored in the private `/data` volume and in this browser's extension storage. Disconnect in Yamlet's Cookies modal to revoke pairings and clear browser-imported cookies. The popup's **Forget connection** removes this browser's saved pairing but cannot revoke the server copy; use **Disconnect extensions** in Yamlet for revocation.
+Chrome grants access per site. The extension excludes incognito and partitioned cookies in this version. Cookies remain in the Yamlet server's memory; pairing credentials are stored in the private `/data` volume and in this browser's extension storage. Disconnect in Yamlet's Cookies modal to revoke pairings and clear browser-imported cookies. The popup's **Forget connection** clears this browser's cookies from Yamlet and ends the pairing there when Yamlet is reachable; **Disconnect extensions** in Yamlet revokes every pairing for the workspace.
 
 ## ZIP for local distribution
 
-From the repository root run `npm run package:extension`. The output is `dist/yamlet-interceptor-0.2.0.zip`. Chrome's **Load unpacked** command uses the folder, not the ZIP. The Chrome Web Store accepts the ZIP.
+From the repository root run `npm run package:extension`. The output is `dist/yamlet-interceptor-<version>.zip`, named after the version in `manifest.json`. Chrome's **Load unpacked** command uses the folder, not the ZIP. The Chrome Web Store accepts the ZIP.
 
 The extension only connects to `http://localhost` or `http://127.0.0.1`. Cookie snapshot contents are encrypted with AES-GCM before being posted to the local Yamlet server. The Chrome Web Store's secure-transmission requirements must be checked before public submission; the local test package is not a claim of Store approval.

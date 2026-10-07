@@ -43,7 +43,9 @@ Yamlet from another device, serve it over HTTPS for browser installation.
 **Calling APIs on your own machine.** Inside the container, `localhost` is the container
 itself. Use `http://host.docker.internal:<port>` instead (on Linux, add
 `--add-host=host.docker.internal:host-gateway` to `docker run`), or run with
-`--network host` and drop the `-p` flag.
+`--network host -e HOST=127.0.0.1` and drop the `-p` flag. Keep `-e HOST=127.0.0.1`:
+with host networking, the container's default `0.0.0.0` would expose Yamlet to your
+whole network.
 
 **File ownership.** The container runs as uid 1000. If your user has a different uid,
 add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.

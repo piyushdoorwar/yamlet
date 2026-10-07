@@ -31,23 +31,59 @@ function purgeExpiredCodes(): void {
 export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: Deps): void {
   const dir = config.interceptorDataDir ?? join(config.browseRoot, ".yamlet-private");
   const file = join(dir, "interceptor-pairings.json");
-  let cache: Pairing[] | undefined;
+  // Read from disk every time: the file is small, and another Yamlet process on this
+  // machine may share it (outside the container the data dir is per user, not per port).
   const pairings = async (): Promise<Pairing[]> => {
-    if (cache) return cache;
+    let text: string;
     try {
-      const data: unknown = JSON.parse(await fs.readFile(file, "utf8"));
-      cache = Array.isArray(data) ? data.filter((x): x is Pairing => x && typeof x.id === "string" && typeof x.secret === "string" && typeof x.workspace === "string") : [];
+      text = await fs.readFile(file, "utf8");
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      cache = [];
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw error;
     }
-    return cache;
+    try {
+      const data: unknown = JSON.parse(text);
+      return Array.isArray(data) ? data.filter((x): x is Pairing => x && typeof x.id === "string" && typeof x.secret === "string" && typeof x.workspace === "string") : [];
+    } catch {
+      // A damaged file (e.g. cut short by a power loss) is set aside so pairing works
+      // again; browsers re-pair on their own after the 401 this causes.
+      await fs.rename(file, `${file}.corrupt-${Date.now()}`).catch(() => {});
+      return [];
+    }
   };
-  const save = async (): Promise<void> => {
+  /** Applies `change` to the current pairings and writes them durably. */
+  const update = async (change: (list: Pairing[]) => Pairing[]): Promise<void> => {
+    const next = change(await pairings());
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
     const temp = `${file}.${randomUUID()}.tmp`;
-    await fs.writeFile(temp, JSON.stringify(await pairings()), { mode: 0o600 });
+    const handle = await fs.open(temp, "w", 0o600);
+    try {
+      await handle.writeFile(JSON.stringify(next));
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     await fs.rename(temp, file);
+  };
+  /** Finds a pairing and checks an encrypted request from it; returns the plaintext. */
+  const openEnvelope = async (body: { pairingId?: string; iv?: string; ciphertext?: string } | undefined): Promise<{ pair: Pairing; data: Record<string, unknown> }> => {
+    if (typeof body?.pairingId !== "string" || typeof body?.iv !== "string" || typeof body?.ciphertext !== "string") throw new HttpError(403, "Invalid pairing.");
+    const pair = (await pairings()).find((item) => item.id === body.pairingId);
+    // 401 lets the extension pair again on its own; 403 means the user disconnected it.
+    if (!pair) throw new HttpError(401, "Unknown pairing.");
+    if (pair.revokedAt) throw new HttpError(403, "Pairing was disconnected in Yamlet.");
+    try {
+      const iv = Buffer.from(body.iv, "base64url");
+      const encrypted = Buffer.from(body.ciphertext, "base64url");
+      if (iv.length !== 12 || encrypted.length < 17) throw new Error("Invalid encrypted payload");
+      const decipher = createDecipheriv("aes-256-gcm", Buffer.from(pair.secret, "base64url"), iv);
+      decipher.setAuthTag(encrypted.subarray(encrypted.length - 16));
+      const data: unknown = JSON.parse(Buffer.concat([decipher.update(encrypted.subarray(0, -16)), decipher.final()]).toString("utf8"));
+      if (!data || typeof data !== "object") throw new Error("Invalid payload");
+      return { pair, data: data as Record<string, unknown> };
+    } catch {
+      throw new HttpError(400, "Could not decrypt the request.");
+    }
   };
 
   app.post("/api/interceptor/pair/start", async (req) => {
@@ -60,14 +96,16 @@ export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: 
 
   app.get("/api/interceptor/status", async (req) => {
     const { store } = await workspaces.fromHeaders(req.headers);
-    return { paired: (await pairings()).some((pair) => pair.workspace === store.workspace.rootPath && !pair.revokedAt) };
+    const active = (await pairings()).filter((pair) => pair.workspace === store.workspace.rootPath && !pair.revokedAt);
+    // pairedAt changes with every new pairing, so a page can tell "paired again" apart.
+    const pairedAt = active.reduce<string | null>((latest, pair) => (!latest || pair.createdAt > latest ? pair.createdAt : latest), null);
+    return { paired: active.length > 0, pairedAt };
   });
 
   app.delete("/api/interceptor/pairings", async (req) => {
     const { store, cookies } = await workspaces.fromHeaders(req.headers);
     const revokedAt = new Date().toISOString();
-    cache = (await pairings()).map((pair) => (pair.workspace === store.workspace.rootPath && !pair.revokedAt ? { ...pair, secret: "", revokedAt } : pair));
-    await save();
+    await update((list) => list.map((pair) => (pair.workspace === store.workspace.rootPath && !pair.revokedAt ? { ...pair, secret: "", revokedAt } : pair)));
     cookies.clearBrowserSites();
     return { ok: true };
   });
@@ -79,29 +117,13 @@ export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: 
     if (!entry || entry.expires < Date.now()) throw new HttpError(403, "Pairing code expired or invalid.");
     pending.delete(code);
     const pairing: Pairing = { id: randomUUID(), secret: randomBytes(32).toString("base64url"), workspace: entry.workspace, createdAt: new Date().toISOString() };
-    (await pairings()).push(pairing);
-    await save();
+    await update((list) => [...list, pairing]);
     return { pairingId: pairing.id, secret: pairing.secret };
   });
 
   app.post<{ Body: { pairingId?: string; iv?: string; ciphertext?: string } }>("/api/interceptor/sync", { bodyLimit: 1024 * 1024 }, async (req) => {
     if (!extensionRequest(req)) throw new HttpError(403, "Sync must come from the extension.");
-    if (typeof req.body?.pairingId !== "string" || typeof req.body?.iv !== "string" || typeof req.body?.ciphertext !== "string") throw new HttpError(403, "Invalid pairing.");
-    const pair = (await pairings()).find((item) => item.id === req.body?.pairingId);
-    // 401 lets the extension pair again on its own; 403 means the user disconnected it.
-    if (!pair) throw new HttpError(401, "Unknown pairing.");
-    if (pair.revokedAt) throw new HttpError(403, "Pairing was disconnected in Yamlet.");
-    let data: { site?: unknown; cookies?: unknown };
-    try {
-      const iv = Buffer.from(req.body.iv, "base64url");
-      const encrypted = Buffer.from(req.body.ciphertext, "base64url");
-      if (iv.length !== 12 || encrypted.length < 17) throw new Error("Invalid encrypted payload");
-      const decipher = createDecipheriv("aes-256-gcm", Buffer.from(pair.secret, "base64url"), iv);
-      decipher.setAuthTag(encrypted.subarray(encrypted.length - 16));
-      data = JSON.parse(Buffer.concat([decipher.update(encrypted.subarray(0, -16)), decipher.final()]).toString("utf8"));
-    } catch {
-      throw new HttpError(400, "Could not decrypt cookie snapshot.");
-    }
+    const { pair, data } = await openEnvelope(req.body);
     if (typeof data.site !== "string" || !Array.isArray(data.cookies) || data.cookies.length > 1000) throw new HttpError(400, "Invalid cookie snapshot.");
     let site: URL;
     try { site = new URL(data.site); } catch { throw new HttpError(400, "Invalid site."); }
@@ -120,5 +142,16 @@ export function interceptorRoutes(app: FastifyInstance, { config, workspaces }: 
     const { cookies: jar } = await workspaces.peek(pair.workspace);
     jar.replaceBrowserSite(site.origin, cookies);
     return { ok: true, count: cookies.length };
+  });
+
+  // The extension ends its own pairing (Forget connection, or moving to another Yamlet).
+  // The request is encrypted with the pairing's secret, which proves who sends it.
+  app.post<{ Body: { pairingId?: string; iv?: string; ciphertext?: string } }>("/api/interceptor/unpair", { bodyLimit: 2048 }, async (req) => {
+    if (!extensionRequest(req)) throw new HttpError(403, "Unpairing must come from the extension.");
+    const { pair, data } = await openEnvelope(req.body);
+    if (data.unpair !== pair.id) throw new HttpError(400, "Invalid unpair request.");
+    const revokedAt = new Date().toISOString();
+    await update((list) => list.map((item) => (item.id === pair.id ? { ...item, secret: "", revokedAt } : item)));
+    return { ok: true };
   });
 }

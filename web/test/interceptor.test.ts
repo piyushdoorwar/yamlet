@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "../src/lib/api";
-import { onPairCancelled, sendPairCode, startInterceptorBridge, useInterceptorExtension } from "../src/lib/interceptor";
+import { onPairWindow, sendPairCode, startInterceptorBridge, useInterceptorExtension } from "../src/lib/interceptor";
 
 /** Plays the extension's bridge script: posts on this window from this origin. */
 function fromExtension(message: Record<string, unknown>) {
@@ -50,14 +50,16 @@ describe("interceptor bridge", () => {
     await expect(failed).resolves.toEqual({ status: "failed", error: "Yamlet is not reachable." });
   });
 
-  it("tells listeners when the confirmation window is cancelled", () => {
-    const cancelled = vi.fn();
-    const stop = onPairCancelled(cancelled);
+  it("tells listeners how the confirmation window ended", () => {
+    const seen = vi.fn();
+    const stop = onPairWindow(seen);
     fromExtension({ type: "pairCancelled" });
-    expect(cancelled).toHaveBeenCalledOnce();
+    fromExtension({ type: "pairDone" });
+    fromExtension({ type: "pairFailed", error: "Yamlet is not reachable." });
+    expect(seen.mock.calls.map(([outcome]) => outcome)).toEqual([{ status: "cancelled" }, { status: "paired" }, { status: "failed", error: "Yamlet is not reachable." }]);
     stop();
     fromExtension({ type: "pairCancelled" });
-    expect(cancelled).toHaveBeenCalledOnce();
+    expect(seen).toHaveBeenCalledTimes(3);
   });
 
   it("ignores messages from other windows or origins", async () => {

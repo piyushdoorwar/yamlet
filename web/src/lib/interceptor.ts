@@ -29,7 +29,9 @@ const PAIR_ANSWER_MS = 10_000;
 
 let present = false;
 const watchers = new Set<(present: boolean) => void>();
-const cancelWatchers = new Set<() => void>();
+/** How the extension's confirmation window ended. */
+export type PairWindowOutcome = { status: "cancelled" } | { status: "paired" } | { status: "failed"; error: string };
+const windowWatchers = new Set<(outcome: PairWindowOutcome) => void>();
 let answerPair: ((outcome: PairOutcome) => void) | null = null;
 
 function post(message: Record<string, unknown>): void {
@@ -45,8 +47,11 @@ function onMessage(event: MessageEvent<BridgeMessage>): void {
   } else if (type === "pairResult") {
     const { ok, pending, error } = event.data;
     answerPair?.(ok ? { status: pending ? "confirm" : "paired" } : { status: "failed", error: typeof error === "string" ? error : "The extension could not pair." });
-  } else if (type === "pairCancelled") {
-    for (const watch of cancelWatchers) watch();
+  } else if (type === "pairCancelled" || type === "pairDone" || type === "pairFailed") {
+    const { error } = event.data;
+    const outcome: PairWindowOutcome =
+      type === "pairCancelled" ? { status: "cancelled" } : type === "pairDone" ? { status: "paired" } : { status: "failed", error: typeof error === "string" ? error : "Pairing failed." };
+    for (const watch of windowWatchers) watch(outcome);
   } else if (type === "codeRequest" && typeof id === "string") {
     void api.interceptorPairStart().then(
       ({ code }) => post({ type: "code", id, code }),
@@ -87,20 +92,20 @@ export function sendPairCode(code: string): Promise<PairOutcome> {
   });
 }
 
-/** Calls `fn` when the user cancels or closes the extension's confirmation window. */
-export function onPairCancelled(fn: () => void): () => void {
-  cancelWatchers.add(fn);
-  return () => void cancelWatchers.delete(fn);
+/** Calls `fn` when the extension's confirmation window is confirmed, fails, or is cancelled or closed. */
+export function onPairWindow(fn: (outcome: PairWindowOutcome) => void): () => void {
+  windowWatchers.add(fn);
+  return () => void windowWatchers.delete(fn);
 }
 
 /** Whether an extension is paired with the open workspace (null until known). */
-export const useInterceptorPaired = create<{ paired: boolean | null }>(() => ({ paired: null }));
+export const useInterceptorPaired = create<{ paired: boolean | null; pairedAt: string | null }>(() => ({ paired: null, pairedAt: null }));
 
 /** Asks the server again; the footer and the Cookies modal both read the result. */
 export async function refreshInterceptorStatus(): Promise<boolean> {
   try {
-    const { paired } = await api.interceptorStatus();
-    useInterceptorPaired.setState({ paired });
+    const { paired, pairedAt } = await api.interceptorStatus();
+    useInterceptorPaired.setState({ paired, pairedAt });
     return paired;
   } catch {
     return useInterceptorPaired.getState().paired ?? false;

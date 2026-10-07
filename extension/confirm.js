@@ -1,4 +1,6 @@
 const $ = (id) => document.getElementById(id);
+let shownId = null;
+let armTimer;
 
 function status(message) {
   $("status").hidden = false;
@@ -6,8 +8,8 @@ function status(message) {
   $("status").classList.add("error");
 }
 
-async function send(type) {
-  const response = await chrome.runtime.sendMessage({ type });
+async function send(type, extra = {}) {
+  const response = await chrome.runtime.sendMessage({ type, ...extra });
   if (!response?.ok) throw new Error(response?.error || "Extension did not respond.");
   return response.result;
 }
@@ -15,7 +17,7 @@ async function send(type) {
 $("connect").addEventListener("click", () => {
   $("connect").disabled = true;
   $("cancel").disabled = true;
-  void send("confirmPagePair").then(
+  void send("confirmPagePair", { id: shownId }).then(
     () => window.close(),
     (error) => {
       status(error.message);
@@ -30,14 +32,21 @@ $("cancel").addEventListener("click", () => {
 });
 
 function show(pendingPagePair) {
+  clearTimeout(armTimer);
+  $("connect").disabled = true;
   if (!pendingPagePair) {
+    shownId = null;
     $("base").textContent = "No pairing request is waiting.";
-    $("connect").disabled = true;
     return;
   }
+  const changed = shownId !== null && pendingPagePair.base !== $("base").textContent;
+  shownId = pendingPagePair.id;
   $("base").textContent = pendingPagePair.base;
-  $("connect").disabled = false;
-  $("connect").focus();
+  // A request that replaced the one on screen gets a moment to be read before Connect works.
+  armTimer = setTimeout(() => {
+    $("connect").disabled = false;
+    $("connect").focus();
+  }, changed ? 1500 : 0);
 }
 
 void chrome.storage.session.get("pendingPagePair").then(({ pendingPagePair }) => show(pendingPagePair));

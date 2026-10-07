@@ -66,12 +66,14 @@ function cookieAppliesToHost(host, cookie) {
  * replaced) is re-paired automatically from an open Yamlet tab, keeping the approved
  * sites. A pairing the user disconnected (403) is dropped so the popup asks to pair again.
  */
+let forgetting = false;
+
 async function sendSnapshot(pairing, site, cookies) {
   const envelope = await encryptedSnapshot(pairing.secret, { site, cookies });
   try {
     return await post(pairing.base, "/api/interceptor/sync", { pairingId: pairing.pairingId, ...envelope });
   } catch (error) {
-    if (error.status === 401) {
+    if (error.status === 401 && !forgetting) {
       await chrome.storage.local.remove("pairing");
       await chrome.storage.local.set({ needsRepair: pairing.base });
       void tryRepair();
@@ -85,9 +87,29 @@ async function sendSnapshot(pairing, site, cookies) {
   }
 }
 
+/**
+ * Clears this browser's cookies from a Yamlet it is leaving and ends the pairing there,
+ * so that Yamlet stops sending them and no longer shows "Paired". Best effort: that
+ * Yamlet may be stopped.
+ */
+async function leave(pairing, sites) {
+  forgetting = true;
+  try {
+    for (const site of sites) await sendSnapshot(pairing, site, []).catch(() => {});
+    const envelope = await encryptedSnapshot(pairing.secret, { unpair: pairing.pairingId });
+    await post(pairing.base, "/api/interceptor/unpair", { pairingId: pairing.pairingId, ...envelope }).catch(() => {});
+  } finally {
+    forgetting = false;
+  }
+}
+
 /** Exchanges a one-time code for a pairing with the Yamlet at `base`, then syncs. */
 async function finishPair(base, code) {
   const result = await post(base, "/api/interceptor/pair/finish", { code: code.trim() });
+  const { pairing: previous, sites = [] } = await chrome.storage.local.get(["pairing", "sites"]);
+  // Moving to another address clears this browser's cookies there; re-pairing with the
+  // same Yamlet only retires the old pairing, as the next sync replaces the cookies.
+  if (previous) await leave(previous, previous.base !== base ? sites : []);
   await chrome.storage.local.set({ pairing: { pairingId: result.pairingId, secret: result.secret, base }, lastBase: base, lastError: null });
   await chrome.storage.local.remove("needsRepair");
   // Not awaited: a repair can start inside a sync pass, which would then wait on itself.
@@ -125,25 +147,29 @@ function tryRepair() {
  */
 async function pagePair(base, code, tabId) {
   endpoint(base, "/");
-  const { pairing, needsRepair, lastBase } = await chrome.storage.local.get(["pairing", "needsRepair", "lastBase"]);
-  if (base === (pairing?.base ?? needsRepair ?? lastBase)) return finishPair(base, code);
+  const { pairing, needsRepair } = await chrome.storage.local.get(["pairing", "needsRepair"]);
+  if (base === (pairing?.base ?? needsRepair)) return finishPair(base, code);
   // A second click while the window is open refreshes it instead of opening another.
   const { pendingPagePair: previous } = await chrome.storage.session.get("pendingPagePair");
   const open = previous?.windowId && (await chrome.windows.get(previous.windowId).catch(() => null));
   if (open) {
     if (previous.tabId !== tabId) notifyPairCancelled(previous.tabId);
-    await chrome.storage.session.set({ pendingPagePair: { base, code, tabId, windowId: open.id } });
+    await chrome.storage.session.set({ pendingPagePair: { id: crypto.randomUUID(), base, code, tabId, windowId: open.id } });
     await chrome.windows.update(open.id, { focused: true });
   } else {
     const created = await chrome.windows.create({ url: chrome.runtime.getURL("confirm.html"), type: "popup", width: 400, height: 330, focused: true });
-    await chrome.storage.session.set({ pendingPagePair: { base, code, tabId, windowId: created.id } });
+    await chrome.storage.session.set({ pendingPagePair: { id: crypto.randomUUID(), base, code, tabId, windowId: created.id } });
   }
   return { pending: true };
 }
 
-/** Tells the Yamlet page that asked to pair that the user declined, so it stops waiting. */
+/** Tells the Yamlet page that asked to pair how it ended, so it stops waiting. */
+function notifyTab(tabId, message) {
+  if (tabId !== undefined) void chrome.tabs.sendMessage(tabId, message).catch(() => {});
+}
+
 function notifyPairCancelled(tabId) {
-  if (tabId !== undefined) void chrome.tabs.sendMessage(tabId, { type: "pairCancelled" }).catch(() => {});
+  notifyTab(tabId, { type: "pairCancelled" });
 }
 
 async function cancelPagePair() {
@@ -262,8 +288,12 @@ chrome.cookies.onChanged.addListener((change) => {
 chrome.permissions.onAdded.addListener((granted) => {
   void (async () => {
     const { pendingApproval } = await chrome.storage.local.get("pendingApproval");
-    if (!pendingApproval || !granted.origins?.includes(originPattern(pendingApproval))) return;
-    try { await addSite(pendingApproval); } catch (error) { await chrome.storage.local.set({ lastError: error.message }); }
+    if (!pendingApproval) return;
+    await chrome.storage.local.remove("pendingApproval");
+    // Only the prompt the popup just opened counts, not a grant made later elsewhere.
+    const fresh = typeof pendingApproval === "object" && Date.now() - pendingApproval.at < 2 * 60_000;
+    if (!fresh || !granted.origins?.includes(originPattern(pendingApproval.site))) return;
+    try { await addSite(pendingApproval.site); } catch (error) { await chrome.storage.local.set({ lastError: error.message }); }
   })();
 });
 
@@ -297,9 +327,18 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === "pair") return finishPair(new URL(message.base).origin + "/", message.code);
     if (message.type === "confirmPagePair") {
       const { pendingPagePair } = await chrome.storage.session.get("pendingPagePair");
-      await chrome.storage.session.remove("pendingPagePair");
       if (!pendingPagePair) throw new Error("The pairing request expired. Choose Pair extension in Yamlet again.");
-      return finishPair(pendingPagePair.base, pendingPagePair.code);
+      // Another page may have replaced the request after this window showed it.
+      if (pendingPagePair.id !== message.id) throw new Error("A different Yamlet address asked to pair. Check the address and confirm again.");
+      await chrome.storage.session.remove("pendingPagePair");
+      try {
+        const result = await finishPair(pendingPagePair.base, pendingPagePair.code);
+        notifyTab(pendingPagePair.tabId, { type: "pairDone" });
+        return result;
+      } catch (error) {
+        notifyTab(pendingPagePair.tabId, { type: "pairFailed", error: error.message });
+        throw error;
+      }
     }
     if (message.type === "cancelPagePair") {
       await cancelPagePair();
@@ -308,16 +347,21 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === "approve") return addSite(new URL(message.site).origin);
     if (message.type === "sync") return syncAll();
     if (message.type === "removeSite") {
-      await removeSite(message.site);
-      await chrome.permissions.remove({ origins: [originPattern(message.site)] });
+      // The removal stays queued if Yamlet is unreachable; the permission goes now.
+      try {
+        await removeSite(message.site);
+      } finally {
+        await chrome.permissions.remove({ origins: [originPattern(message.site)] });
+      }
       return { ok: true };
     }
     if (message.type === "forget") {
-      // Clear this browser's imports in Yamlet first; Yamlet may be unreachable.
-      const { sites = [], pendingRemovals = [] } = await chrome.storage.local.get(["sites", "pendingRemovals"]);
-      await chrome.storage.local.set({ sites: [], pendingRemovals: [...new Set([...pendingRemovals, ...sites])] });
-      await flushRemovals().catch(() => {});
-      await chrome.storage.local.remove(["pairing", "needsRepair", "sites", "pendingRemovals", "pendingApproval", "lastSync", "lastError"]);
+      // Clear this browser's imports in Yamlet and end the pairing there first; Yamlet
+      // may be unreachable. No auto re-pair may start while this runs.
+      const { sites = [], pendingRemovals = [], pairing } = await chrome.storage.local.get(["sites", "pendingRemovals", "pairing"]);
+      await chrome.storage.local.remove(["pairing", "needsRepair"]);
+      if (pairing) await leave(pairing, [...new Set([...pendingRemovals, ...sites])]);
+      await chrome.storage.local.remove(["sites", "pendingRemovals", "pendingApproval", "lastSync", "lastError", "lastBase"]);
       if (sites.length) await chrome.permissions.remove({ origins: sites.map(originPattern) }).catch(() => {});
       return { ok: true };
     }
