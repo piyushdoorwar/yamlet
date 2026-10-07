@@ -16,7 +16,8 @@
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
   }
 
-  // CI reads the lifetime GHCR count into stats.json during the Pages build.
+  // CI writes stats.json during the Pages build: the lifetime GHCR download count and
+  // the user count the Chrome Web Store shows (absent until the store shows one).
   function compactCount(n) {
     const floor1 = (value) => (Math.floor(value * 10) / 10).toString();
     if (n >= 1e6) return `${floor1(n / 1e6)}M`;
@@ -24,14 +25,21 @@
     return String(n);
   }
   const downloads = document.getElementById("downloads");
-  if (downloads) {
+  const extensionUsers = document.getElementById("extensionUsers");
+  if (downloads || extensionUsers) {
     fetch("stats.json", { cache: "no-cache" })
       .then((res) => (res.ok ? res.json() : null))
       .then((stats) => {
         const n = stats && stats.downloads;
-        if (!Number.isSafeInteger(n) || n <= 0) return;
-        downloads.textContent = `${compactCount(n)} ${n === 1 ? "download" : "downloads"}`;
-        downloads.hidden = false;
+        if (downloads && Number.isSafeInteger(n) && n > 0) {
+          downloads.textContent = `${compactCount(n)} ${n === 1 ? "download" : "downloads"}`;
+          downloads.hidden = false;
+        }
+        const users = stats && stats.extension_users;
+        if (extensionUsers && typeof users === "string" && /^[\d.,]+[KMB]?\+?$/.test(users)) {
+          extensionUsers.textContent = `${users} ${users === "1" ? "user" : "users"}`;
+          extensionUsers.hidden = false;
+        }
       })
       .catch(() => {});
   }

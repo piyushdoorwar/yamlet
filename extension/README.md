@@ -1,6 +1,6 @@
 # Yamlet Interceptor
 
-This Manifest V3 extension syncs cookies for sites you explicitly approve into a Yamlet workspace on your own computer. It does not capture requests, read page content, or transmit cookies to a Yamlet cloud service.
+This Manifest V3 extension syncs cookies for sites you explicitly approve into a Yamlet workspace on your own computer. Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/yamlet-interceptor/ojnilooocnngdafipgchmlnaldpejaei); the steps below load this folder for development. It does not capture requests, read page content, or transmit cookies to a Yamlet cloud service.
 
 ## Local test
 

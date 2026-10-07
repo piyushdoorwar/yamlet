@@ -87,6 +87,8 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/yamlet-interceptor/ojnilooocnngdafipgchmlnaldpejaei";
+
 /** A live one-time code; `expiresAt` is absolute so re-renders cannot extend it. */
 interface LiveCode { code: string; expiresAt: number }
 
@@ -191,7 +193,15 @@ function ExtensionPairing({ onPaired }: { onPaired: () => Promise<void> }) {
         {paired
           ? "Approve sites in the Yamlet Interceptor popup. Their cookies refresh while Chrome and Yamlet are running."
           : "Pair the Yamlet Interceptor extension, then approve individual sites in its popup."}
-        {!extension && !paired && " Extension not detected on this page; if you just installed it, reload this tab."}
+        {!extension && !paired && (
+          <>
+            {" Extension not detected on this page. "}
+            <a className="font-medium text-primary hover:underline" href={EXTENSION_STORE_URL} target="_blank" rel="noreferrer">
+              Get it from the Chrome Web Store
+            </a>
+            , or reload this tab if you just installed it.
+          </>
+        )}
       </p>
 
       {flow.kind === "confirm" && (

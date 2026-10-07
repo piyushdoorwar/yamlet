@@ -419,6 +419,9 @@ img { max-width: 100%; display: block; }
 .cta h2 { font-size: clamp(24px, 3vw, 32px); }
 .cta p { margin-top: 8px; color: var(--muted); }
 .cta .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.extension-cta { margin-top: 32px; }
+.extension-cta > div:first-child { flex: 1 1 420px; max-width: 640px; }
+.extension-cta h2 { font-size: clamp(20px, 2.4vw, 26px); }
 
 /* ── Footer ──────────────────────────────────────────────── */
 .footer { border-top: 1px solid var(--border); background: var(--surface); padding: 40px 0; }
