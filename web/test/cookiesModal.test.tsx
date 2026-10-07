@@ -113,9 +113,11 @@ describe("status bar", () => {
     const { StatusBar } = await import("../src/views/StatusBar");
     const { useStore } = await import("../src/lib/store");
     vi.spyOn(api, "interceptorStatus").mockResolvedValue({ paired: true, pairedAt: "2026-10-07T00:00:00.000Z" });
-    useStore.setState({ workspace: { rootPath: "/w" } as never });
+    useStore.setState({ workspace: { rootPath: "/w" } as never, info: { version: "v1.1.7" } as never });
     render(<StatusBar />);
-    expect(await screen.findByText("Interceptor connected")).toBeTruthy();
+    // Information only: Cookies is the way into the dialog.
+    expect((await screen.findByText("Interceptor connected")).closest("button")).toBeNull();
+    expect(screen.getByText("Yamlet v1.1.7")).toBeTruthy();
     useStore.setState({ layout: "stacked" });
     await userEvent.click(await screen.findByRole("button", { name: "Show response on the right" }));
     expect(useStore.getState().layout).toBe("side");

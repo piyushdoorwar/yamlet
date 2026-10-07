@@ -43,10 +43,10 @@ export function StatusBar() {
           <Cookie size={13} aria-hidden /> Cookies
         </button>
         {interceptor && (
-          <button type="button" className={item} title="Chrome cookie sync" onClick={() => setModal({ kind: "cookies" })}>
+          <span className="inline-flex h-6 items-center gap-1.5 px-1.5 text-grey" role="status" title="Chrome cookie sync">
             <span className={clsx("h-1.5 w-1.5 rounded-full", paired ? "bg-primary" : "bg-[#c4ccc7]")} aria-hidden />
             {interceptor}
-          </button>
+          </span>
         )}
       </div>
       <div className="flex items-center gap-1">
@@ -64,7 +64,7 @@ export function StatusBar() {
           <span className="sr-only">Keyboard shortcuts</span>
         </button>
         <button type="button" className={item} title="About Yamlet" onClick={() => setModal({ kind: "about" })}>
-          <Info size={13} aria-hidden /> Yamlet {version && version !== "dev" ? `v${version}` : "dev"}
+          <Info size={13} aria-hidden /> Yamlet {version && version !== "dev" ? `v${version.replace(/^v/, "")}` : "dev"}
         </button>
       </div>
     </footer>
