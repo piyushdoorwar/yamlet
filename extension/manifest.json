@@ -3,7 +3,7 @@
   "name": "Yamlet Interceptor",
   "homepage_url": "https://yamlet.piyushdoorwar.com/",
   "description": "Sync cookies from sites you approve into your local Yamlet workspace.",
-  "version": "0.3.1",
+  "version": "0.0.0",
   "permissions": ["activeTab", "alarms", "cookies", "storage"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
   "optional_host_permissions": ["https://*/*", "http://*/*"],

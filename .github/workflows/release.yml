@@ -4,6 +4,8 @@
 #   ghcr.io/piyushdoorwar/yamlet:1.2.3, :1.2, :1 and :latest (pre-releases
 #   such as v1.3.0-beta.1 only get their exact version tag)
 #   npm install -g @piyushdoorwar/yamlet@1.2.3
+#   yamlet-interceptor-1.2.3.zip (extension, manifest version stamped from the tag)
+#   attached to the GitHub release for the Chrome Web Store upload
 # Needs the NPM_TOKEN repository secret (an npm automation token).
 name: Release
 
@@ -75,21 +77,37 @@ jobs:
           TAG=latest; case "$VERSION" in *-*) TAG=next;; esac
           npm publish --provenance --access public --tag "$TAG"
 
-  github-release:
-    name: GitHub release
-    needs: [image, cli]
+  extension:
+    name: Extension package
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - run: bash extension/package.sh "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          path: dist/yamlet-interceptor-*.zip
+
+  github-release:
+    name: GitHub release
+    needs: [image, cli, extension]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension
+          path: dist
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Publishing a release from the GitHub UI creates the tag that started this
-          # run, so the release may already exist; leave it as written.
+          # run, so the release may already exist; keep its text as written.
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists; leaving it as is."
+            echo "Release $GITHUB_REF_NAME already exists; attaching the extension only."
+            gh release upload "$GITHUB_REF_NAME" dist/yamlet-interceptor-*.zip --clobber
             exit 0
           fi
           PRERELEASE=""; case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease";; esac
-          gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag $PRERELEASE
+          gh release create "$GITHUB_REF_NAME" dist/yamlet-interceptor-*.zip --generate-notes --verify-tag $PRERELEASE

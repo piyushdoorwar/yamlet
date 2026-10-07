@@ -23,6 +23,6 @@ Chrome grants access per site. The extension excludes incognito and partitioned 
 
 ## ZIP for local distribution
 
-From the repository root run `npm run package:extension`. The output is `dist/yamlet-interceptor-<version>.zip`, named after the version in `manifest.json`. Chrome's **Load unpacked** command uses the folder, not the ZIP. The Chrome Web Store accepts the ZIP.
+From the repository root run `npm run package:extension` (latest `v*` tag) or `bash extension/package.sh v1.2.3`. The output is `dist/yamlet-interceptor-<version>.zip` with that version stamped into its manifest; the `version` in the source `manifest.json` is a placeholder (`0.0.0`) and is never edited by hand. Chrome takes only `X.Y.Z` as `version`, so a pre-release tag such as `v1.3.0-beta.1` becomes `version: 1.3.0` plus `version_name: 1.3.0-beta.1`. Each `v*` release builds the ZIP and attaches it to the GitHub release. Chrome's **Load unpacked** command uses the folder, not the ZIP. The Chrome Web Store accepts the ZIP.
 
 The extension only connects to `http://localhost` or `http://127.0.0.1`. Cookie snapshot contents are encrypted with AES-GCM before being posted to the local Yamlet server. The Chrome Web Store's secure-transmission requirements must be checked before public submission; the local test package is not a claim of Store approval.
