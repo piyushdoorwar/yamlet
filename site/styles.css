@@ -341,6 +341,18 @@ img { max-width: 100%; display: block; }
 .note h3 .ic { color: var(--green); }
 .note p { margin-top: 8px; color: var(--muted); font-size: 15px; }
 .note .cmd { margin-top: 12px; }
+.options { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 14px; counter-reset: option; }
+.options li { position: relative; padding-left: 32px; counter-increment: option; }
+.options li::before {
+  content: counter(option); position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: 700;
+}
+.option-title { display: block; color: var(--ink); font-weight: 600; font-size: 15px; line-height: 22px; }
+.option-note { display: block; margin-top: 8px; color: var(--muted); font-size: 14px; }
+.options .code-line {
+  display: block; width: fit-content; max-width: 100%; margin-top: 6px; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface-2); color: var(--ink); font-size: 12.5px; overflow-wrap: anywhere;
+}
 .note .cmd pre { font-size: 12.5px; }
 
 /* ── Features ────────────────────────────────────────────── */

@@ -258,12 +258,20 @@
             </div>
             <div class="note" data-reveal style="--d: 0.06s">
               <h3><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-globe" /></svg>Calling APIs on your machine</h3>
-              <p>
-                Inside the container, <code>localhost</code> is the container itself. Use
-                <code>http://host.docker.internal:&lt;port&gt;</code> instead (on Linux add
-                <code>--add-host=host.docker.internal:host-gateway</code>), or run with
-                <code>--network host -e HOST=127.0.0.1</code> (keep the <code>HOST</code> setting so Yamlet is not exposed to your network).
-              </p>
+              <p>Inside the container, <code>localhost</code> is the container itself. Reach your machine in one of two ways:</p>
+              <ol class="options">
+                <li>
+                  <span class="option-title">Use the host address</span>
+                  <code class="code-line">http://host.docker.internal:&lt;port&gt;</code>
+                  <span class="option-note">On Linux, also add</span>
+                  <code class="code-line">--add-host=host.docker.internal:host-gateway</code>
+                </li>
+                <li>
+                  <span class="option-title">Share the host network</span>
+                  <code class="code-line">--network host -e HOST=127.0.0.1</code>
+                  <span class="option-note">Keep the <code>HOST</code> setting so Yamlet is not exposed to your network.</span>
+                </li>
+              </ol>
             </div>
           </div>
         </div>
