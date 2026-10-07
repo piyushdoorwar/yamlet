@@ -13,7 +13,7 @@ Website: <https://yamlet.piyushdoorwar.com/>
 ## Run it
 
 ```bash
-docker run -d --name yamlet -p 127.0.0.1:7878:7878 -v "$PWD:/workspace" -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet:latest
+docker run -d --pull always --name yamlet -p 127.0.0.1:7878:7878 -v .:/workspace -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet
 ```
 
 Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
@@ -36,8 +36,9 @@ Yamlet from another device, serve it over HTTPS for browser installation.
 | Task | Command |
 |---|---|
 | Stop / start | `docker stop yamlet` / `docker start yamlet` |
-| Update | `docker pull ghcr.io/piyushdoorwar/yamlet:latest`, then `docker rm -f yamlet` and run the same command again (keep `-v yamlet-data:/data`) |
+| Update | `docker rm -f yamlet`, then run the same command again: `--pull always` fetches the newest image (keep `-v yamlet-data:/data`) |
 | A specific version | `ghcr.io/piyushdoorwar/yamlet:1.2.3` |
+| Older Docker (before 23) | Use `-v "$PWD:/workspace"` instead of `-v .:/workspace` |
 | Another port | `-p 127.0.0.1:9000:7878` and set `-e YAMLET_PUBLIC_URL=http://localhost:9000` |
 
 **Calling APIs on your own machine.** Inside the container, `localhost` is the container
@@ -119,7 +120,7 @@ scripts:
       pm.test('status is 201', () => pm.expect(pm.response.code).to.equal(201));
 ```
 
-Try [samples/demo](samples/demo): mount it with `-v "$PWD/samples/demo:/workspace"`.
+Try [samples/demo](samples/demo): mount it with `-v ./samples/demo:/workspace`.
 
 ## CLI for CI
 

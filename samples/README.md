@@ -38,7 +38,7 @@ Expect every request to pass (exit code `0`).
 ### Open it in the app
 
 ```bash
-docker run --rm -p 127.0.0.1:7878:7878 -v "$PWD/samples/demo:/workspace" ghcr.io/piyushdoorwar/yamlet:latest
+docker run --rm -p 127.0.0.1:7878:7878 -v ./samples/demo:/workspace ghcr.io/piyushdoorwar/yamlet
 ```
 
 Then open <http://localhost:7878>. The app and the CLI share the same engine, so what runs
