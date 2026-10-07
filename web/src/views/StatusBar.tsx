@@ -2,13 +2,8 @@ import clsx from "clsx";
 import { Cookie, Info, Keyboard, PanelBottom, PanelRight } from "lucide-react";
 import { useEffect } from "react";
 import { refreshInterceptorStatus, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
-import { type ResponseLayout, useStore } from "../lib/store";
+import { useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
-
-const LAYOUTS: { id: ResponseLayout; label: string; icon: typeof PanelBottom }[] = [
-  { id: "stacked", label: "Response below", icon: PanelBottom },
-  { id: "side", label: "Response on the right", icon: PanelRight },
-];
 
 const item = "inline-flex h-6 items-center gap-1.5 rounded px-1.5 text-grey transition-colors hover:bg-primary-soft hover:text-primary";
 
@@ -55,21 +50,15 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-1">
-        <div role="group" aria-label="Response layout" className="mr-1 flex items-center">
-          {LAYOUTS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              aria-label={label}
-              title={label}
-              aria-pressed={layout === id}
-              className={clsx("inline-flex h-6 w-6 items-center justify-center rounded transition-colors", layout === id ? "bg-primary-soft text-primary" : "text-grey hover:text-primary")}
-              onClick={() => setLayout(id)}
-            >
-              <Icon size={13} aria-hidden />
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          className={item}
+          title={layout === "stacked" ? "Response below. Click to show it on the right" : "Response on the right. Click to show it below"}
+          aria-label={layout === "stacked" ? "Show response on the right" : "Show response below"}
+          onClick={() => setLayout(layout === "stacked" ? "side" : "stacked")}
+        >
+          {layout === "stacked" ? <PanelBottom size={13} aria-hidden /> : <PanelRight size={13} aria-hidden />}
+        </button>
         <button type="button" className={item} title="Keyboard shortcuts (Ctrl /)" onClick={() => setModal({ kind: "shortcuts" })}>
           <Keyboard size={13} aria-hidden />
           <span className="sr-only">Keyboard shortcuts</span>
