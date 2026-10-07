@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Yamlet Interceptor",
+  "homepage_url": "https://yamlet.piyushdoorwar.com/",
   "description": "Sync cookies from sites you approve into your local Yamlet workspace.",
   "version": "0.2.0",
   "permissions": ["activeTab", "alarms", "cookies", "storage"],

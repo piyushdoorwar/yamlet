@@ -8,7 +8,7 @@ commit the whole thing to Git next to your code. There's no account, no cloud sy
 no telemetry. The app runs from a container on your machine, and your files stay where
 they are.
 
-Website: <https://piyushdoorwar.github.io/yamlet/>
+Website: <https://yamlet.piyushdoorwar.com/>
 
 ## Run it
 

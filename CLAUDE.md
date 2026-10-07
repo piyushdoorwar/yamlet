@@ -80,7 +80,7 @@ web/src/      React 19 + Vite 7 + Tailwind 4 UI
                EnvironmentView (+ Globals), RunnerView, WelcomeView, EmptyTabs
   modals/      Import, QuickOpen (Ctrl+K), Snippet, Cookies, OpenWorkspace, About, Shortcuts
 cli/          `@piyushdoorwar/yamlet` npm package (bin `yamlet`): src/index.ts, build.mjs (esbuild), README.md
-site/         static marketing site (GitHub Pages), no build step
+site/         static marketing site (GitHub Pages at https://yamlet.piyushdoorwar.com/), no build step
 samples/demo  ready-to-run workspace; CI runs it with the CLI
 ```
 

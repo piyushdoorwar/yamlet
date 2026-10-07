@@ -18,7 +18,7 @@ You control which sites the extension can read. It can include sign-in and HttpO
 Approved sites and the pairing credential are stored locally in Chrome. Cookie values are read from Chrome when needed, encrypted before they are sent to the local Yamlet app, and held in the app's memory. Partitioned and incognito cookies are excluded in this release.
 
 Source: https://github.com/piyushdoorwar/yamlet
-Privacy: https://piyushdoorwar.github.io/yamlet/policy/
+Privacy: https://yamlet.piyushdoorwar.com/policy/
 Support: piyushdoorwar+yamlet@gmail.com
 
 Privacy dashboard draft:

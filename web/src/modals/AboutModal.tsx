@@ -6,7 +6,7 @@ import { useStore } from "../lib/store";
 const LINKS = [
   { label: "GitHub", href: "https://github.com/piyushdoorwar/yamlet" },
   { label: "Releases", href: "https://github.com/piyushdoorwar/yamlet/releases" },
-  { label: "Website", href: "https://piyushdoorwar.github.io/yamlet/" },
+  { label: "Website", href: "https://yamlet.piyushdoorwar.com/" },
 ];
 
 export function AboutModal({ onClose }: { onClose: () => void }) {

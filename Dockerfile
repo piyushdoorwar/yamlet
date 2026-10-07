@@ -13,6 +13,7 @@ RUN npm run build
 FROM node:24-alpine
 ARG APP_VERSION=dev
 LABEL org.opencontainers.image.source="https://github.com/piyushdoorwar/yamlet" \
+      org.opencontainers.image.url="https://yamlet.piyushdoorwar.com/" \
       org.opencontainers.image.title="Yamlet" \
       org.opencontainers.image.description="Local-first API client for Git-friendly YAML collections, in your browser" \
       org.opencontainers.image.licenses="MIT"
