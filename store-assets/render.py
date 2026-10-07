@@ -14,6 +14,8 @@ OUT = ROOT / "store-assets"
 POPUP_HTML = (EXT / "popup.html").read_text()
 POPUP_CSS = (EXT / "popup.css").read_text()
 POPUP_JS = (EXT / "popup.js").read_text()
+CONFIRM_HTML = (EXT / "confirm.html").read_text()
+CONFIRM_JS = (EXT / "confirm.js").read_text()
 MARK = (EXT / "icons/icon.svg").read_text()
 
 
@@ -59,8 +61,32 @@ body { width:1280px; height:800px; margin:0; background:#fcfcfc; font-family:var
 .copy p { font-size:23px; line-height:1.38; color:#4b5a52; max-width:510px; margin:0; }
 .popup-frame { box-sizing:border-box; width:360px; min-height:500px; background:#fff; box-shadow:0 24px 70px #0f1a1426;
   border:1px solid #dce3de; border-radius:12px; overflow:hidden; }
+.window-frame { box-sizing:border-box; width:400px; background:#fff; box-shadow:0 24px 70px #0f1a1426;
+  border:1px solid #dce3de; border-radius:10px; overflow:hidden; }
+.window-bar { height:34px; display:flex; align-items:center; padding:0 12px; background:#f1f4f2; border-bottom:1px solid #dce3de;
+  font-size:12px; color:#4b5a52; }
+.window-frame body, .window-frame > div { min-height:0; }
 </style>
 """
+
+
+def stage(heading: str, subtitle: str) -> str:
+    return f'<div class="stage"><div class="copy"><small>Yamlet Interceptor</small><h1>{heading}</h1><p>{subtitle}</p></div>'
+
+
+def confirm_screenshot(filename: str, heading: str, subtitle: str, base: str) -> None:
+    """The window the extension opens when a Yamlet page asks to pair."""
+    mock = ('<script>window.chrome={'
+            f'storage:{{session:{{get:async()=>({{pendingPagePair:{{base:"{base}"}}}})}}}},'
+            'runtime:{sendMessage:async()=>({ok:true})}'
+            '};</script>')
+    page = CONFIRM_HTML.replace('<link rel="stylesheet" href="popup.css">', f"<style>{FONT_CSS}</style>{STAGE_CSS}")
+    page = page.replace('<script defer src="confirm.js"></script>', mock)
+    page = page.replace(
+        '<body class="confirm">',
+        f'<body class="confirm">{stage(heading, subtitle)}<div class="window-frame"><div class="window-bar">Connect to Yamlet</div>',
+    ).replace("</body>", f"<script>{CONFIRM_JS}</script></div></div></body>")
+    capture(page, OUT / filename, 1280, 800)
 
 
 def screenshot(filename: str, heading: str, subtitle: str, state: str) -> None:
@@ -72,7 +98,7 @@ def screenshot(filename: str, heading: str, subtitle: str, state: str) -> None:
     page = page.replace('<script defer src="popup.js"></script>', mock)
     page = page.replace(
         "<body>",
-        f'<body><div class="stage"><div class="copy"><small>Yamlet Interceptor</small><h1>{heading}</h1><p>{subtitle}</p></div><div class="popup-frame">',
+        f'<body>{stage(heading, subtitle)}<div class="popup-frame">',
     ).replace("</body>", f"<script>{POPUP_JS}</script></div></div></body>")
     capture(page, OUT / filename, 1280, 800)
 
@@ -80,7 +106,7 @@ def screenshot(filename: str, heading: str, subtitle: str, state: str) -> None:
 for size in (16, 32, 48, 128):
     cairosvg.svg2png(bytestring=MARK.encode(), write_to=str(EXT / f"icons/icon{size}.png"), output_width=size, output_height=size)
 
-screenshot("1-connect-1280x800.png", "Pair with local Yamlet", "Connect the extension to the workspace running on your computer.", "{}")
+confirm_screenshot("1-connect-1280x800.png", "Pair in one click", "Choose Pair extension in Yamlet, then confirm the address in this window. No code to copy.", "http://localhost:7878/")
 screenshot("2-approve-1280x800.png", "Approve one site", "Choose exactly which site's cookies Yamlet can use.", '{pairing:{base:"http://localhost:7878/",pairingId:"demo",secret:"demo"},sites:[]}')
 screenshot("3-synced-1280x800.png", "Keep cookies current", "Approved sites refresh while Chrome and Yamlet are running.", '{pairing:{base:"http://localhost:7878/",pairingId:"demo",secret:"demo"},sites:["https://example.com"],lastSync:{site:"https://example.com",count:3,at:"2026-10-06T08:00:00.000Z"}}')
 

@@ -9,9 +9,10 @@ Yamlet Interceptor connects Chrome's cookies to your local Yamlet workspace. Pai
 
 How it works:
 1. Run Yamlet locally and open its Cookies dialog.
-2. Generate a one-time pairing code and enter it in this extension's popup.
+2. Choose Pair extension and confirm the Yamlet address in the window the extension opens. No code to copy.
 3. Open a website and choose Allow & sync this site.
 4. The extension refreshes approved sites while Chrome is running. You can also sync manually.
+5. If Yamlet loses its saved pairing (for example, a fresh container), the extension pairs again by itself the next time a Yamlet tab at the same address is open, and keeps your approved sites.
 
 You control which sites the extension can read. It can include sign-in and HttpOnly cookies, so approve only sites you want to use in Yamlet. The extension does not read page text, capture requests, collect browsing history, or send cookies to a Yamlet cloud service. The Yamlet app runs on your own computer.
 
@@ -33,7 +34,8 @@ Permissions:
 - storage: retain approved sites and the pairing credential in this browser.
 - alarms: periodically refresh approved sites after a server restart or missed cookie event.
 - http://localhost and http://127.0.0.1 host access: connect to Yamlet running on this computer.
+- Content script on http://localhost and http://127.0.0.1 pages only: relays pairing messages between the local Yamlet page and the extension, so pairing needs no copied code. It does not read page content, and a new Yamlet address is paired only after the user confirms it in the extension's own window.
 - optional website host access: request permission for one chosen website at a time.
 
 Reviewer instructions draft:
-Run the Yamlet container or local server at http://localhost:7878 as described in the repository README. In Yamlet, open Cookies and select Pair extension. Paste the code into the extension popup. Open a normal website tab with cookies, grant access in the popup, and refresh Yamlet's Cookies dialog. For a self-contained test, a local website that sets a sample cookie can be used. The extension requires a local Yamlet instance and does not connect to a developer-operated service.
+Run the Yamlet container or local server at http://localhost:7878 as described in the repository README. In Yamlet, open Cookies and select Pair extension, then select Connect in the window the extension opens. (If no window opens, reload the Yamlet tab, or paste the code Yamlet shows into the extension popup.) Open a normal website tab with cookies, grant access in the popup, and refresh Yamlet's Cookies dialog. For a self-contained test, a local website that sets a sample cookie can be used. The extension requires a local Yamlet instance and does not connect to a developer-operated service.

@@ -69,7 +69,7 @@
           <span class="eyebrow">Privacy</span>
           <h1>Privacy policy</h1>
           <p>Yamlet runs on your machine. There is no account, no cloud service and no telemetry. Your API collections never leave your disk unless you send them somewhere yourself.</p>
-          <p class="updated">Last updated 6 October 2026</p>
+          <p class="updated">Last updated 7 October 2026</p>
         </div>
       </section>
 
@@ -119,6 +119,7 @@
           <section class="prose-card">
             <h2><svg class="ic" aria-hidden="true"><use href="../assets/icons.svg#i-shield" /></svg>Yamlet Interceptor Chrome extension</h2>
             <p>The optional extension reads cookies only for sites you approve in its popup. This includes authentication cookies and cookies marked HttpOnly. It sends a snapshot to the Yamlet app running on this same computer so Yamlet can attach matching cookies to API requests. After approval, the extension refreshes those sites when cookies change and periodically while Chrome is running. It does not read page text, record browsing history, use analytics, or send data to a developer-operated server.</p>
+            <p>On <code>localhost</code> and <code>127.0.0.1</code> pages only, a small script passes pairing messages between the Yamlet page and the extension, so you do not have to copy a pairing code. It does not read the page's content. The extension pairs with a new Yamlet address only after you confirm it in the extension's own window. If Yamlet loses its saved pairing, the extension uses the same script to pair again with the address you already confirmed.</p>
             <p>The extension stores the approved site list, local Yamlet address, and pairing credential in Chrome's local extension storage. It does not save copies of cookie values there. Cookie snapshots are encrypted with AES-GCM before transfer over the local loopback connection. The Yamlet container holds imported cookies in memory, and stores pairing credentials in its private data directory so a paired browser can reconnect after a restart. Cookie values are never written to workspace YAML.</p>
             <p>You can remove the extension's browser settings by uninstalling it or choosing Forget connection in its popup. In Yamlet's Cookies dialog, you can delete cookies or choose Disconnect extensions to revoke pairings and clear browser-imported cookies. Chrome's site settings can revoke individual site permissions. Partitioned and incognito cookies are excluded from this version.</p>
             <p>The use of information received through Chrome extension permissions adheres to the Chrome Web Store User Data Policy, including its Limited Use requirements. Cookie data is used only for the extension's stated cookie sync feature. It is not sold, used for advertising, or made available to the developer or other people.</p>
