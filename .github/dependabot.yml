@@ -1,11 +1,55 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
+# Dependabot version updates. Minor and patch bumps are grouped into one weekly PR per
+# ecosystem; major bumps arrive as their own PRs so breaking changes are reviewed alone.
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # The app: server, web UI and engine (root package.json + package-lock.json).
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
-      interval: "weekly" 
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # The published CLI (@piyushdoorwar/yamlet); its runtime dependencies are bundled.
+  - package-ecosystem: "npm"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      cli-minor-patch:
+        update-types: ["minor", "patch"]
+
+  # Actions used by CI, Release and the Pages deploy.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The node base image in the Dockerfile. Stay on the current LTS line; moving to the
+  # next LTS is a deliberate change (engines, .nvmrc and CI move with it).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(docker)"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
