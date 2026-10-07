@@ -144,7 +144,7 @@ function ExtensionPairing({ onPaired }: { onPaired: () => Promise<void> }) {
   const liveExpiresAt = live?.expiresAt ?? 0;
   useEffect(() => {
     if (!liveCode) return;
-    // A new pairedAt means a pairing was made, even when one already existed ("Pair again").
+    // A new pairedAt means a pairing was made, even if the status was stale.
     const timer = setInterval(() => {
       void api.interceptorStatus().then((result) => result.paired && result.pairedAt !== pairedAt && done()).catch(() => {});
     }, 1500);
@@ -219,9 +219,9 @@ function ExtensionPairing({ onPaired }: { onPaired: () => Promise<void> }) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {flow.kind !== "code" && flow.kind !== "confirm" && (
+        {!paired && flow.kind !== "code" && flow.kind !== "confirm" && (
           <Button variant="primary" disabled={flow.kind === "starting"} onClick={() => void start(false)}>
-            {extension ? (paired ? "Pair again" : "Pair extension") : "Pair with code"}
+            {extension ? "Pair extension" : "Pair with code"}
           </Button>
         )}
         {flow.kind === "confirm" && <Button variant="cancel" onClick={() => setFlow({ kind: "idle" })}>Cancel</Button>}

@@ -33,9 +33,18 @@
       </section>
 
       <section id="connectedSection" hidden>
-        <h2>Current site</h2>
+        <div class="heading">
+          <h2>Current site</h2>
+          <button id="infoToggle" type="button" class="info" aria-label="What allowing a site does" aria-expanded="false" aria-controls="notice">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </button>
+        </div>
         <p id="site" class="site mono">Open a website to choose its cookies.</p>
-        <p class="notice">Allowing a site lets this extension read its cookies, including sign-in cookies, and send them only to Yamlet on this computer. Approved sites refresh automatically while Chrome is running.</p>
+        <p id="notice" class="notice" hidden>Allowing a site lets this extension read its cookies, including sign-in cookies, and send them only to Yamlet on this computer. Approved sites refresh automatically while Chrome is running.</p>
+        <p id="siteSynced" class="synced" hidden>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          This site is approved and syncing.
+        </p>
         <button id="approve" type="button" class="btn btn-primary btn-block">Allow and sync this site</button>
         <button id="sync" type="button" class="btn btn-cancel btn-block">Sync approved sites now</button>
 

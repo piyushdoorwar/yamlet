@@ -74,6 +74,10 @@ async function refresh() {
     currentSite = null;
   }
   $("site").textContent = currentSite || "Open a regular website tab to choose its cookies.";
+  // An approved site needs no second approval; it already refreshes on its own.
+  const approved = !!currentSite && sites.includes(currentSite);
+  $("siteSynced").hidden = !approved;
+  $("approve").hidden = approved;
   $("approve").disabled = !currentSite || !pairing;
 }
 
@@ -106,6 +110,12 @@ $("approve").addEventListener("click", () => {
     status("Syncing…");
     await send("approve", { site });
   });
+});
+
+$("infoToggle").addEventListener("click", () => {
+  const open = $("notice").hidden;
+  $("notice").hidden = !open;
+  $("infoToggle").setAttribute("aria-expanded", String(open));
 });
 
 $("sync").addEventListener("click", () => void busy("Syncing…", () => send("sync")));

@@ -78,14 +78,21 @@ describe("Cookies modal pairing", () => {
     expect(screen.getByRole("button", { name: "Disconnect extensions" })).toBeTruthy();
   });
 
-  it("finishes when the extension reports a confirmed pairing, even when already paired", async () => {
+  it("offers only disconnect once paired", async () => {
     setup(true);
+    expect(await screen.findByRole("button", { name: "Disconnect extensions" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Pair extension" })).toBeNull();
+  });
+
+  it("finishes when the extension reports a confirmed pairing", async () => {
+    setup();
     extensionAnswers({ ok: true, pending: true });
-    await userEvent.click(await screen.findByRole("button", { name: "Pair again" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Pair extension" }));
     await screen.findByText("Confirm in the Yamlet Interceptor window.");
+    vi.spyOn(api, "interceptorStatus").mockResolvedValue({ paired: true, pairedAt: "2026-10-07T00:00:00.000Z" });
     act(() => fromExtension({ type: "pairDone" }));
     await waitFor(() => expect(screen.queryByText("Confirm in the Yamlet Interceptor window.")).toBeNull());
-    expect(screen.getByRole("button", { name: "Disconnect extensions" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Disconnect extensions" })).toBeTruthy();
   });
 
   it("shows the error when confirming fails in the extension", async () => {
