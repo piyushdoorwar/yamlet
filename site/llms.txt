@@ -1,0 +1,66 @@
+# Yamlet
+
+> Yamlet is a free, open-source, local-first API client for Git-friendly API collections. It runs in your browser from a single Docker container, and every collection, folder, request and environment is saved as a plain YAML file in a folder on your own disk. There is no account, no cloud sync and no telemetry. A companion CLI (`@piyushdoorwar/yamlet` on npm) runs the same workspaces headlessly in CI.
+
+## Quick start
+
+Run this from the folder that holds (or will hold) your collections, then open http://localhost:7878:
+
+```bash
+docker run -d --pull always --name yamlet -p 127.0.0.1:7878:7878 -v .:/workspace -v yamlet-data:/data ghcr.io/piyushdoorwar/yamlet
+```
+
+- The current folder is mounted at `/workspace`; Yamlet reads and writes YAML there directly.
+- The port is bound to `127.0.0.1`, so the app is reachable only from your machine. The server has no login.
+- To update, run `docker rm -f yamlet` and the same `docker run` command again.
+- Inside the container, `localhost` is the container. Reach APIs on your machine with `http://host.docker.internal:<port>` (on Linux add `--add-host=host.docker.internal:host-gateway`), or use `--network host -e HOST=127.0.0.1`.
+
+## Workspace layout
+
+```
+collections/<name>/collection.yaml          collection metadata, variables, auth, scripts
+collections/<name>/<request>.yaml           one file per request
+collections/<name>/<folder>/folder.yaml     folder metadata
+environments/<name>.yaml
+globals/globals.yaml
+files/                                      attachments for form-data and binary bodies
+```
+
+Each request file is self-contained: method, URL, params, headers, path variables, variables, auth, body, scripts, settings, saved examples, description and its `order` in the tree. A change to one request touches one file, so diffs and code review stay readable.
+
+## Features
+
+- Variables at request, collection, environment and global scope (highest precedence first: request, runner data row, collection, environment, globals), written as `{{name}}`. Unknown placeholders are left visible.
+- Dynamic variables such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}`, fresh on every use.
+- Pre-request and post-response JavaScript at request and collection level, with a `pm` API for variables, requests and `pm.test` assertions.
+- Auth: Bearer, Basic, API key, cookie, and OAuth 2.0 (client credentials, password, authorization code with PKCE), inheritable from the collection.
+- Any HTTP method, including QUERY and custom verbs. JSON, XML, text, multipart form-data with files, URL-encoded, GraphQL and binary bodies.
+- Collection runner with iterations and CSV or JSON data files.
+- Import cURL commands, OpenAPI and Swagger specs, and v2.1 collection JSON exports.
+- Code snippets for cURL, JavaScript, Python, Go, C#, Java and more.
+- Cookie manager, request history, saved examples, tabs and keyboard shortcuts (Ctrl+K to jump to any request).
+- Optional Yamlet Interceptor Chrome extension that syncs cookies from sites you approve into your local Yamlet.
+
+## Command line
+
+```bash
+npm install -g @piyushdoorwar/yamlet
+yamlet run ./my-workspace --env dev
+npx @piyushdoorwar/yamlet run ./my-workspace --reporter junit --out yamlet-results.xml
+```
+
+Options include `--env`, `--globals`, `--collection`, `--iterations`, `--data`, `--delay`, `--bail`, `--reporter table|json|junit` and `--out`. Requires Node.js 22+. The exit code is `1` if any request errors, returns a status outside 2xx/3xx, or fails a `pm.test`.
+
+## Docs
+
+- [Home](https://yamlet.piyushdoorwar.com/): overview, getting started and features
+- [CLI README](https://github.com/piyushdoorwar/yamlet/blob/main/cli/README.md): full CLI options and a CI example
+- [Source code](https://github.com/piyushdoorwar/yamlet): MIT-licensed repository
+- [Issues](https://github.com/piyushdoorwar/yamlet/issues): bug reports and feature requests
+
+## Optional
+
+- [Releases](https://yamlet.piyushdoorwar.com/releases/): container image tags and changelog
+- [Privacy policy](https://yamlet.piyushdoorwar.com/policy/): what the app, extension, CLI and website do with data
+- [npm package](https://www.npmjs.com/package/@piyushdoorwar/yamlet)
+- [Yamlet Interceptor for Chrome](https://chromewebstore.google.com/detail/yamlet-interceptor/ojnilooocnngdafipgchmlnaldpejaei)
