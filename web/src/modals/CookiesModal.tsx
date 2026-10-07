@@ -5,7 +5,7 @@ import { Button, IconButton } from "../components/Button";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { api, errorMessage } from "../lib/api";
-import { onPairCancelled, sendPairCode, useInterceptorExtension } from "../lib/interceptor";
+import { onPairCancelled, refreshInterceptorStatus, sendPairCode, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
 
 export function CookiesModal({ onClose }: { onClose: () => void }) {
   const [cookies, setCookies] = useState<CookieInfo[] | null>(null);
@@ -103,15 +103,13 @@ type PairFlow =
 function ExtensionPairing({ onPaired }: { onPaired: () => void }) {
   const extension = useInterceptorExtension();
   const toast = useToast();
-  const [paired, setPaired] = useState(false);
+  const paired = useInterceptorPaired((s) => s.paired) ?? false;
   const [flow, setFlow] = useState<PairFlow>({ kind: "idle" });
 
-  useEffect(() => {
-    void api.interceptorStatus().then((result) => setPaired(result.paired)).catch(() => {});
-  }, []);
+  useEffect(() => void refreshInterceptorStatus(), []);
 
   const done = useCallback(() => {
-    setPaired(true);
+    useInterceptorPaired.setState({ paired: true });
     setFlow({ kind: "idle" });
     toast.success("Extension paired", "Approve sites in the extension popup to sync their cookies.");
     onPaired();
@@ -152,7 +150,7 @@ function ExtensionPairing({ onPaired }: { onPaired: () => void }) {
   const disconnect = async () => {
     try {
       await api.interceptorDisconnect();
-      setPaired(false);
+      useInterceptorPaired.setState({ paired: false });
       setFlow({ kind: "idle" });
       onPaired();
     } catch (err) {

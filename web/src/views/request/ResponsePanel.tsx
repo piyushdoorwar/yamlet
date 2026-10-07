@@ -1,6 +1,6 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
 import clsx from "clsx";
-import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Loader2, MoreHorizontal, PanelBottom, PanelRight, Send } from "lucide-react";
+import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Loader2, MoreHorizontal, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { IconButton } from "../../components/Button";
 import { useDialogs } from "../../components/Dialogs";
@@ -63,8 +63,6 @@ function extensionFor(ct: string): string {
 
 export function ResponsePanel({ request, update }: { request: YamletRequest; update: (fn: (r: YamletRequest) => YamletRequest) => void }) {
   const state = useStore((s) => s.responses[request.id]);
-  const layout = useStore((s) => s.layout);
-  const setLayout = useStore((s) => s.setLayout);
   const toast = useToast();
   const { prompt } = useDialogs();
   const actionsMenu = useMenu();
@@ -80,14 +78,6 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
 
   const passed = r?.testResults.filter((t) => t.passed).length ?? 0;
   const total = r?.testResults.length ?? 0;
-
-  const layoutToggle = (
-    <IconButton
-      icon={layout === "stacked" ? PanelRight : PanelBottom}
-      label={layout === "stacked" ? "Response on the right" : "Response below"}
-      onClick={() => setLayout(layout === "stacked" ? "side" : "stacked")}
-    />
-  );
 
   const saveExample = async () => {
     if (!r) return;
@@ -113,7 +103,6 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   if (!state || (!state.loading && !r && !state.error)) {
     return (
       <div className="relative h-full bg-white">
-        <div className="absolute top-2 right-3 flex h-7 items-center">{layoutToggle}</div>
         <Empty />
       </div>
     );
@@ -171,7 +160,6 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
               <IconButton icon={BookmarkPlus} label="Save as example" onClick={() => void saveExample()} />
             </span>
           )}
-          {layoutToggle}
         </span>
         {actionsMenu.node}
       </div>

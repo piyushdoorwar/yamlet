@@ -10,6 +10,7 @@ import { SnippetModal } from "../modals/SnippetModal";
 import { tabKey, useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
 import { Sidebar } from "../sidebar/Sidebar";
+import { StatusBar } from "./StatusBar";
 import { TabContent } from "./TabContent";
 import { TopBar } from "./TopBar";
 
@@ -75,21 +76,24 @@ export function Workbench() {
   useShortcuts();
   const layout = useDefaultLayout({ id: "yamlet-shell", storage: localStorage });
   return (
-    <div className="h-full overflow-hidden bg-[#fcfcfc]">
-      <Group orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
-        <Panel id="sidebar" defaultSize={300} minSize={220} maxSize={560}>
-          <Sidebar />
-        </Panel>
-        <Separator className="w-px" />
-        <Panel id="main" minSize={420}>
-          <div className="flex h-full min-w-0 flex-col">
-            <TopBar />
-            <main className="min-h-0 flex-1 bg-canvas">
-              <TabContent />
-            </main>
-          </div>
-        </Panel>
-      </Group>
+    <div className="flex h-full flex-col overflow-hidden bg-[#fcfcfc]">
+      <div className="min-h-0 flex-1">
+        <Group orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
+          <Panel id="sidebar" defaultSize={300} minSize={220} maxSize={560}>
+            <Sidebar />
+          </Panel>
+          <Separator className="w-px" />
+          <Panel id="main" minSize={420}>
+            <div className="flex h-full min-w-0 flex-col">
+              <TopBar />
+              <main className="min-h-0 flex-1 bg-canvas">
+                <TabContent />
+              </main>
+            </div>
+          </Panel>
+        </Group>
+      </div>
+      <StatusBar />
       <Modals />
     </div>
   );

@@ -3,6 +3,7 @@
 // extension uses it to pair in one click and to re-pair on its own when this server
 // has forgotten its pairing (for example after the /data volume was replaced).
 import { useEffect, useState } from "react";
+import { create } from "zustand";
 import { api, errorMessage } from "./api";
 
 const PAGE = "yamlet";
@@ -90,4 +91,18 @@ export function sendPairCode(code: string): Promise<PairOutcome> {
 export function onPairCancelled(fn: () => void): () => void {
   cancelWatchers.add(fn);
   return () => void cancelWatchers.delete(fn);
+}
+
+/** Whether an extension is paired with the open workspace (null until known). */
+export const useInterceptorPaired = create<{ paired: boolean | null }>(() => ({ paired: null }));
+
+/** Asks the server again; the footer and the Cookies modal both read the result. */
+export async function refreshInterceptorStatus(): Promise<boolean> {
+  try {
+    const { paired } = await api.interceptorStatus();
+    useInterceptorPaired.setState({ paired });
+    return paired;
+  } catch {
+    return useInterceptorPaired.getState().paired ?? false;
+  }
 }

@@ -77,7 +77,7 @@ web/src/      React 19 + Vite 7 + Tailwind 4 UI
   editor/      CodeEditor (CodeMirror 6) with {{variable}} highlight/peek/autocomplete
   sidebar/     Sidebar, CollectionsTree, EnvironmentsList, HistoryList
   views/       Workbench, TopBar, TabContent, request/*, CollectionView, FolderView,
-               EnvironmentView (+ Globals), RunnerView, WelcomeView, EmptyTabs
+               EnvironmentView (+ Globals), RunnerView, WelcomeView, EmptyTabs, StatusBar
   modals/      Import, QuickOpen (Ctrl+K), Snippet, Cookies, OpenWorkspace, About, Shortcuts
 cli/          `@piyushdoorwar/yamlet` npm package (bin `yamlet`): src/index.ts, build.mjs (esbuild), README.md
 site/         static marketing site (GitHub Pages at https://yamlet.piyushdoorwar.com/), no build step
@@ -174,6 +174,8 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 - Sidebar: white panel with the wordmark, a workspace switcher, a segmented control
   (Collections / Environments / History) and a tree whose selected row is solid green
   with white text.
+- Status bar (`views/StatusBar.tsx`) under the workbench: Cookies, Interceptor pairing
+  state, the response layout toggle (below / right), shortcuts and About with the version.
 - Text editing surfaces use `CodeEditor` (CodeMirror 6): JSON/JS/XML/HTML/YAML modes,
   folding, `{{variable}}` coloring (amber when defined, red when not), hover peek with
   in-place "Set" (writes to the active environment), `{{` and `{{$` autocomplete.

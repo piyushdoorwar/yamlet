@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Cookie, Download, FilePlus, FolderOpen, Info, Keyboard, Layers, Plus, RefreshCw, Search, X } from "lucide-react";
+import { ChevronsUpDown, Download, FilePlus, FolderOpen, Layers, Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { IconButton } from "../components/Button";
 import { Wordmark } from "../components/Logo";
@@ -47,10 +47,6 @@ export function Sidebar() {
             wsMenu.openBelow(wsBtn.current, [
               { label: "Open another workspace", icon: FolderOpen, onSelect: () => setModal({ kind: "openWorkspace" }) },
               { label: "Reload from disk", icon: RefreshCw, onSelect: () => void actions.reload() },
-              "separator",
-              { label: "Cookies", icon: Cookie, onSelect: () => setModal({ kind: "cookies" }) },
-              { label: "Keyboard shortcuts", icon: Keyboard, hint: "Ctrl /", onSelect: () => setModal({ kind: "shortcuts" }) },
-              { label: "About Yamlet", icon: Info, onSelect: () => setModal({ kind: "about" }) },
             ])
           }
         >

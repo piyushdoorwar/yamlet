@@ -85,3 +85,17 @@ describe("Cookies modal pairing", () => {
     expect(screen.getByText("one-time-code")).toBeTruthy();
   });
 });
+
+describe("status bar", () => {
+  it("shows the interceptor state and switches the response layout", async () => {
+    const { StatusBar } = await import("../src/views/StatusBar");
+    const { useStore } = await import("../src/lib/store");
+    vi.spyOn(api, "interceptorStatus").mockResolvedValue({ paired: true });
+    useStore.setState({ workspace: { rootPath: "/w" } as never });
+    render(<StatusBar />);
+    expect(await screen.findByText("Interceptor connected")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Response on the right" }));
+    expect(useStore.getState().layout).toBe("side");
+    expect(screen.getByRole("button", { name: "Response on the right" }).getAttribute("aria-pressed")).toBe("true");
+  });
+});
