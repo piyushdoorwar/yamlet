@@ -6,7 +6,7 @@
 #   npm install -g @piyushdoorwar/yamlet@1.2.3
 #   yamlet-interceptor-1.2.3.zip (extension, manifest version stamped from the tag)
 #   attached to the GitHub release, and submitted to the Chrome Web Store when the
-#   tag is stable and extension/ changed since the previous stable tag
+#   tag is stable and extension/ changed since the version the store has
 # Needs the NPM_TOKEN repository secret (an npm automation token). The store upload
 # needs the CWS_SERVICE_ACCOUNT_KEY secret (service account JSON key) and the
 # CWS_PUBLISHER_ID secrets; it is skipped while either is unset.
@@ -101,39 +101,35 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - id: changed
-        name: Check for extension changes
+      - id: configured
+        name: Check store secrets
         env:
           CONFIGURED: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY != '' && secrets.CWS_PUBLISHER_ID != '' }}
         run: |
           if [ "$CONFIGURED" != "true" ]; then
-            echo "Chrome Web Store secrets are not set; not submitting to the store."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*' --exclude '*-*' "$GITHUB_REF_NAME^" 2>/dev/null || true)
-          if [ -n "$PREVIOUS" ] && git diff --quiet "$PREVIOUS" "$GITHUB_REF_NAME" -- extension/; then
-            echo "extension/ unchanged since $PREVIOUS; not submitting to the store."
+            echo "::warning title=Chrome Web Store::CWS_SERVICE_ACCOUNT_KEY or CWS_PUBLISHER_ID is not set; not submitting to the store."
             echo "publish=false" >> "$GITHUB_OUTPUT"
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.changed.outputs.publish == 'true'
+      - if: steps.configured.outputs.publish == 'true'
         uses: actions/download-artifact@v4
         with:
           name: extension
           path: dist
-      - if: steps.changed.outputs.publish == 'true'
+      - if: steps.configured.outputs.publish == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
-      - if: steps.changed.outputs.publish == 'true'
+      # Skips with a notice when the store already has this version or extension/ is
+      # unchanged since the tag of the version the store has.
+      - if: steps.configured.outputs.publish == 'true'
         name: Upload and submit for review
         env:
           CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
           CWS_EXTENSION_ID: ojnilooocnngdafipgchmlnaldpejaei
-        run: node .github/scripts/publish-extension.cjs dist/yamlet-interceptor-*.zip
+        run: node .github/scripts/publish-extension.cjs dist/yamlet-interceptor-*.zip "$GITHUB_REF_NAME"
 
   github-release:
     name: GitHub release

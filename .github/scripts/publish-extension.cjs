@@ -1,10 +1,15 @@
 // Uploads the packaged extension to the Chrome Web Store and submits it for review.
-//   node .github/scripts/publish-extension.cjs dist/yamlet-interceptor-1.2.3.zip
+//   node .github/scripts/publish-extension.cjs dist/yamlet-interceptor-1.2.3.zip v1.2.3
+// Skips (with a notice in the run summary) when the store already has this version or
+// newer, or when extension/ is unchanged since the tag of the version in the store.
+// The comparison is against the store itself, so a tag that never reached the store
+// can't hide later changes.
 // Env: CWS_SERVICE_ACCOUNT_KEY (the service account's JSON key), CWS_PUBLISHER_ID,
 // CWS_EXTENSION_ID. The service account must be added in the store's Developer
 // Dashboard; it needs no Google Cloud roles.
+const { execFileSync } = require("node:child_process");
 const { createSign } = require("node:crypto");
-const { readFileSync } = require("node:fs");
+const { appendFileSync, readFileSync } = require("node:fs");
 
 const API = "https://chromewebstore.googleapis.com";
 const SCOPE = "https://www.googleapis.com/auth/chromewebstore";
@@ -38,13 +43,66 @@ async function call(token, method, url, init = {}) {
   return text ? JSON.parse(text) : {};
 }
 
+/** Logs a notice that also shows on the run's summary page. */
+function notice(message) {
+  console.log(`::notice title=Chrome Web Store::${message}`);
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `**Chrome Web Store:** ${message}\n`);
+}
+
+function compareVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+/** The newest version in the store, counting one still in review. */
+function storeVersion(status) {
+  const versions = [status.publishedItemRevisionStatus, status.submittedItemRevisionStatus]
+    .flatMap((revision) => revision?.distributionChannels ?? [])
+    .map((channel) => channel.crxVersion)
+    .filter(Boolean);
+  return versions.sort(compareVersions).at(-1);
+}
+
+/** True when extension/ is identical at both refs; false when they differ or the old tag is missing. */
+function extensionUnchanged(fromTag, toTag) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", `refs/tags/${fromTag}`], { stdio: "ignore" });
+  } catch {
+    return false;
+  }
+  try {
+    execFileSync("git", ["diff", "--quiet", fromTag, toTag, "--", "extension/"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const zip = process.argv[2];
-  if (!zip) throw new Error("Pass the extension ZIP path.");
+  const tag = process.argv[3];
+  if (!zip || !tag) throw new Error("Pass the extension ZIP path and the release tag.");
+  const version = tag.replace(/^v/, "");
   const key = JSON.parse(required("CWS_SERVICE_ACCOUNT_KEY"));
   const item = `${API}/v2/publishers/${required("CWS_PUBLISHER_ID")}/items/${required("CWS_EXTENSION_ID")}`;
   const uploadUrl = item.replace(`${API}/v2/`, `${API}/upload/v2/`);
   const token = await accessToken(key);
+
+  const current = storeVersion(await call(token, "GET", `${item}:fetchStatus`));
+  console.log(`Store version: ${current ?? "none"}; this release: ${version}`);
+  if (current && compareVersions(current, version) >= 0) {
+    notice(`the store already has ${current}; not uploading ${version}.`);
+    return;
+  }
+  if (current && extensionUnchanged(`v${current}`, tag)) {
+    notice(`extension/ is unchanged since v${current} (the version in the store); not uploading ${version}.`);
+    return;
+  }
 
   const upload = await call(token, "POST", `${uploadUrl}:upload`, { headers: { "content-type": "application/zip" }, body: readFileSync(zip) });
   let state = upload.uploadState;
