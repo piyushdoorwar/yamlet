@@ -67,7 +67,7 @@ function FilePickerModal({ onClose, onPick }: { onClose: () => void; onPick: (pa
   return (
     <Modal title="Attach a file" subtitle="Uploaded files are copied into the workspace's files/ folder, so the request keeps working from Git." onClose={onClose} width={620} tall>
       <div className="flex h-full flex-col gap-4">
-        <div className="flex items-center justify-between rounded-lg border border-dashed border-[#c5d0c9] bg-[#fafbfa] px-4 py-3">
+        <div className="flex items-center justify-between rounded-lg border border-dashed border-line-strong bg-subtle px-4 py-3">
           <span className="text-13 text-grey">From your computer</span>
           <input ref={input} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
           <Button icon={FileUp} size="sm" disabled={busy} onClick={() => input.current?.click()}>

@@ -214,7 +214,7 @@ function ExtensionPairing({ onPaired }: { onPaired: () => Promise<void> }) {
       {flow.kind === "code" && (
         <div className="mt-3 text-12 text-body">
           Paste this one-time code into the extension popup within five minutes:
-          <code className="mt-1 block select-all break-all rounded bg-white p-2 font-mono text-12 text-ink">{flow.code}</code>
+          <code className="mt-1 block select-all break-all rounded bg-surface p-2 font-mono text-12 text-ink">{flow.code}</code>
         </div>
       )}
 

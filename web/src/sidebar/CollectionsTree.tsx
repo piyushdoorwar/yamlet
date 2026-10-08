@@ -46,7 +46,7 @@ export function CollectionsTree({ actions, filter }: Props) {
   if (!collections.length) {
     return (
       <div className="px-6 py-8 text-center">
-        <Layers size={28} className="mx-auto text-[#b9c4bd]" aria-hidden />
+        <Layers size={28} className="mx-auto text-faint" aria-hidden />
         <p className="mt-3 text-13 text-grey">No collections yet.</p>
         <button type="button" className="btn btn-primary btn-sm mt-4" onClick={() => void actions.newCollection()}>
           New collection
@@ -306,7 +306,7 @@ function Row({ id, tab, depth, open, onToggle, onActivate, icon, name, bold, onR
           ref={moreRef}
           type="button"
           aria-label={`Actions for ${name}`}
-          className={clsx("rounded p-1 opacity-0 group-hover:opacity-100 focus:opacity-100", active ? "text-white hover:bg-white/15" : "text-grey hover:bg-white")}
+          className={clsx("rounded p-1 opacity-0 group-hover:opacity-100 focus:opacity-100", active ? "text-white hover:bg-surface/15" : "text-grey hover:bg-surface")}
           onClick={(e) => {
             e.stopPropagation();
             if (moreRef.current) menu.openBelow(moreRef.current, menuItems, "end");
@@ -336,7 +336,7 @@ export function RenameInput({ initial, onDone }: { initial: string; onDone: (val
     <input
       ref={ref}
       aria-label="Name"
-      className="h-6 min-w-0 flex-1 rounded border border-primary bg-white px-1.5 text-13 text-ink outline-none"
+      className="h-6 min-w-0 flex-1 rounded border border-primary bg-surface px-1.5 text-13 text-ink outline-none"
       value={value}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setValue(e.target.value)}

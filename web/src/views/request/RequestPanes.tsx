@@ -154,7 +154,7 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
         {pane === "examples" && (
           <ul className="space-y-3">
             {request.examples.map((ex) => (
-              <li key={ex.id} className="rounded-lg border border-line bg-white">
+              <li key={ex.id} className="rounded-lg border border-line bg-surface">
                 <div className="flex items-center gap-3 border-b border-line-soft px-4 py-2.5">
                   <StatusPill status={ex.status} />
                   <span className="flex-1 truncate text-13 font-medium text-ink">{ex.name}</span>

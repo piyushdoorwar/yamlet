@@ -1,4 +1,4 @@
-/* Yamlet site — light theme, dark-green accent. Plain CSS, no build step. */
+/* Yamlet site — follows the OS light/dark setting, dark-green accent. Plain CSS, no build step. */
 
 :root {
   --green: #0e7a43;
@@ -14,6 +14,17 @@
   --surface: #ffffff;
   --surface-2: #f5f8f6;
   --code-bg: #f6f8f7;
+  --panel: #fafcfb;
+  --dot: #d5ddd8;
+  --header-bg: rgba(252, 252, 252, 0.86);
+  --warn: #8a5a00;
+  --warn-soft: rgba(214, 150, 20, 0.14);
+  --tok-k: #0b6537;
+  --tok-s: #8a5a00;
+  --tok-n: #1d5fc4;
+  --tok-p: #7a43b6;
+  --glow: rgba(14, 122, 67, 0.07);
+  color-scheme: light;
 
   --m-get: #0e7a43;
   --m-post: #a35f00;
@@ -29,8 +40,49 @@
 
   --font: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --wrap: 1160px;
+  --wrap: 1260px;
   --gutter: clamp(16px, 4vw, 40px);
+}
+
+/* Dark theme follows the OS setting; there is no switch. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --green: #15904f;
+    --green-hover: #1a9a57;
+    --green-soft: rgba(46, 184, 110, 0.14);
+    --green-softer: rgba(46, 184, 110, 0.07);
+    --ink: #e8eeea;
+    --text: #cdd6d0;
+    --muted: #8d9a92;
+    --border: #2b3530;
+    --border-strong: #3b4741;
+    --bg: #101512;
+    --surface: #171d1a;
+    --surface-2: #1b221e;
+    --code-bg: #141a17;
+    --panel: #141a17;
+    --dot: #33403a;
+    --header-bg: rgba(16, 21, 18, 0.86);
+    --warn: #f0c274;
+    --warn-soft: rgba(227, 164, 67, 0.16);
+    --tok-k: #6fd39a;
+    --tok-s: #e9b05c;
+    --tok-n: #7fb0f5;
+    --tok-p: #c2a0f5;
+    --glow: rgba(46, 184, 110, 0.1);
+
+    --m-get: #3cc27a;
+    --m-post: #e3a443;
+    --m-put: #6ea4f2;
+    --m-patch: #b391f2;
+    --m-del: #f0657c;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 48px -20px rgba(0, 0, 0, 0.7);
+  }
+  :not(pre) > code { color: #6fd39a; }
 }
 
 *,
@@ -88,7 +140,7 @@ img { max-width: 100%; display: block; }
 /* ── Top bar ─────────────────────────────────────────────── */
 .topbar {
   position: sticky; top: 0; z-index: 50;
-  background: rgba(252, 252, 252, 0.86);
+  background: var(--header-bg);
   backdrop-filter: saturate(1.4) blur(12px);
   -webkit-backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid var(--border);
@@ -162,7 +214,7 @@ img { max-width: 100%; display: block; }
 .hero::before {
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(60% 50% at 85% 10%, rgba(14, 122, 67, 0.07), transparent 70%),
+    radial-gradient(60% 50% at 85% 10%, var(--glow), transparent 70%),
     linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 100% 48px;
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 70%);
   -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 70%);
@@ -191,7 +243,7 @@ img { max-width: 100%; display: block; }
   border-bottom: 1px solid var(--border); background: var(--surface-2);
 }
 .mock-dots { display: flex; gap: 6px; }
-.mock-dots i { width: 10px; height: 10px; border-radius: 50%; background: #d5ddd8; }
+.mock-dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--dot); }
 .mock-address {
   flex: 1; max-width: 300px; margin: 0 auto;
   display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -201,7 +253,7 @@ img { max-width: 100%; display: block; }
 .mock-address .ic { width: 12px; height: 12px; }
 .mock-body { display: grid; grid-template-columns: 196px minmax(0, 1fr); min-height: 420px; }
 
-.mock-side { border-right: 1px solid var(--border); background: #fafcfb; padding: 12px 8px; min-width: 0; }
+.mock-side { border-right: 1px solid var(--border); background: var(--panel); padding: 12px 8px; min-width: 0; }
 .mock-ws { display: flex; align-items: center; gap: 8px; padding: 2px 8px 12px; font-weight: 700; color: var(--ink); font-size: 13px; }
 .mock-ws img { width: 18px; height: 18px; }
 .mock-label { padding: 10px 8px 6px; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -225,7 +277,7 @@ img { max-width: 100%; display: block; }
 .m-del { color: var(--m-del); }
 
 .mock-main { display: flex; flex-direction: column; min-width: 0; }
-.mock-tabs { display: flex; border-bottom: 1px solid var(--border); background: #fafcfb; overflow: hidden; }
+.mock-tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--panel); overflow: hidden; }
 .mock-tab { display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-right: 1px solid var(--border); white-space: nowrap; color: var(--muted); font-size: 12.5px; }
 .mock-tab.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 var(--green); }
 .mock-req { padding: 14px; display: grid; gap: 12px; }
@@ -241,7 +293,7 @@ img { max-width: 100%; display: block; }
 .urlbar .url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .var {
   position: relative; cursor: help;
-  color: #8a5a00; background: rgba(214, 150, 20, 0.14);
+  color: var(--warn); background: var(--warn-soft);
   border-radius: 4px; padding: 1px 3px;
 }
 .peek {
@@ -281,11 +333,11 @@ img { max-width: 100%; display: block; }
 .mock-resp .code { min-height: 150px; }
 .mock-resp.loading .code { opacity: 0.35; }
 
-.tok-k { color: #0b6537; }
-.tok-s { color: #8a5a00; }
-.tok-n { color: #1d5fc4; }
+.tok-k { color: var(--tok-k); }
+.tok-s { color: var(--tok-s); }
+.tok-n { color: var(--tok-n); }
 .tok-c { color: var(--muted); }
-.tok-p { color: #7a43b6; }
+.tok-p { color: var(--tok-p); }
 
 /* ── Command blocks ──────────────────────────────────────── */
 .cmd {
@@ -391,12 +443,12 @@ img { max-width: 100%; display: block; }
 .filecard-head .ic { width: 15px; height: 15px; }
 .filecard-head b { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .filecard-body { display: grid; grid-template-columns: max-content minmax(0, 1fr); }
-.filetree { margin: 0; padding: 14px 12px; border-right: 1px solid var(--border); background: #fafcfb; font: 12px/1.9 var(--mono); color: var(--muted); white-space: pre; overflow: hidden; }
+.filetree { margin: 0; padding: 14px 12px; border-right: 1px solid var(--border); background: var(--panel); font: 12px/1.9 var(--mono); color: var(--muted); white-space: pre; overflow: hidden; }
 .filetree b { color: var(--ink); font-weight: 600; }
 .filetree .on { color: var(--green); font-weight: 600; }
 .yaml { margin: 0; padding: 14px 14px; font: 12.5px/1.7 var(--mono); color: var(--ink); overflow-x: auto; white-space: pre; }
 .diffline { display: block; margin: 0 -14px; padding: 0 14px; }
-@media (max-width: 1180px) { .yaml { font-size: 12px; } }
+@media (max-width: 1280px) { .yaml { font-size: 12px; } }
 .diffline.add { background: rgba(14, 122, 67, 0.08); box-shadow: inset 3px 0 0 var(--green); }
 
 .term { border-radius: var(--radius-lg); border: 1px solid #1f2a24; background: #0f1a14; color: #d7e3dc; box-shadow: var(--shadow-lg); overflow: hidden; min-width: 0; }
@@ -474,7 +526,7 @@ img { max-width: 100%; display: block; }
 .release-head h3 { font-size: 20px; font-family: var(--mono); letter-spacing: -0.01em; }
 .badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
 .badge-latest { background: var(--green); color: #fff; }
-.badge-pre { background: rgba(214, 150, 20, 0.14); color: #8a5a00; }
+.badge-pre { background: var(--warn-soft); color: var(--warn); }
 .release-date { margin-left: auto; color: var(--muted); font-size: 14px; }
 .release-name { margin-top: 4px; color: var(--muted); }
 .release .cmd { margin-top: 14px; }

@@ -60,32 +60,34 @@ function dynamicInfo(name: string) {
   return name.startsWith("$") ? DYNAMIC_BY_NAME.get(name.slice(1)) : undefined;
 }
 
-const lightTheme = EditorView.theme({
-  "&": { backgroundColor: "#fff", color: "#253029" },
-  ".cm-content": { caretColor: "#0e7a43" },
-  ".cm-cursor": { borderLeftColor: "#0e7a43" },
-  ".cm-gutters": { backgroundColor: "#fafbfa", color: "#a3aea7", border: "none", borderRight: "1px solid #f1f4f2" },
-  ".cm-activeLineGutter": { backgroundColor: "#eef7f1", color: "#4b5a52" },
-  ".cm-activeLine": { backgroundColor: "rgba(14,122,67,0.035)" },
-  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "rgba(14,122,67,0.16) !important" },
-  ".cm-foldPlaceholder": { backgroundColor: "#eef7f1", border: "1px solid #cfe5d7", color: "#0e7a43", padding: "0 4px", borderRadius: "4px" },
-  ".cm-placeholder": { color: "#a3aea7" },
-  ".cm-searchMatch": { backgroundColor: "rgba(178,106,0,0.18)" },
-  ".cm-panels": { backgroundColor: "#fafbfa", borderColor: "#dce3de" },
+// Colors come from CSS variables in styles.css, so the editor follows the OS light/dark setting.
+const editorTheme = EditorView.theme({
+  "&": { backgroundColor: "var(--color-surface)", color: "var(--color-body)" },
+  ".cm-content": { caretColor: "var(--color-primary)" },
+  ".cm-cursor": { borderLeftColor: "var(--color-primary)" },
+  ".cm-gutters": { backgroundColor: "var(--color-subtle)", color: "var(--color-placeholder)", border: "none", borderRight: "1px solid var(--color-line-soft)" },
+  ".cm-activeLineGutter": { backgroundColor: "var(--color-primary-tint)", color: "var(--color-grey)" },
+  ".cm-activeLine": { backgroundColor: "var(--editor-active-line)" },
+  "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "var(--editor-selection) !important" },
+  ".cm-foldPlaceholder": { backgroundColor: "var(--color-primary-tint)", border: "1px solid var(--editor-fold-line)", color: "var(--color-primary)", padding: "0 4px", borderRadius: "4px" },
+  ".cm-placeholder": { color: "var(--color-placeholder)" },
+  ".cm-searchMatch": { backgroundColor: "var(--editor-search)" },
+  ".cm-panels": { backgroundColor: "var(--color-subtle)", color: "var(--color-body)", borderColor: "var(--color-line)" },
+  ".cm-tooltip": { backgroundColor: "var(--color-surface)", color: "var(--color-body)", borderColor: "var(--color-line)" },
 });
 
 const highlight = HighlightStyle.define([
-  { tag: t.propertyName, color: "#1f5fbf" },
-  { tag: [t.string, t.special(t.string)], color: "#0b6537" },
-  { tag: [t.number, t.bool, t.null, t.atom], color: "#b26a00" },
-  { tag: [t.keyword, t.operatorKeyword, t.controlKeyword, t.definitionKeyword], color: "#7442c8" },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: "#8b968f", fontStyle: "italic" },
-  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: "#1f5fbf" },
-  { tag: [t.tagName], color: "#1f5fbf" },
-  { tag: [t.attributeName], color: "#b26a00" },
-  { tag: [t.typeName, t.className], color: "#0e7a43" },
-  { tag: [t.punctuation, t.bracket], color: "#6b7a71" },
-  { tag: t.invalid, color: "#ba0724" },
+  { tag: t.propertyName, color: "var(--syn-property)" },
+  { tag: [t.string, t.special(t.string)], color: "var(--syn-string)" },
+  { tag: [t.number, t.bool, t.null, t.atom], color: "var(--syn-number)" },
+  { tag: [t.keyword, t.operatorKeyword, t.controlKeyword, t.definitionKeyword], color: "var(--syn-keyword)" },
+  { tag: [t.comment, t.lineComment, t.blockComment], color: "var(--syn-comment)", fontStyle: "italic" },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: "var(--syn-property)" },
+  { tag: [t.tagName], color: "var(--syn-property)" },
+  { tag: [t.attributeName], color: "var(--syn-number)" },
+  { tag: [t.typeName, t.className], color: "var(--syn-type)" },
+  { tag: [t.punctuation, t.bracket], color: "var(--syn-punct)" },
+  { tag: t.invalid, color: "var(--color-danger)" },
 ]);
 
 function languageExtension(lang: EditorLanguage): Extension {
@@ -176,10 +178,10 @@ function renderPeek(name: string, source: VariableSource): HTMLElement {
   const title = document.createElement("div");
   title.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px";
   const nameEl = document.createElement("span");
-  nameEl.style.cssText = "font-family:var(--font-mono);font-weight:600;color:#0f1a14";
+  nameEl.style.cssText = "font-family:var(--font-mono);font-weight:600;color:var(--color-ink)";
   nameEl.textContent = name;
   const scopeEl = document.createElement("span");
-  scopeEl.style.cssText = "font-size:11px;color:#78857d;text-transform:uppercase;letter-spacing:.04em";
+  scopeEl.style.cssText = "font-size:11px;color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em";
   title.append(nameEl, scopeEl);
   dom.append(title);
 
@@ -187,10 +189,10 @@ function renderPeek(name: string, source: VariableSource): HTMLElement {
   if (dyn) {
     scopeEl.textContent = "dynamic";
     const desc = document.createElement("div");
-    desc.style.color = "#4b5a52";
+    desc.style.color = "var(--color-grey)";
     desc.textContent = dyn.description;
     const ex = document.createElement("div");
-    ex.style.cssText = "margin-top:6px;font-family:var(--font-mono);color:#0b6537;word-break:break-all";
+    ex.style.cssText = "margin-top:6px;font-family:var(--font-mono);color:var(--syn-string);word-break:break-all";
     ex.textContent = `e.g. ${dyn.example}`;
     dom.append(desc, ex);
     return dom;
@@ -200,7 +202,7 @@ function renderPeek(name: string, source: VariableSource): HTMLElement {
   scopeEl.textContent = info ? info.scope : "undefined";
   if (!source.edit) {
     const val = document.createElement("div");
-    val.style.cssText = "font-family:var(--font-mono);word-break:break-all;color:" + (info ? "#253029" : "#ba0724");
+    val.style.cssText = "font-family:var(--font-mono);word-break:break-all;color:" + (info ? "var(--color-body)" : "var(--color-danger)");
     val.textContent = info ? info.value || "(empty)" : "Not defined in any active scope";
     dom.append(val);
     return dom;
@@ -223,7 +225,7 @@ function renderPeek(name: string, source: VariableSource): HTMLElement {
     save.textContent = "Saved";
   });
   const hint = document.createElement("div");
-  hint.style.cssText = "margin-top:6px;font-size:11px;color:#78857d";
+  hint.style.cssText = "margin-top:6px;font-size:11px;color:var(--color-muted)";
   hint.textContent = info && info.scope !== "environment" ? `Defined in ${info.scope}. Setting writes to the active environment.` : "Writes to the active environment.";
   dom.append(form, hint);
   return dom;
@@ -254,7 +256,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
   submitRef.current = onSubmit;
 
   const extensions = useMemo(() => {
-    const ext: Extension[] = [lightTheme, syntaxHighlighting(highlight), languageExtension(language)];
+    const ext: Extension[] = [editorTheme, syntaxHighlighting(highlight), languageExtension(language)];
     const sources: ((ctx: CompletionContext) => CompletionResult | null)[] = [];
     if (variables) {
       const v = variableExtensions(variables);
@@ -288,6 +290,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
       editable={!readOnly}
       placeholder={placeholder}
       extensions={extensions}
+      theme="none"
       height={fill ? "100%" : undefined}
       minHeight={minHeight ? `${minHeight}px` : undefined}
       className={clsx(singleLine && "cm-singleline", fill && "h-full", className)}

@@ -19,7 +19,34 @@
   --color-muted: #78857d;
   --color-line: #dce3de;
   --color-line-soft: #f1f4f2;
+  --color-line-strong: #c5d0c9;
+  --color-surface: #fff;
+  --color-placeholder: #a3aea7;
+  --color-primary-ink: #0e7a43;
   color-scheme: light;
+}
+
+/* Dark theme follows the OS setting; there is no switch. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-primary: #15904f;
+    --color-primary-hover: #1a9a57;
+    --color-primary-soft: rgba(46, 184, 110, 0.16);
+    --color-primary-tint: #15281e;
+    --color-grey: #a3b0a8;
+    --color-danger: #f0657c;
+    --color-danger-soft: #2c171c;
+    --color-ink: #e8eeea;
+    --color-body: #cdd6d0;
+    --color-muted: #84918a;
+    --color-line: #2b3530;
+    --color-line-soft: #212925;
+    --color-line-strong: #3b4741;
+    --color-surface: #171d1a;
+    --color-placeholder: #66736b;
+    --color-primary-ink: #6fd39a;
+    color-scheme: dark;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -31,7 +58,7 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   color: var(--color-body);
-  background: #fff;
+  background: var(--color-surface);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -57,7 +84,7 @@ main { padding: 14px 16px 16px; }
   font-size: 12px;
   line-height: 1.4;
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   word-break: break-word;
 }
 .status.error { background: var(--color-danger-soft); color: var(--color-danger); }
@@ -71,7 +98,7 @@ b { font-weight: 500; color: var(--color-ink); }
   padding: 10px;
   border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--color-surface);
 }
 .heading { display: flex; align-items: center; gap: 4px; margin: 18px 0 8px; }
 .heading h2 { margin: 0; }
@@ -97,7 +124,7 @@ b { font-weight: 500; color: var(--color-ink); }
   padding: 8px 10px;
   border-radius: 6px;
   background: var(--color-primary-tint);
-  color: var(--color-primary);
+  color: var(--color-primary-ink);
   font-weight: 500;
 }
 .meta { margin-top: 8px; color: var(--color-muted); }
@@ -109,14 +136,14 @@ b { font-weight: 500; color: var(--color-ink); }
   height: 34px;
   border: 1px solid var(--color-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--color-surface);
   padding: 0 10px;
   font-size: 12px;
   color: var(--color-ink);
   outline: none;
   transition: border-color 120ms, box-shadow 120ms;
 }
-.input::placeholder { color: #a3aea7; }
+.input::placeholder { color: var(--color-placeholder); }
 .input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-soft); }
 
 /* --- Buttons (same as the app's .btn variants) --- */
@@ -144,8 +171,8 @@ b { font-weight: 500; color: var(--color-ink); }
 .btn-sm { padding: 5px 8px; font-size: 12px; }
 .btn-primary { background: var(--color-primary); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); }
-.btn-cancel { border: 1px solid var(--color-line); background: #fff; color: var(--color-grey); }
-.btn-cancel:hover:not(:disabled) { border-color: #c5d0c9; color: var(--color-ink); }
+.btn-cancel { border: 1px solid var(--color-line); background: var(--color-surface); color: var(--color-grey); }
+.btn-cancel:hover:not(:disabled) { border-color: var(--color-line-strong); color: var(--color-ink); }
 .btn-ghost { color: var(--color-grey); }
 .btn-ghost:hover:not(:disabled) { background: var(--color-primary-soft); color: var(--color-primary); }
 .btn-danger-ghost { color: var(--color-muted); }

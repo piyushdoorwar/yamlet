@@ -53,7 +53,7 @@ export function IconButton({ icon: Icon, label, onClick, disabled, danger, activ
       className={clsx(
         "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
         disabled
-          ? "text-[#c4ccc7]"
+          ? "text-faint"
           : danger
             ? "text-danger hover:bg-danger-soft"
             : active

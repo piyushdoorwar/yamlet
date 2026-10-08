@@ -10,7 +10,7 @@ function Action({ icon: Icon, title, text, onClick, disabled }: { icon: typeof L
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-start gap-3 rounded-lg border border-line bg-white p-4 text-left transition-colors hover:border-primary hover:bg-primary-tint disabled:opacity-50"
+      className="flex items-start gap-3 rounded-lg border border-line bg-surface p-4 text-left transition-colors hover:border-primary hover:bg-primary-tint disabled:opacity-50"
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
         <Icon size={17} aria-hidden />

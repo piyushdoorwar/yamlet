@@ -30,10 +30,10 @@ export function statusCategory(status: number): "success" | "redirect" | "client
 }
 
 const STATUS_CLASS = {
-  success: "bg-[#e3f4e9] text-[#0b5c33]",
-  redirect: "bg-[#e3ecfa] text-[#1a4c97]",
-  client: "bg-[#fbefd9] text-[#7a4a00]",
-  server: "bg-[#fde4e9] text-[#8f0620]",
+  success: "bg-s-success text-s-success-ink",
+  redirect: "bg-s-redirect text-s-redirect-ink",
+  client: "bg-s-client text-s-client-ink",
+  server: "bg-s-server text-s-server-ink",
   none: "bg-line-soft text-grey",
 };
 

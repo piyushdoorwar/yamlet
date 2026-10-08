@@ -76,7 +76,7 @@ export function Workbench() {
   useShortcuts();
   const layout = useDefaultLayout({ id: "yamlet-shell", storage: localStorage });
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#fcfcfc]">
+    <div className="flex h-full flex-col overflow-hidden bg-page">
       <div className="min-h-0 flex-1">
         <Group orientation="horizontal" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
           <Panel id="sidebar" defaultSize={300} minSize={220} maxSize={560}>

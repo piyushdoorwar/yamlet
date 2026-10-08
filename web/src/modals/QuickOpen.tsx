@@ -53,12 +53,12 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#0f1a14]/30 px-4 pt-[12vh]" onMouseDown={onClose}>
-      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-line bg-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Find a request">
+      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-line bg-surface shadow-2xl" onMouseDown={(e) => e.stopPropagation()} role="dialog" aria-label="Find a request">
         <div className="flex items-center gap-3 border-b border-line-soft px-4">
           <Search size={16} className="text-muted" aria-hidden />
           <input
             autoFocus
-            className="h-12 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-[#a3aea7]"
+            className="h-12 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-placeholder"
             placeholder="Search requests and environments"
             value={q}
             aria-label="Search"

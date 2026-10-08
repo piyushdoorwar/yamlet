@@ -27,7 +27,7 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
                     /
                   </span>
                 ) : (
-                  <kbd key={i} className="rounded border border-line bg-[#fafbfa] px-1.5 py-0.5 font-mono text-11 text-grey">
+                  <kbd key={i} className="rounded border border-line bg-subtle px-1.5 py-0.5 font-mono text-11 text-grey">
                     {k}
                   </kbd>
                 ),

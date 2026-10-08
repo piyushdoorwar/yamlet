@@ -167,7 +167,7 @@ export function BodyEditor({ body, onChange, variables }: { body: RequestBody; o
       )}
 
       {body.type === "binary" && (
-        <div className={clsx("rounded-lg border border-line bg-white py-4")}>
+        <div className={clsx("rounded-lg border border-line bg-surface py-4")}>
           <FileChooser value={body.binaryFile} onChange={(binaryFile) => set({ binaryFile })} />
           <p className="mt-2 px-4 text-11 text-muted">The file's bytes are sent as the request body. Set a Content-Type header if the server needs one.</p>
         </div>

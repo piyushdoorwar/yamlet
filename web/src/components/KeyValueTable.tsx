@@ -78,7 +78,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
         </thead>
         <tbody>
           {locked?.map((l) => (
-            <tr key={`locked-${l.key}`} className="bg-[#fafbfa]" title={l.note}>
+            <tr key={`locked-${l.key}`} className="bg-subtle" title={l.note}>
               {!noToggle && (
                 <td className="text-center">
                   <input type="checkbox" className="check opacity-50" checked readOnly disabled aria-label={`${l.key} always sent`} />
@@ -168,7 +168,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                           type="button"
                           title={row.secret ? "Secret: click to make plain" : "Mark as secret"}
                           aria-label={row.secret ? "Make plain" : "Mark as secret"}
-                          className={clsx("rounded p-1", row.secret ? "text-primary" : "text-[#b3bdb7] hover:text-grey")}
+                          className={clsx("rounded p-1", row.secret ? "text-primary" : "text-faint hover:text-grey")}
                           onClick={() => {
                             if (row.secret && !revealed.has(i)) {
                               setRevealed(new Set(revealed).add(i));
@@ -184,7 +184,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                         </button>
                       )}
                       {!fixedKeys && (
-                        <button type="button" aria-label={`Delete ${row.key || "row"}`} className="rounded p-1 text-[#b3bdb7] hover:text-danger" onClick={() => remove(i)}>
+                        <button type="button" aria-label={`Delete ${row.key || "row"}`} className="rounded p-1 text-faint hover:text-danger" onClick={() => remove(i)}>
                           <Trash2 size={13} aria-hidden />
                         </button>
                       )}

@@ -17,6 +17,22 @@
   --color-line: #dce3de;
   --color-line-soft: #f1f4f2;
   --color-canvas: #f9faf9;
+  --color-surface: #ffffff;
+  --color-page: #fcfcfc;
+  --color-subtle: #fafbfa;
+  --color-line-strong: #c5d0c9;
+  --color-placeholder: #a3aea7;
+  --color-faint: #b3bdb7;
+  --color-danger-line: #ffc9d6;
+  --color-danger-ink: #8f0620;
+  --color-s-success: #e3f4e9;
+  --color-s-success-ink: #0b5c33;
+  --color-s-redirect: #e3ecfa;
+  --color-s-redirect-ink: #1a4c97;
+  --color-s-client: #fbefd9;
+  --color-s-client-ink: #7a4a00;
+  --color-s-server: #fde4e9;
+  --color-s-server-ink: #8f0620;
   --color-var-ok: #b26a00;
   --color-var-missing: #ba0724;
   --color-m-get: #0e7a43;
@@ -31,6 +47,92 @@
   --text-11: 11px;
 }
 
+/* Editor tokens (read by CodeMirror's theme, not by utilities). */
+:root {
+  color-scheme: light;
+  --syn-property: #1f5fbf;
+  --syn-string: #0b6537;
+  --syn-number: #b26a00;
+  --syn-keyword: #7442c8;
+  --syn-comment: #8b968f;
+  --syn-type: #0e7a43;
+  --syn-punct: #6b7a71;
+  --editor-active-line: rgba(14, 122, 67, 0.035);
+  --editor-selection: rgba(14, 122, 67, 0.16);
+  --editor-fold-line: #cfe5d7;
+  --editor-search: rgba(178, 106, 0, 0.18);
+  --var-ok-bg: rgba(178, 106, 0, 0.09);
+  --var-missing-bg: rgba(186, 7, 36, 0.08);
+  --scroll-thumb: rgba(14, 122, 67, 0.4);
+  --scroll-thumb-hover: rgba(14, 122, 67, 0.65);
+  --shadow-pop: 0 8px 24px rgba(15, 26, 20, 0.12);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234b5a52' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Dark theme follows the OS setting; there is no in-app switch. Unlayered, so it
+   overrides the @theme values above. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-primary: #15904f;
+    --color-primary-hover: #1a9a57;
+    --color-primary-soft: rgba(46, 184, 110, 0.16);
+    --color-primary-tint: #15281e;
+    --color-grey: #a3b0a8;
+    --color-danger: #de4058;
+    --color-danger-soft: #2c171c;
+    --color-warning: #e3a443;
+    --color-ink: #e8eeea;
+    --color-body: #cdd6d0;
+    --color-muted: #84918a;
+    --color-line: #2b3530;
+    --color-line-soft: #212925;
+    --color-canvas: #121714;
+    --color-surface: #171d1a;
+    --color-page: #101512;
+    --color-subtle: #1b221e;
+    --color-line-strong: #3b4741;
+    --color-placeholder: #66736b;
+    --color-faint: #56635c;
+    --color-danger-line: #5a2631;
+    --color-danger-ink: #ff9fb0;
+    --color-var-ok: #e3a443;
+    --color-var-missing: #f0657c;
+    --color-m-get: #3cc27a;
+    --color-m-post: #e3a443;
+    --color-m-put: #6ea4f2;
+    --color-m-patch: #b391f2;
+    --color-m-delete: #f0657c;
+    --color-m-query: #3fc0c8;
+    --color-m-other: #95a39b;
+    --color-s-success: #173a27;
+    --color-s-success-ink: #84e2ac;
+    --color-s-redirect: #1a2d4b;
+    --color-s-redirect-ink: #a3c4f6;
+    --color-s-client: #3a2c12;
+    --color-s-client-ink: #f0c274;
+    --color-s-server: #45202a;
+    --color-s-server-ink: #ffa3b3;
+    --syn-property: #7fb0f5;
+    --syn-string: #6fd39a;
+    --syn-number: #e9b05c;
+    --syn-keyword: #c2a0f5;
+    --syn-comment: #6e7d74;
+    --syn-type: #4fc787;
+    --syn-punct: #8d9a92;
+    --editor-active-line: rgba(46, 184, 110, 0.05);
+    --editor-selection: rgba(46, 184, 110, 0.24);
+    --editor-fold-line: #24523a;
+    --editor-search: rgba(227, 164, 67, 0.25);
+    --var-ok-bg: rgba(227, 164, 67, 0.14);
+    --var-missing-bg: rgba(240, 101, 124, 0.14);
+    --scroll-thumb: rgba(46, 184, 110, 0.4);
+    --scroll-thumb-hover: rgba(46, 184, 110, 0.65);
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3b0a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+
 html,
 body,
 #root {
@@ -39,7 +141,7 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: #fcfcfc;
+  background: var(--color-page);
   color: var(--color-body);
   -webkit-font-smoothing: antialiased;
 }
@@ -84,11 +186,11 @@ button:disabled {
   }
   .btn-cancel {
     border: 1px solid var(--color-line);
-    background: #fff;
+    background: var(--color-surface);
     color: var(--color-grey);
   }
   .btn-cancel:hover:not(:disabled) {
-    border-color: #c5d0c9;
+    border-color: var(--color-line-strong);
     color: var(--color-ink);
   }
   .btn-delete {
@@ -112,7 +214,7 @@ button:disabled {
     height: 34px;
     border: 1px solid var(--color-line);
     border-radius: 6px;
-    background: #fff;
+    background: var(--color-surface);
     padding: 0 10px;
     font-size: 13px;
     color: var(--color-ink);
@@ -122,7 +224,7 @@ button:disabled {
       box-shadow 120ms;
   }
   .input::placeholder {
-    color: #a3aea7;
+    color: var(--color-placeholder);
   }
   .input:focus {
     border-color: var(--color-primary);
@@ -131,7 +233,7 @@ button:disabled {
   select.input {
     appearance: none;
     padding-right: 28px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234b5a52' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: var(--select-chevron);
     background-repeat: no-repeat;
     background-position: right 9px center;
   }
@@ -146,9 +248,9 @@ button:disabled {
     appearance: none;
     width: 15px;
     height: 15px;
-    border: 1.5px solid #b9c4bd;
+    border: 1.5px solid var(--color-faint);
     border-radius: 4px;
-    background: #fff;
+    background: var(--color-surface);
     display: inline-grid;
     place-content: center;
     cursor: pointer;
@@ -179,7 +281,7 @@ button:disabled {
     border: 1px solid var(--color-line);
     border-radius: 8px;
     overflow: hidden;
-    background: #fff;
+    background: var(--color-surface);
     font-size: 13px;
   }
   .kv-table th {
@@ -190,7 +292,7 @@ button:disabled {
     font-size: 12px;
     color: var(--color-grey);
     border-bottom: 1px solid var(--color-line-soft);
-    background: #fff;
+    background: var(--color-surface);
   }
   .kv-table td {
     height: 34px;
@@ -218,7 +320,7 @@ button:disabled {
     background: var(--color-primary-tint);
   }
   .kv-cell::placeholder {
-    color: #b3bdb7;
+    color: var(--color-faint);
   }
 
 }
@@ -226,20 +328,20 @@ button:disabled {
 /* --- Thin green scrollbars --- */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(14, 122, 67, 0.45) transparent;
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(14, 122, 67, 0.4);
+  background: var(--scroll-thumb);
   border-radius: 9px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(14, 122, 67, 0.65);
+  background: var(--scroll-thumb-hover);
   background-clip: padding-box;
   border: 2px solid transparent;
 }
@@ -265,28 +367,30 @@ button:disabled {
 }
 .cm-var-ok {
   color: var(--color-var-ok);
-  background: rgba(178, 106, 0, 0.09);
+  background: var(--var-ok-bg);
   border-radius: 3px;
   font-weight: 500;
 }
 .cm-var-missing {
   color: var(--color-var-missing);
-  background: rgba(186, 7, 36, 0.08);
+  background: var(--var-missing-bg);
   border-radius: 3px;
   font-weight: 500;
 }
 .cm-tooltip.cm-var-tip {
   border: 1px solid var(--color-line);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 26, 20, 0.12);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
 }
 .cm-tooltip-autocomplete {
   border: 1px solid var(--color-line) !important;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(15, 26, 20, 0.12);
+  background: var(--color-surface) !important;
+  color: var(--color-body);
+  box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
 }
 .cm-tooltip-autocomplete > ul > li[aria-selected] {

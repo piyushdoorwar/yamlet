@@ -43,8 +43,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role={t.kind === "error" ? "alert" : "status"}
             className={clsx(
-              "toast-in pointer-events-auto flex items-start gap-3 rounded-lg border bg-white px-4 py-3 shadow-lg",
-              t.kind === "error" ? "border-[#ffc9d6]" : "border-line",
+              "toast-in pointer-events-auto flex items-start gap-3 rounded-lg border bg-surface px-4 py-3 shadow-lg",
+              t.kind === "error" ? "border-danger-line" : "border-line",
             )}
           >
             {t.kind === "error" ? (

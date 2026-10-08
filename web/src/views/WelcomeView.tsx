@@ -89,7 +89,7 @@ export function WorkspacePicker({ onDone }: { onDone?: () => void }) {
 export function WelcomeView({ bootError }: { bootError: string | null }) {
   return (
     <div className="flex min-h-full items-center justify-center bg-canvas p-6">
-      <div className="w-full max-w-3xl rounded-xl border border-line bg-white p-8 shadow-sm">
+      <div className="w-full max-w-3xl rounded-xl border border-line bg-surface p-8 shadow-sm">
         <Wordmark />
         <h1 className="mt-6 text-xl font-medium text-ink">Open a workspace</h1>
         <p className="mt-1 mb-6 text-13 text-muted">
@@ -97,7 +97,7 @@ export function WelcomeView({ bootError }: { bootError: string | null }) {
           <span className="font-mono">globals/</span>. Commit it to Git like any other code.
         </p>
         {bootError && (
-          <div role="alert" className="mb-4 rounded-lg border border-[#ffc9d6] bg-danger-soft px-4 py-3 text-13 text-danger">
+          <div role="alert" className="mb-4 rounded-lg border border-danger-line bg-danger-soft px-4 py-3 text-13 text-danger">
             Could not reach the Yamlet server: {bootError}
           </div>
         )}

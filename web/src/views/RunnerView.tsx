@@ -152,7 +152,7 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
                   <span className="label">Data file</span>
                   <input ref={fileInput} type="file" accept=".csv,.json,text/csv,application/json" className="hidden" onChange={(e) => e.target.files?.[0] && void loadData(e.target.files[0])} />
                   {data ? (
-                    <div className="flex items-center gap-2 rounded-md border border-line bg-[#fafbfa] px-3 py-2 text-13">
+                    <div className="flex items-center gap-2 rounded-md border border-line bg-subtle px-3 py-2 text-13">
                       <FileSpreadsheet size={15} className="text-primary" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{data.name}</span>
                       <span className="text-12 text-muted">{data.rows} rows</span>
@@ -250,7 +250,7 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
                     return (
                       <Fragment key={i}>
                         <tr
-                          className={clsx("border-b border-line-soft", hasDetail && "cursor-pointer hover:bg-[#fafbfa]")}
+                          className={clsx("border-b border-line-soft", hasDetail && "cursor-pointer hover:bg-subtle")}
                           onClick={() => hasDetail && setExpanded(open ? null : i)}
                         >
                           {plannedIterations > 1 && <td className="px-4 py-2 text-12 text-muted">{r.iteration + 1}</td>}
@@ -269,7 +269,7 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
                           <td className={clsx("px-4 py-2 text-right text-12", tp === r.tests.length ? "text-grey" : "font-medium text-danger")}>{r.tests.length ? `${tp}/${r.tests.length}` : "–"}</td>
                         </tr>
                         {open && (
-                          <tr className="border-b border-line-soft bg-[#fafbfa]">
+                          <tr className="border-b border-line-soft bg-subtle">
                             <td colSpan={plannedIterations > 1 ? 5 : 4} className="px-6 py-3">
                               {r.error && <p className="mb-2 font-mono text-12 text-danger">{r.error}</p>}
                               <ul className="space-y-1">

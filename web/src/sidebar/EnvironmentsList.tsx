@@ -43,7 +43,7 @@ export function EnvironmentsList({ actions, filter }: { actions: TreeActions; fi
       <p className="mt-3 mb-1 px-4 text-11 font-medium tracking-wide text-muted uppercase">Environments</p>
       {environments.length === 0 && (
         <div className="px-6 py-6 text-center">
-          <Layers size={26} className="mx-auto text-[#b9c4bd]" aria-hidden />
+          <Layers size={26} className="mx-auto text-faint" aria-hidden />
           <p className="mt-3 text-13 text-grey">No environments yet.</p>
           <button type="button" className="btn btn-primary btn-sm mt-4" onClick={() => void actions.newEnvironment()}>
             New environment
@@ -96,7 +96,7 @@ function EnvRow(p: {
       onClick={p.onOpen}
       onContextMenu={p.onMenu}
     >
-      <span className={clsx("h-2 w-2 shrink-0 rounded-full", p.current ? (p.activeTab ? "bg-white" : "bg-primary") : "border border-[#b9c4bd]")} aria-label={p.current ? "Active environment" : undefined} />
+      <span className={clsx("h-2 w-2 shrink-0 rounded-full", p.current ? (p.activeTab ? "bg-white" : "bg-primary") : "border border-faint")} aria-label={p.current ? "Active environment" : undefined} />
       {p.renaming ? (
         <RenameInput initial={p.name} onDone={p.onRename} />
       ) : (
@@ -107,7 +107,7 @@ function EnvRow(p: {
         ref={more}
         type="button"
         aria-label={`Actions for ${p.name}`}
-        className={clsx("rounded p-1 opacity-0 group-hover:opacity-100 focus:opacity-100", p.activeTab ? "text-white" : "text-grey hover:bg-white")}
+        className={clsx("rounded p-1 opacity-0 group-hover:opacity-100 focus:opacity-100", p.activeTab ? "text-white" : "text-grey hover:bg-surface")}
         onClick={(e) => {
           e.stopPropagation();
           if (more.current) p.onMore(more.current);

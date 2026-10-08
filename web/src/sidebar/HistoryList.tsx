@@ -23,7 +23,7 @@ export function HistoryList({ filter }: { filter: string }) {
   if (!history.length) {
     return (
       <div className="px-6 py-8 text-center">
-        <History size={26} className="mx-auto text-[#b9c4bd]" aria-hidden />
+        <History size={26} className="mx-auto text-faint" aria-hidden />
         <p className="mt-3 text-13 text-grey">Requests you send appear here.</p>
       </div>
     );

@@ -37,14 +37,14 @@ export function StatusBar() {
   const interceptor = paired ? "Interceptor connected" : extension ? "Interceptor not paired" : null;
 
   return (
-    <footer className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-line bg-white px-2 text-11">
+    <footer className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-line bg-surface px-2 text-11">
       <div className="flex min-w-0 items-center gap-1">
         <button type="button" className={item} onClick={() => setModal({ kind: "cookies" })}>
           <Cookie size={13} aria-hidden /> Cookies
         </button>
         {interceptor && (
           <span className="inline-flex h-6 items-center gap-1.5 px-1.5 text-grey" role="status" title="Chrome cookie sync">
-            <span className={clsx("h-1.5 w-1.5 rounded-full", paired ? "bg-primary" : "bg-[#c4ccc7]")} aria-hidden />
+            <span className={clsx("h-1.5 w-1.5 rounded-full", paired ? "bg-primary" : "bg-faint")} aria-hidden />
             {interceptor}
           </span>
         )}

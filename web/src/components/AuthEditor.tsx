@@ -42,7 +42,7 @@ function Field({ label, children, hint }: { label: string; children: ReactNode; 
 
 function VarInput({ value, onChange, variables, placeholder, label }: { value: string; onChange: (v: string) => void; variables?: VariableSource; placeholder?: string; label: string }) {
   return (
-    <div className="rounded-md border border-line bg-white px-2.5 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]">
+    <div className="rounded-md border border-line bg-surface px-2.5 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]">
       <CodeEditor singleLine value={value} onChange={onChange} variables={variables} placeholder={placeholder} ariaLabel={label} />
     </div>
   );
@@ -162,7 +162,7 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
 
   return (
     <>
-      <div className="rounded-lg border border-line bg-[#fafbfa] p-4">
+      <div className="rounded-lg border border-line bg-subtle p-4">
         <Field label="Access token" hint="Used for every request with this auth. Fetched below, or paste one.">
           <VarInput label="Access token" value={cfg.accessToken} onChange={(accessToken) => set({ accessToken })} variables={variables} />
         </Field>

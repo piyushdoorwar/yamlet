@@ -86,7 +86,7 @@ export function Menu({ at, items, onClose, align = "start" }: MenuProps) {
     <div
       ref={ref}
       role="menu"
-      className="fixed z-[70] min-w-48 rounded-lg border border-line bg-white py-1 shadow-lg"
+      className="fixed z-[70] min-w-48 rounded-lg border border-line bg-surface py-1 shadow-lg"
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999 }}
     >
       {items.map((it, i) =>

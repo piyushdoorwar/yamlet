@@ -72,7 +72,7 @@ function TabItem({ tab, index, menu }: { tab: Tab; index: number; menu: ReturnTy
       title={label}
       className={clsx(
         "group relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-2 border-r border-line-soft px-3 text-13",
-        active ? "bg-canvas text-ink" : "bg-white text-grey hover:bg-[#fafbfa] hover:text-ink",
+        active ? "bg-canvas text-ink" : "bg-surface text-grey hover:bg-subtle hover:text-ink",
       )}
     >
       {active && <span className="absolute inset-x-0 top-0 h-0.5 bg-primary" />}
@@ -123,12 +123,12 @@ function AllTabs({ onClose, anchor }: { onClose: () => void; anchor: HTMLElement
       ref={box}
       role="dialog"
       aria-label="Open tabs"
-      className="fixed z-[70] flex max-h-[70vh] w-80 flex-col rounded-lg border border-line bg-white shadow-lg"
+      className="fixed z-[70] flex max-h-[70vh] w-80 flex-col rounded-lg border border-line bg-surface shadow-lg"
       style={{ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.right - 320, window.innerWidth - 328)) }}
     >
       <div className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
         <Search size={14} className="text-muted" aria-hidden />
-        <input autoFocus className="h-7 flex-1 bg-transparent text-13 outline-none placeholder:text-[#a3aea7]" placeholder={`Filter ${tabs.length} open tabs`} value={q} aria-label="Filter open tabs" onChange={(e) => setQ(e.target.value)} />
+        <input autoFocus className="h-7 flex-1 bg-transparent text-13 outline-none placeholder:text-placeholder" placeholder={`Filter ${tabs.length} open tabs`} value={q} aria-label="Filter open tabs" onChange={(e) => setQ(e.target.value)} />
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto py-1">
         {tabs.map((t) => (
@@ -149,7 +149,7 @@ function AllTabsRow({ tab, q, active, onPick, onCloseTab }: { tab: Tab; q: strin
   const { label, icon } = useTabLabel(tab);
   if (q && !label.toLowerCase().includes(q)) return null;
   return (
-    <li className={clsx("group flex items-center gap-2 px-3 py-1.5", active ? "bg-primary-soft" : "hover:bg-[#fafbfa]")}>
+    <li className={clsx("group flex items-center gap-2 px-3 py-1.5", active ? "bg-primary-soft" : "hover:bg-subtle")}>
       <button type="button" onClick={onPick} className="flex min-w-0 flex-1 items-center gap-2 text-left text-13 text-body">
         <span className="flex w-9 shrink-0 justify-end text-grey">{icon}</span>
         <span className="truncate">{label}</span>
@@ -211,7 +211,7 @@ export function TopBar() {
   const nudge = (dir: -1 | 1) => strip.current?.scrollBy({ left: dir * Math.max(200, (strip.current.clientWidth ?? 400) * 0.6), behavior: "smooth" });
 
   return (
-    <header className="flex h-12 shrink-0 items-stretch border-b border-line-soft bg-white">
+    <header className="flex h-12 shrink-0 items-stretch border-b border-line-soft bg-surface">
       <div className="relative flex min-w-0 flex-1">
         <div ref={strip} role="tablist" aria-label="Open tabs" onScroll={updateEdges} className="no-scrollbar flex min-w-0 flex-1 scroll-px-8 items-stretch overflow-x-auto">
           {tabs.map((t, i) => (
@@ -219,12 +219,12 @@ export function TopBar() {
           ))}
         </div>
         {edges.left && (
-          <button type="button" aria-label="Scroll tabs left" onClick={() => nudge(-1)} className="absolute inset-y-0 left-0 flex w-8 items-center justify-start bg-gradient-to-r from-white via-white/90 to-transparent pl-1 text-grey hover:text-primary">
+          <button type="button" aria-label="Scroll tabs left" onClick={() => nudge(-1)} className="absolute inset-y-0 left-0 flex w-8 items-center justify-start bg-gradient-to-r from-surface via-surface/90 to-transparent pl-1 text-grey hover:text-primary">
             <ChevronLeft size={16} aria-hidden />
           </button>
         )}
         {edges.right && (
-          <button type="button" aria-label="Scroll tabs right" onClick={() => nudge(1)} className="absolute inset-y-0 right-0 flex w-8 items-center justify-end bg-gradient-to-l from-white via-white/90 to-transparent pr-1 text-grey hover:text-primary">
+          <button type="button" aria-label="Scroll tabs right" onClick={() => nudge(1)} className="absolute inset-y-0 right-0 flex w-8 items-center justify-end bg-gradient-to-l from-surface via-surface/90 to-transparent pr-1 text-grey hover:text-primary">
             <ChevronRight size={16} aria-hidden />
           </button>
         )}

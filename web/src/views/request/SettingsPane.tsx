@@ -9,7 +9,7 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
       </span>
       <span className="relative mt-0.5 inline-flex shrink-0">
         <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-        <span className="h-5 w-9 rounded-full bg-[#cfd8d2] transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
+        <span className="h-5 w-9 rounded-full bg-line-strong transition-colors peer-checked:bg-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30" />
         <span className="absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
       </span>
     </label>

@@ -85,14 +85,14 @@ export function UrlBar({ request, update, variables }: Props) {
 
   return (
     <div className="flex items-stretch gap-2 px-5 pt-3 pb-3">
-      <div className="flex min-w-0 flex-1 items-stretch rounded-lg border border-line bg-white focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]">
+      <div className="flex min-w-0 flex-1 items-stretch rounded-lg border border-line bg-surface focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]">
         <button
           ref={methodBtn}
           type="button"
           aria-label="HTTP method"
           aria-haspopup="menu"
           onClick={() => setMethodsOpen(true)}
-          className={clsx("flex max-w-44 min-w-28 shrink-0 items-center justify-between gap-1 rounded-l-lg border-r border-line-soft px-3 font-mono text-12 font-bold hover:bg-[#fafbfa]", methodClass(request.method))}
+          className={clsx("flex max-w-44 min-w-28 shrink-0 items-center justify-between gap-1 rounded-l-lg border-r border-line-soft px-3 font-mono text-12 font-bold hover:bg-subtle", methodClass(request.method))}
         >
           <span className="truncate">{request.method}</span>
           <ChevronDown size={13} className="shrink-0 text-muted" aria-hidden />

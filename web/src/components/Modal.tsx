@@ -33,7 +33,7 @@ export function Modal({ title, subtitle, children, footer, onClose, width = 460,
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === "string" ? title : undefined}
-        className={clsx("flex max-h-[90vh] w-full flex-col rounded-lg bg-white shadow-xl", tall && "h-[80vh]")}
+        className={clsx("flex max-h-[90vh] w-full flex-col rounded-lg bg-surface shadow-xl", tall && "h-[80vh]")}
         style={{ maxWidth: width }}
         onMouseDown={(e) => e.stopPropagation()}
       >

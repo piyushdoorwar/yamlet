@@ -15,7 +15,7 @@ export interface TabDef<T extends string> {
 /** Segmented control: a bordered pill group with a solid green active item. */
 export function TabButton<T extends string>({ tabs, active, onChange, size = "md" }: { tabs: TabDef<T>[]; active: T; onChange: (id: T) => void; size?: "md" | "sm" }) {
   return (
-    <div role="tablist" className="inline-flex rounded-lg border border-line bg-white p-1">
+    <div role="tablist" className="inline-flex rounded-lg border border-line bg-surface p-1">
       {tabs.map((t) => (
         <button
           key={t.id}

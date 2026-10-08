@@ -32,8 +32,8 @@ function Empty() {
       </span>
       <p className="text-13 text-grey">Send the request to see the response here.</p>
       <p className="text-12 text-muted">
-        <kbd className="rounded border border-line bg-white px-1.5 py-0.5 font-mono text-11">Ctrl</kbd> +{" "}
-        <kbd className="rounded border border-line bg-white px-1.5 py-0.5 font-mono text-11">Enter</kbd>
+        <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-11">Ctrl</kbd> +{" "}
+        <kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-mono text-11">Enter</kbd>
       </p>
     </div>
   );
@@ -102,14 +102,14 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
 
   if (!state || (!state.loading && !r && !state.error)) {
     return (
-      <div className="relative h-full bg-white">
+      <div className="relative h-full bg-surface">
         <Empty />
       </div>
     );
   }
 
   return (
-    <div className="@container flex h-full min-h-0 flex-col bg-white">
+    <div className="@container flex h-full min-h-0 flex-col bg-surface">
       <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line-soft px-5">
         <span className="hidden text-12 font-medium tracking-wide text-muted uppercase @md:inline">Response</span>
         {state.loading ? (
@@ -165,16 +165,16 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
       </div>
 
       {state.error && !state.loading && (
-        <div role="alert" className="m-5 flex items-start gap-2 rounded-lg border border-[#ffc9d6] bg-danger-soft px-4 py-3 text-13 text-danger">
+        <div role="alert" className="m-5 flex items-start gap-2 rounded-lg border border-danger-line bg-danger-soft px-4 py-3 text-13 text-danger">
           <CircleAlert size={16} className="mt-0.5 shrink-0" aria-hidden /> {state.error}
         </div>
       )}
       {r?.isError && !state.loading && (
-        <div className="m-5 rounded-lg border border-[#ffc9d6] bg-danger-soft px-4 py-3">
+        <div className="m-5 rounded-lg border border-danger-line bg-danger-soft px-4 py-3">
           <p className="flex items-center gap-2 text-13 font-medium text-danger">
             <CircleAlert size={16} aria-hidden /> Could not get a response
           </p>
-          <p className="mt-1 font-mono text-12 break-words text-[#8f0620]">{r.errorMessage}</p>
+          <p className="mt-1 font-mono text-12 break-words text-danger-ink">{r.errorMessage}</p>
           {r.resolvedUrl && <p className="mt-2 font-mono text-11 break-all text-grey">{r.method} {r.resolvedUrl}</p>}
           {/localhost|127\.0\.0\.1/.test(r.resolvedUrl) && useStore.getState().info?.inContainer && (
             <p className="mt-2 text-12 text-grey">

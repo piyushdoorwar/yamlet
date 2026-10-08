@@ -31,7 +31,7 @@ export function Sidebar() {
   const firstCollection = workspace.collections[0];
 
   return (
-    <aside className="flex h-full flex-col bg-white shadow-[1px_0_0_#f1f4f2]">
+    <aside className="flex h-full flex-col bg-surface shadow-[1px_0_0_var(--color-line-soft)]">
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <Wordmark />
       </div>
@@ -41,7 +41,7 @@ export function Sidebar() {
           ref={wsBtn}
           type="button"
           title={workspace.rootPath}
-          className="flex w-full items-center gap-2 rounded-lg border border-line px-3 py-2 text-left hover:border-[#c5d0c9]"
+          className="flex w-full items-center gap-2 rounded-lg border border-line px-3 py-2 text-left hover:border-line-strong"
           onClick={() =>
             wsBtn.current &&
             wsMenu.openBelow(wsBtn.current, [

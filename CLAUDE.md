@@ -25,9 +25,13 @@ tagged `dotnet-final`.
   (rounded badge with a "Y" stroke).
 - **Commits carry only the user's name.** No co-author trailers or "generated with"
   lines. Work directly on `main` (trunk-based); don't create feature branches.
-- **Light theme only: white surfaces, dark-green accent.** Colors are tokens in
-  [web/src/styles.css](web/src/styles.css) (`--color-primary: #0e7a43`). Green buttons
-  carry white text.
+- **Theme follows the OS (`prefers-color-scheme`); there is no in-app switch.** Light:
+  white surfaces, dark-green accent. Dark: green-tinted dark surfaces, slightly brighter
+  green. Colors are tokens in [web/src/styles.css](web/src/styles.css)
+  (`--color-primary: #0e7a43`, overridden in the dark media query); never hard-code a
+  color in a component, add a token with both values. The site (`site/styles.css`) and
+  the extension (`extension/popup.css`) follow the same pattern. Green buttons carry
+  white text.
 
 ## Commands
 
@@ -163,7 +167,10 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 
 - Tokens in `styles.css` `@theme`: `primary` (#0e7a43), `primary-hover`, `primary-soft`
   (12% tint for hovers and badges), `primary-tint`, `ink`, `body`, `grey`, `muted`,
-  `line`, `line-soft`, `canvas`, `danger`. Fonts: DM Sans and JetBrains Mono.
+  `line`, `line-soft`, `line-strong`, `canvas`, `page`, `surface` (use `bg-surface`, not
+  `bg-white`), `subtle`, `placeholder`, `faint`, `danger`, status pills `s-*`. Editor
+  syntax colors are `--syn-*` vars. CodeMirror gets `theme="none"` plus our var-based
+  theme. Fonts: DM Sans and JetBrains Mono.
 - Shared classes: `.btn` + `.btn-primary | .btn-cancel | .btn-delete | .btn-ghost`
   (+ `.btn-sm`), `.input`, `.label`, `.check`, `.kv-table`. Scrollbars are thin and
   green app-wide.
@@ -171,7 +178,7 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   The method menu lists `HTTP_METHODS` (including QUERY, the safe method with a body)
   plus "Custom method…" for any valid token.
   Status pills use soft fills with dark text.
-- Sidebar: white panel with the wordmark, a workspace switcher, a segmented control
+- Sidebar: surface panel with the wordmark, a workspace switcher, a segmented control
   (Collections / Environments / History) and a tree whose selected row is solid green
   with white text.
 - Status bar (`views/StatusBar.tsx`) under the workbench: Cookies, Interceptor pairing

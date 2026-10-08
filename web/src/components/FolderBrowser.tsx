@@ -44,7 +44,7 @@ export function FolderBrowser({ start, files, onPickFile, onNavigate, className 
   }, [start]);
 
   return (
-    <div className={clsx("flex min-h-0 flex-col rounded-lg border border-line bg-white", className)}>
+    <div className={clsx("flex min-h-0 flex-col rounded-lg border border-line bg-surface", className)}>
       <div className="flex items-center gap-2 border-b border-line-soft px-3 py-2">
         <button
           type="button"
@@ -79,7 +79,7 @@ export function FolderBrowser({ start, files, onPickFile, onNavigate, className 
               )}
               <span className="min-w-0 flex-1 truncate">{e.name}</span>
               {e.isWorkspace && <span className="text-11 font-medium text-primary">Workspace</span>}
-              {e.kind === "dir" && <ChevronRight size={14} className="text-[#b3bdb7]" aria-hidden />}
+              {e.kind === "dir" && <ChevronRight size={14} className="text-faint" aria-hidden />}
             </button>
           </li>
         ))}
