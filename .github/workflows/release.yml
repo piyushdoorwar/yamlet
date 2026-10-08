@@ -6,7 +6,7 @@
 #   npm install -g @piyushdoorwar/yamlet@1.2.3
 #   yamlet-interceptor-1.2.3.zip (extension, manifest version stamped from the tag)
 #   attached to the GitHub release, and submitted to the Chrome Web Store when the
-#   tag is stable and extension/ changed since the version the store has
+#   tag is stable (skipped with a warning while an earlier version is in review)
 # Needs the NPM_TOKEN repository secret (an npm automation token). The store upload
 # needs the CWS_SERVICE_ACCOUNT_KEY secret (service account JSON key) and the
 # CWS_PUBLISHER_ID secrets; it is skipped while either is unset.
@@ -99,8 +99,6 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - id: configured
         name: Check store secrets
         env:
@@ -121,8 +119,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 24
-      # Skips with a notice when the store already has this version or extension/ is
-      # unchanged since the tag of the version the store has.
+      # Skips with a warning while an earlier version is in review; re-run this job
+      # once it clears.
       - if: steps.configured.outputs.publish == 'true'
         name: Upload and submit for review
         env:

@@ -1,13 +1,12 @@
 // Uploads the packaged extension to the Chrome Web Store and submits it for review.
 //   node .github/scripts/publish-extension.cjs dist/yamlet-interceptor-1.2.3.zip v1.2.3
-// Skips (with a notice in the run summary) when the store already has this version or
-// newer, or when extension/ is unchanged since the tag of the version in the store.
-// The comparison is against the store itself, so a tag that never reached the store
-// can't hide later changes.
+// Every stable release is submitted. The store takes one submission at a time, so while
+// a version is in review (or approved and waiting to go live) this skips with a warning;
+// re-run the job once that clears. It also skips, with a notice, when the store already
+// has this version or a newer one (for example a re-run after a later release).
 // Env: CWS_SERVICE_ACCOUNT_KEY (the service account's JSON key), CWS_PUBLISHER_ID,
 // CWS_EXTENSION_ID. The service account must be added in the store's Developer
 // Dashboard; it needs no Google Cloud roles.
-const { execFileSync } = require("node:child_process");
 const { createSign } = require("node:crypto");
 const { appendFileSync, readFileSync } = require("node:fs");
 
@@ -43,11 +42,14 @@ async function call(token, method, url, init = {}) {
   return text ? JSON.parse(text) : {};
 }
 
-/** Logs a notice that also shows on the run's summary page. */
-function notice(message) {
-  console.log(`::notice title=Chrome Web Store::${message}`);
+/** Logs a notice or warning annotation that also shows on the run's summary page. */
+function annotate(level, message) {
+  console.log(`::${level} title=Chrome Web Store::${message}`);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `**Chrome Web Store:** ${message}\n`);
 }
+
+/** Submission states that block a new submission until they clear. */
+const BUSY_STATES = new Set(["PENDING_REVIEW", "STAGED"]);
 
 function compareVersions(a, b) {
   const pa = a.split(".").map(Number);
@@ -68,21 +70,6 @@ function storeVersion(status) {
   return versions.sort(compareVersions).at(-1);
 }
 
-/** True when extension/ is identical at both refs; false when they differ or the old tag is missing. */
-function extensionUnchanged(fromTag, toTag) {
-  try {
-    execFileSync("git", ["rev-parse", "--verify", "--quiet", `refs/tags/${fromTag}`], { stdio: "ignore" });
-  } catch {
-    return false;
-  }
-  try {
-    execFileSync("git", ["diff", "--quiet", fromTag, toTag, "--", "extension/"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function main() {
   const zip = process.argv[2];
   const tag = process.argv[3];
@@ -93,14 +80,17 @@ async function main() {
   const uploadUrl = item.replace(`${API}/v2/`, `${API}/upload/v2/`);
   const token = await accessToken(key);
 
-  const current = storeVersion(await call(token, "GET", `${item}:fetchStatus`));
-  console.log(`Store version: ${current ?? "none"}; this release: ${version}`);
+  const status = await call(token, "GET", `${item}:fetchStatus`);
+  const current = storeVersion(status);
+  const submitted = status.submittedItemRevisionStatus;
+  console.log(`Store version: ${current ?? "none"}; submission state: ${submitted?.state ?? "none"}; this release: ${version}`);
   if (current && compareVersions(current, version) >= 0) {
-    notice(`the store already has ${current}; not uploading ${version}.`);
+    annotate("notice", `the store already has ${current}; not uploading ${version}.`);
     return;
   }
-  if (current && extensionUnchanged(`v${current}`, tag)) {
-    notice(`extension/ is unchanged since v${current} (the version in the store); not uploading ${version}.`);
+  if (BUSY_STATES.has(submitted?.state)) {
+    const pending = submitted.distributionChannels?.[0]?.crxVersion ?? "a previous version";
+    annotate("warning", `${pending} is still ${submitted.state === "STAGED" ? "approved and waiting to be published" : "in review"}; not uploading ${version}. Re-run this job once it clears.`);
     return;
   }
 
