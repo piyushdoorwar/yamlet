@@ -30,9 +30,10 @@ interface Props {
 
 function Field({ label, children, hint, error, warning }: { label: string; children: ReactNode; hint?: ReactNode; error?: string; warning?: string }) {
   return (
-    <div className="grid items-start gap-1.5 md:grid-cols-[180px_1fr] md:gap-4">
+    <div className="grid items-start gap-1.5 md:grid-cols-[180px_minmax(0,1fr)] md:gap-4">
       <span className={clsx("pt-2 text-13", error ? "text-danger" : "text-grey")}>{label}</span>
-      <div>
+      {/* min-w-0: a long token scrolls inside its field instead of widening the form. */}
+      <div className="min-w-0">
         {children}
         {error ? (
           <p className="mt-1 flex items-center gap-1 text-11 text-danger">
@@ -83,7 +84,7 @@ function VarInput({
   return (
     <div
       className={clsx(
-        "flex items-center rounded-md border bg-surface pl-2.5 focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]",
+        "flex min-w-0 items-center rounded-md border bg-surface pl-2.5 focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]",
         invalid ? "border-danger focus-within:border-danger" : "border-line focus-within:border-primary",
         !secret && "pr-2.5",
       )}
@@ -140,7 +141,7 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
 
       {auth.type === "bearer" && (
         <Field label="Token" hint="Sent as Authorization: Bearer <token>.">
-          <VarInput label="Token" value={auth.token} onChange={(token) => set({ token })} variables={variables} placeholder="{{accessToken}}" />
+          <VarInput label="Token" secret value={auth.token} onChange={(token) => set({ token })} variables={variables} placeholder="{{accessToken}}" />
         </Field>
       )}
 
