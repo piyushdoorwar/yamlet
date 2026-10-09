@@ -1,4 +1,4 @@
-import type { Variable } from "@core/models";
+import { scopeIsLocal, type Variable } from "@core/models";
 import type { VariableContext } from "@core/variableResolver";
 import { useMemo } from "react";
 import type { VariableSource, VariableTarget } from "../editor/CodeEditor";
@@ -28,7 +28,7 @@ export function useVariableContext(collectionId: string | undefined, requestVari
 export function upsertVariable(vars: Variable[], name: string, value: string): Variable[] {
   const idx = vars.findIndex((v) => v.key === name);
   const at = idx >= 0 ? idx : vars.findIndex((v) => v.key.toLowerCase() === name.toLowerCase());
-  if (at < 0) return [...vars, { key: name, value, enabled: true }];
+  if (at < 0) return [...vars, { key: name, value, enabled: true, ...(scopeIsLocal(vars) ? { local: true } : {}) }];
   return vars.map((v, i) => (i === at ? { ...v, value, enabled: true } : v));
 }
 

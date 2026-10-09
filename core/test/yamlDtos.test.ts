@@ -23,6 +23,131 @@ import { newFolder } from "../src/models.js";
 const roundTrip = (r: YamletRequest) => requestFromYaml(requestToYaml(r), "/tmp/x.yaml");
 
 describe("request files", () => {
+  it("writes the shared local collection format", () => {
+    const r = newRequest({
+      id: "req-1",
+      name: "Search",
+      method: "post",
+      url: "{{baseUrl}}/search",
+      order: 2000,
+      description: "Finds things",
+      queryParams: [{ key: "q", value: "", description: "Term", enabled: false }],
+      headers: [{ key: "Content-Type", value: "application/json", enabled: true }],
+      auth: { ...defaultAuth("bearer"), token: "{{token}}", username: "stale" },
+      body: { ...newRequest().body, type: "json", raw: '{"a":1}', graphqlQuery: "stale" },
+      postResponseScript: "pm.test('ok', () => {});",
+    });
+    const file = "/c/Search.request.yaml";
+    expect(requestToYaml(r, undefined, file)).toBe(
+      [
+        "$kind: http-request",
+        "description: Finds things",
+        'url: "{{baseUrl}}/search"',
+        "method: POST",
+        "queryParams:",
+        "  - key: q",
+        '    value: ""',
+        "    disabled: true",
+        "    description: Term",
+        "headers:",
+        "  - key: Content-Type",
+        "    value: application/json",
+        "auth:",
+        "  type: bearer",
+        "  credentials:",
+        '    token: "{{token}}"',
+        "body:",
+        "  type: json",
+        '  content: \'{"a":1}\'',
+        "scripts:",
+        "  - type: afterResponse",
+        "    code: pm.test('ok', () => {});",
+        "    language: text/javascript",
+        "order: 2000",
+        "id: req-1",
+        "",
+      ].join("\n"),
+    );
+    const back = requestFromYaml(requestToYaml(r, undefined, file), file);
+    expect(back).toMatchObject({ id: "req-1", name: "Search", method: "POST", order: 2000 });
+    expect(back.queryParams[0].enabled).toBe(false);
+  });
+
+  it("leaves untouched blocks of a shared-format file as they were", () => {
+    const original = [
+      "$kind: http-request",
+      "url: http://x",
+      "method: GET",
+      "headers:",
+      "  Content-Type: application/json",
+      "auth:",
+      "  type: oauth2",
+      "  credentials:",
+      "    grant_type: client_credentials",
+      "    clientId: abc",
+      "    tokenName: Mine",
+      "    useBrowser: true",
+      "scripts:",
+      "  - type: afterResponse",
+      "    code: one();",
+      "    language: text/javascript",
+      "  - type: afterResponse",
+      "    code: two();",
+      "    language: text/javascript",
+      "order: 1000",
+      "",
+    ].join("\n");
+    const file = "/c/R.request.yaml";
+    const r = requestFromYaml(original, file);
+    const same = requestToYaml(r, original, file);
+    expect(same).toBe(original + `id: ${r.id}\n`);
+
+    // Changed blocks are written fresh; credential keys Yamlet does not model stay.
+    const changed = requestToYaml(
+      { ...r, headers: [...r.headers, { key: "X-Off", value: "1", enabled: false }], auth: { ...r.auth, oauth2: { ...r.auth.oauth2, clientId: "xyz" } }, postResponseScript: "three();" },
+      original,
+      file,
+    );
+    expect(changed).toContain("headers:\n  - key: Content-Type\n    value: application/json\n  - key: X-Off");
+    expect(changed).toContain("clientId: xyz");
+    expect(changed).toContain("tokenName: Mine");
+    expect(changed).toContain("useBrowser: true");
+    expect(changed).not.toContain("one();");
+  });
+
+  it("writes a name only when the file name cannot carry it", () => {
+    const r = newRequest({ name: "Get: one" });
+    expect(requestToYaml(r, undefined, "/c/Get- one.request.yaml")).toContain('name: "Get: one"');
+    expect(requestToYaml({ ...r, name: "Get one" }, undefined, "/c/Get one.request.yaml")).not.toContain("name:");
+  });
+
+  it("writes form and binary bodies in the shared shape", () => {
+    const form = requestToYaml(
+      newRequest({
+        body: {
+          ...newRequest().body,
+          type: "form-data",
+          fields: [
+            { key: "file", value: "files/a.txt", enabled: true, isFile: true },
+            { key: "domain", value: "x", enabled: false },
+          ],
+        },
+      }),
+    );
+    expect(form).toContain("type: formdata");
+    expect(form).toContain("src:\n        - files/a.txt");
+    expect(form).toContain("disabled: true");
+    const back = requestFromYaml(form);
+    expect(back.body.fields).toEqual([
+      { key: "file", value: "files/a.txt", enabled: true, isFile: true },
+      { key: "domain", value: "x", enabled: false },
+    ]);
+    const bin = requestFromYaml(requestToYaml(newRequest({ body: { ...newRequest().body, type: "binary", binaryFile: "files/b.bin" } })));
+    expect(bin.body).toMatchObject({ type: "binary", binaryFile: "files/b.bin" });
+    const gql = requestFromYaml(requestToYaml(newRequest({ body: { ...newRequest().body, type: "graphql", graphqlQuery: "{ a }", graphqlVariables: '{"x":1}' } })));
+    expect(gql.body).toMatchObject({ type: "graphql", graphqlQuery: "{ a }", graphqlVariables: '{"x":1}' });
+  });
+
   it("round-trips the core fields", () => {
     const r = newRequest({
       id: "req-1",
@@ -310,20 +435,34 @@ describe("imported formats", () => {
 });
 
 describe("collections, folders, environments, globals", () => {
-  it("round-trips collection metadata", () => {
+  it("round-trips a collection definition", () => {
     const c = newCollection({
       id: "col-1",
       name: "My API",
       description: "About",
+      order: 3000,
       auth: { ...defaultAuth("bearer"), token: "{{token}}" },
-      variables: [{ key: "baseUrl", value: "https://api.example.com", enabled: true }],
+      variables: [
+        { key: "baseUrl", value: "https://api.example.com", enabled: true },
+        { key: "token", value: "abc", enabled: true, secret: true, local: true },
+        { key: "old", value: "x", enabled: false },
+      ],
       preRequestScript: "pre();",
     });
+    const yaml = collectionToYaml(c);
+    expect(yaml).toContain("$kind: collection");
+    expect(yaml).toContain("variables:\n  baseUrl: https://api.example.com\n  token: \"\"\n  old: x\n");
+    expect(yaml).toContain("type: http:beforeRequest");
+    expect(yaml).not.toContain("abc");
     const back = newCollection();
-    applyCollectionMetadata(back, loadYaml(collectionToYaml(c)));
-    expect(back).toMatchObject({ id: "col-1", name: "My API", description: "About", preRequestScript: "pre();" });
+    applyCollectionDefinition(back, loadYaml(yaml));
+    expect(back).toMatchObject({ id: "col-1", name: "My API", description: "About", order: 3000, preRequestScript: "pre();" });
     expect(back.auth).toMatchObject({ type: "bearer", token: "{{token}}" });
-    expect(back.variables).toEqual(c.variables);
+    expect(back.variables).toEqual([
+      { key: "baseUrl", value: "https://api.example.com", enabled: true },
+      { key: "token", value: "", enabled: true, secret: true, local: true },
+      { key: "old", value: "x", enabled: false },
+    ]);
   });
 
   it("round-trips auth types", () => {
@@ -340,21 +479,28 @@ describe("collections, folders, environments, globals", () => {
     const back = newFolder({ name: "from-dir" });
     applyFolderMetadata(back, loadYaml(folderToYaml(f)));
     expect(back).toMatchObject({ id: "f1", name: "users", order: 2, description: "Users" });
+    expect(folderToYaml(f, undefined, "users")).toBe("$kind: collection\ndescription: Users\norder: 2\nid: f1\n");
   });
 
-  it("writes environments natively and round-trips them", () => {
+  it("writes environments with values and round-trips them", () => {
     const yaml = environmentToYaml({ id: "env-1", name: "Local", variables: [{ key: "baseUrl", value: "http://localhost:5000", enabled: true }] });
-    expect(yaml).toContain("variables:");
-    expect(yaml).not.toContain("values:");
+    expect(yaml).toBe("name: Local\nvalues:\n  - key: baseUrl\n    value: 'http://localhost:5000'\nid: env-1\n");
     const back = environmentFromYaml(yaml);
     expect(back.name).toBe("Local");
     expect(back.variables[0].value).toBe("http://localhost:5000");
   });
 
-  it("drops exporter bookkeeping keys and the values alias when saving an imported environment", () => {
-    const original = "name: x\nvalues:\n  - key: a\n    value: b\n_exporter_variable_scope: environment\ncolor: blue\n";
+  it("never writes local values, only their keys", () => {
+    const yaml = environmentToYaml({ id: "e", name: "Mine", variables: [{ key: "token", value: "s3cret", enabled: true, local: true }] });
+    expect(yaml).not.toContain("s3cret");
+    expect(environmentFromYaml(yaml).variables).toEqual([{ key: "token", value: "", enabled: true, local: true }]);
+  });
+
+  it("drops exporter bookkeeping keys and the old variables key when saving an environment", () => {
+    const original = "name: x\nvariables:\n  - key: a\n    value: b\n_exporter_variable_scope: environment\ncolor: blue\n";
     const saved = environmentToYaml(environmentFromYaml(original), original);
-    expect(saved).not.toContain("values:");
+    expect(saved).not.toContain("variables:");
+    expect(saved).toContain("values:");
     expect(saved).not.toContain("_exporter_variable_scope");
     expect(saved).toContain("color: blue");
   });

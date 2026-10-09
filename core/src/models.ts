@@ -22,6 +22,11 @@ export interface Variable {
   enabled: boolean;
   /** Masked in the UI (secrets). Persisted as `type: secret`. */
   secret?: boolean;
+  /**
+   * The value is kept in Yamlet's data folder on this machine, never in the YAML file
+   * (which keeps the key with a blank value). Persisted as `local: true`.
+   */
+  local?: boolean;
 }
 
 export type AuthType = "inherit" | "none" | "bearer" | "basic" | "apikey" | "cookie" | "oauth2";
@@ -321,6 +326,18 @@ export function newCollection(partial: Partial<YamletCollection> = {}): YamletCo
 
 export function newEnvironment(partial: Partial<YamletEnvironment> = {}): YamletEnvironment {
   return { id: newId(), name: "New Environment", variables: [], ...partial };
+}
+
+/** New variables in a scope are local when every existing one is (the scope's "Local" mode). */
+export function scopeIsLocal(vars: readonly Variable[]): boolean {
+  return vars.length > 0 && vars.every((v) => v.local);
+}
+
+/** Marks variables that `next` adds (by key) as local when `previous` was entirely local. */
+export function inheritLocal(previous: readonly Variable[], next: Variable[]): Variable[] {
+  if (!scopeIsLocal(previous)) return next;
+  const known = new Set(previous.map((v) => v.key));
+  return next.map((v) => (known.has(v.key) || v.local !== undefined ? v : { ...v, local: true }));
 }
 
 /** QUERY is the safe, idempotent method that carries a body (like GET with a search payload). */

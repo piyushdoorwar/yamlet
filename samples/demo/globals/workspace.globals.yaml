@@ -1,0 +1,4 @@
+name: Globals
+values:
+  - key: appName
+    value: 'Yamlet'

@@ -1,7 +1,9 @@
-// On-disk YAML shapes and their mapping to the domain model. Yamlet writes only its
-// native format; the readers also accept the shapes produced by other tools' exports
-// and by older Yamlet versions (see the "imported format" notes on each reader).
-import { Document, isAlias, isMap, isScalar, isSeq, parseDocument, stringify } from "yaml";
+// On-disk YAML shapes and their mapping to the domain model. Yamlet writes the local
+// collection format used by the v2.1-compatible desktop clients (`$kind`, `content`,
+// `disabled`, `.resources/definition.yaml`), so a workspace opens in either tool. Yamlet-only
+// data (ids, request variables, settings, examples, variable flags) rides along as extra
+// keys. The readers also accept older Yamlet files and other exports.
+import { Document, isAlias, isMap, isScalar, isSeq, parseDocument, Scalar, visit } from "yaml";
 import {
   defaultAuth,
   defaultBody,
@@ -59,10 +61,25 @@ export function loadYaml(text: string): unknown {
   return toPlain(doc.contents) ?? {};
 }
 
-const STRINGIFY_OPTS = { lineWidth: 0 } as const;
+/** Environment and globals files single-quote every row `value`, as the shared format writes them. */
+type Style = { quoteValues?: boolean };
+const OPTS = { lineWidth: 0 } as const;
 
-export function dumpYaml(value: unknown): string {
-  return stringify(value, STRINGIFY_OPTS);
+function styled(doc: Document, style?: Style): string {
+  if (style?.quoteValues) {
+    visit(doc, {
+      Pair(_, pair) {
+        if (isScalar(pair.key) && pair.key.value === "value" && isScalar(pair.value) && typeof pair.value.value === "string") {
+          pair.value.type = Scalar.QUOTE_SINGLE;
+        }
+      },
+    });
+  }
+  return doc.toString(OPTS);
+}
+
+export function dumpYaml(value: unknown, style?: Style): string {
+  return styled(new Document(value), style);
 }
 
 /**
@@ -70,22 +87,50 @@ export function dumpYaml(value: unknown): string {
  * model (e.g. `$kind`, `tests`). Keys in `known` are modeled (or are read-only aliases)
  * and are never copied back, so removing data in the UI actually removes it.
  */
-export function dumpYamlPreserving(value: Obj, original: string | undefined, known: ReadonlySet<string>): string {
-  if (!original?.trim()) return dumpYaml(value);
+export function dumpYamlPreserving(value: Obj, original: string | undefined, known: ReadonlySet<string>, style?: Style): string {
+  if (!original?.trim()) return dumpYaml(value, style);
   try {
     const orig = parseDocument(original);
-    if (orig.errors.length || !isMap(orig.contents)) return dumpYaml(value);
+    if (orig.errors.length || !isMap(orig.contents)) return dumpYaml(value, style);
     const doc = new Document(value);
     const target = doc.contents;
-    if (!isMap(target)) return dumpYaml(value);
+    if (!isMap(target)) return dumpYaml(value, style);
     for (const pair of orig.contents.items) {
       const key = isScalar(pair.key) ? String(pair.key.value) : undefined;
       if (!key || known.has(key) || isDropped(key) || doc.has(key)) continue;
       target.items.push(pair as (typeof target.items)[number]);
     }
-    return doc.toString(STRINGIFY_OPTS);
+    return styled(doc, style);
   } catch {
-    return dumpYaml(value);
+    return dumpYaml(value, style);
+  }
+}
+
+/**
+ * Where a modeled block reads back to the same thing it was read from, keeps the file's
+ * own text for it (a header map, several scripts of one phase, OAuth 2.0 fields Yamlet does
+ * not model), so saving an untouched file changes nothing beyond what Yamlet adds.
+ */
+function keepEquivalent(out: Obj, original: Obj | undefined, readers: Record<string, (v: unknown) => unknown>): void {
+  if (!original) return;
+  for (const [key, read] of Object.entries(readers)) {
+    if (!(key in out) || !(key in original)) continue;
+    try {
+      if (JSON.stringify(read(original[key])) === JSON.stringify(read(out[key]))) out[key] = original[key];
+    } catch {
+      // Keep Yamlet's version.
+    }
+  }
+}
+
+/** The original file, when it is already in the shared format (older Yamlet files are converted instead). */
+function parsedObj(text: string | undefined): Obj | undefined {
+  if (!text?.trim()) return undefined;
+  try {
+    const o = loadYaml(text);
+    return isObj(o) && o.$kind !== undefined ? o : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -156,6 +201,7 @@ export function readVariables(raw: unknown): Variable[] {
   return readRows(raw).map((r) => {
     const v: Variable = { key: r.key, value: r.value, enabled: r.enabled };
     if (str(r.o.type).toLowerCase() === "secret" || bool(r.o.secret) === true) v.secret = true;
+    if (bool(r.o.local) === true) v.local = true;
     return v;
   });
 }
@@ -164,19 +210,50 @@ function writeKeyValues(list: KeyValue[] | undefined): Obj[] | undefined {
   if (!list?.length) return undefined;
   return list.map((kv) => {
     const o: Obj = { key: kv.key, value: kv.value ?? "" };
+    if (kv.enabled === false) o.disabled = true;
     if (kv.description) o.description = kv.description;
-    if (kv.enabled === false) o.enabled = false;
     return o;
   });
 }
 
+/** A variable list. Local values never reach the file: the key stays, with a blank value. */
 export function writeVariables(list: Variable[] | undefined): Obj[] | undefined {
   if (!list?.length) return undefined;
   return list.map((v) => {
-    const o: Obj = { key: v.key, value: v.value ?? "" };
+    const o: Obj = { key: v.key, value: v.local ? "" : (v.value ?? "") };
     if (v.secret) o.type = "secret";
     if (v.enabled === false) o.enabled = false;
+    if (v.local) o.local = true;
     return o;
+  });
+}
+
+/** Collection variables as a `name: value` map; flags the map cannot hold go to `variableSettings`. */
+function writeVariableMap(list: Variable[]): { values: Obj; settings?: Obj } {
+  const values: Obj = {};
+  const settings: Obj = {};
+  for (const v of list) {
+    values[v.key] = v.local ? "" : (v.value ?? "");
+    const flags: Obj = {};
+    if (v.enabled === false) flags.enabled = false;
+    if (v.secret) flags.secret = true;
+    if (v.local) flags.local = true;
+    if (Object.keys(flags).length) settings[v.key] = flags;
+    else delete settings[v.key];
+  }
+  return Object.keys(settings).length ? { values, settings } : { values };
+}
+
+function applyVariableSettings(vars: Variable[], raw: unknown): Variable[] {
+  if (!isObj(raw)) return vars;
+  return vars.map((v) => {
+    const flags = raw[v.key];
+    if (!isObj(flags)) return v;
+    const out = { ...v };
+    if (bool(flags.enabled) === false) out.enabled = false;
+    if (bool(flags.secret) === true) out.secret = true;
+    if (bool(flags.local) === true) out.local = true;
+    return out;
   });
 }
 
@@ -273,15 +350,15 @@ export function readAuth(raw: unknown, fallback: AuthType = "none"): Auth {
   if (!isObj(raw)) return defaultAuth(fallback);
   const type = raw.type === undefined ? fallback : authType(raw.type);
   const a = defaultAuth(type);
-  const typed = (name: string) => raw[name];
-  a.token = credential(typed("bearer"), "token") ?? str(raw.token);
-  a.username = credential(typed("basic"), "username") ?? str(raw.username);
-  a.password = credential(typed("basic"), "password") ?? str(raw.password);
-  a.apiKeyName = credential(typed("apikey"), "key") ?? str(raw.key);
-  a.apiKeyValue = credential(typed("apikey"), "value") ?? str(raw.value);
-  a.apiKeyIn = (credential(typed("apikey"), "in") ?? str(raw.in)).toLowerCase() === "query" ? "query" : "header";
-  a.cookie = str(raw.cookie);
-  if (isObj(raw.credentials)) a.oauth2 = readOAuth2(raw.credentials);
+  const cred = (block: string, key: string) => credential(raw[block], key) ?? credential(raw.credentials, key) ?? str(raw[key]);
+  a.token = cred("bearer", "token");
+  a.username = cred("basic", "username");
+  a.password = cred("basic", "password");
+  a.apiKeyName = credential(raw.apikey, "key") ?? (type === "apikey" ? credential(raw.credentials, "key") : undefined) ?? str(raw.key);
+  a.apiKeyValue = credential(raw.apikey, "value") ?? (type === "apikey" ? credential(raw.credentials, "value") : undefined) ?? str(raw.value);
+  a.apiKeyIn = (credential(raw.apikey, "in") ?? credential(raw.credentials, "in") ?? str(raw.in)).toLowerCase() === "query" ? "query" : "header";
+  a.cookie = credential(raw.credentials, "cookie") ?? str(raw.cookie);
+  if (raw.credentials && (type === "oauth2" || isObj(raw.credentials))) a.oauth2 = readOAuth2(raw.credentials);
   else if (raw.oauth2 !== undefined) a.oauth2 = readOAuth2(raw.oauth2);
   return a;
 }
@@ -304,26 +381,62 @@ function writeOAuth2(o: OAuth2Config): Obj {
   put("accessToken", o.accessToken);
   put("refreshToken", o.refreshToken);
   if (o.headerPrefix && o.headerPrefix !== "Bearer") out.tokenType = o.headerPrefix;
-  if (o.addTokenTo === "query") out.addTokenTo = "queryParams";
-  if (o.clientAuthentication === "body") out.client_authentication = "body";
+  out.addTokenTo = o.addTokenTo === "query" ? "queryParams" : "header";
+  out.client_authentication = o.clientAuthentication === "body" ? "body" : "header";
   if (o.challengeAlgorithm === "plain") out.challengeAlgorithm = "plain";
   return out;
 }
 
-/** Writes every non-empty field so switching auth types in the UI does not lose input. */
+/** Every credential key the readers understand (any case); the rest is carried over on save. */
+const MODELED_CREDENTIALS = new Set(
+  [
+    "token", "username", "password", "key", "value", "in", "cookie",
+    "grant_type", "grantType", "accessToken", "access_token", "refreshToken", "refresh_token", "headerPrefix", "tokenType",
+    "accessTokenUrl", "tokenUrl", "access_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
+    "clientSecret", "client_secret", "scope", "redirect_uri", "redirectUri", "redirect_url", "callbackUrl", "addTokenTo",
+    "client_authentication", "clientAuthentication", "challengeAlgorithm",
+  ].map((k) => k.toLowerCase()),
+);
+
+/** Auth compared by what it means (only the active scheme's fields). */
+const normalizedAuth = (v: unknown) => writeAuth(readAuth(v, "none"));
+
+/** Ours, plus the original's unmodeled credential keys when the scheme is unchanged. */
+function mergeAuth(ours: Obj, original: unknown): Obj {
+  if (!isObj(original) || str(original.type).toLowerCase() !== str(ours.type).toLowerCase() || !isObj(original.credentials)) return ours;
+  const extra = Object.entries(original.credentials).filter(([k]) => !MODELED_CREDENTIALS.has(k.toLowerCase()));
+  if (!extra.length) return ours;
+  return { ...ours, credentials: { ...(isObj(ours.credentials) ? ours.credentials : {}), ...Object.fromEntries(extra) } };
+}
+
+/** `type` plus a `credentials` map holding the active scheme's fields. */
 export function writeAuth(a: Auth): Obj {
   const out: Obj = { type: a.type === "none" ? "noauth" : a.type };
+  const creds: Obj = {};
   const put = (k: string, v: string | undefined) => {
-    if (v) out[k] = v;
+    if (v) creds[k] = v;
   };
-  put("token", a.token);
-  put("username", a.username);
-  put("password", a.password);
-  put("key", a.apiKeyName);
-  put("value", a.apiKeyValue);
-  if (a.type === "apikey") out.in = a.apiKeyIn === "query" ? "query" : "header";
-  put("cookie", a.cookie);
-  if (a.type === "oauth2") out.credentials = writeOAuth2(a.oauth2);
+  switch (a.type) {
+    case "bearer":
+      put("token", a.token);
+      break;
+    case "basic":
+      put("username", a.username);
+      put("password", a.password);
+      break;
+    case "apikey":
+      put("key", a.apiKeyName);
+      put("value", a.apiKeyValue);
+      creds.in = a.apiKeyIn === "query" ? "query" : "header";
+      break;
+    case "cookie":
+      put("cookie", a.cookie);
+      break;
+    case "oauth2":
+      Object.assign(creds, writeOAuth2(a.oauth2));
+      break;
+  }
+  if (Object.keys(creds).length) out.credentials = creds;
   return out;
 }
 
@@ -354,10 +467,13 @@ function readScripts(raw: unknown): { pre: string; post: string } {
   return { pre: pre.join("\n\n"), post: post.join("\n\n") };
 }
 
-function writeScripts(pre: string, post: string): Obj[] | undefined {
+const SCRIPT_LANGUAGE = "text/javascript";
+
+/** Request scripts are `beforeRequest` / `afterResponse`; collection scripts carry an `http:` prefix. */
+function writeScripts(pre: string, post: string, prefix = ""): Obj[] | undefined {
   const list: Obj[] = [];
-  if (pre) list.push({ type: "preRequest", code: pre });
-  if (post) list.push({ type: "afterResponse", code: post });
+  if (pre) list.push({ type: `${prefix}beforeRequest`, code: pre, language: SCRIPT_LANGUAGE });
+  if (post) list.push({ type: `${prefix}afterResponse`, code: post, language: SCRIPT_LANGUAGE });
   return list.length ? list : undefined;
 }
 
@@ -418,51 +534,62 @@ export function readBody(raw: unknown): RequestBody {
   if (fieldsRaw) b.fields = fieldsRaw.filter(isObj).map(readField);
   else if (isObj(content) && (b.type === "form-data" || b.type === "urlencoded"))
     b.fields = Object.entries(content).map(([key, value]) => ({ key, value: str(value), enabled: true }));
-  const gql = isObj(raw.graphql) ? raw.graphql : raw;
+  const gql = isObj(raw.graphql) ? raw.graphql : b.type === "graphql" && isObj(content) ? content : raw;
   b.graphqlQuery = str(gql.query);
   b.graphqlVariables = gql.variables === undefined || gql.variables === null ? "" : typeof gql.variables === "string" ? gql.variables : JSON.stringify(gql.variables, null, 2);
   if (b.type === "graphql" && !b.graphqlQuery && b.raw) b.graphqlQuery = b.raw;
-  b.binaryFile = str(raw.file ?? raw.binaryFile ?? (b.type === "binary" && typeof raw.src === "string" ? raw.src : ""));
+  const src = Array.isArray(raw.src) ? raw.src[0] : raw.src;
+  b.binaryFile = str(raw.file ?? raw.binaryFile ?? (b.type === "binary" && typeof src === "string" ? src : ""));
   if (b.type === "binary" && !b.binaryFile && b.raw) b.binaryFile = b.raw;
   return b;
 }
 
-function writeField(f: BodyField): Obj {
-  const o: Obj = { type: f.isFile ? "file" : "text", key: f.key };
-  if (f.isFile) o.src = f.value.startsWith("@") ? f.value.slice(1) : f.value;
+function writeField(f: BodyField, multipart: boolean): Obj {
+  const o: Obj = multipart ? { type: f.isFile ? "file" : "text", key: f.key } : { key: f.key };
+  if (multipart && f.isFile) o.src = [f.value.startsWith("@") ? f.value.slice(1) : f.value];
   else o.value = f.value ?? "";
+  if (f.enabled === false) o.disabled = true;
   if (f.description) o.description = f.description;
-  if (f.enabled === false) o.enabled = false;
   return o;
 }
 
 const BODY_TYPE_NAMES: Record<BodyType, string> = {
   none: "none",
-  raw: "raw",
+  raw: "text",
   json: "json",
   xml: "xml",
   text: "text",
   html: "html",
-  "form-data": "form-data",
-  urlencoded: "x-www-form-urlencoded",
+  "form-data": "formdata",
+  urlencoded: "urlencoded",
   graphql: "graphql",
-  binary: "binary",
+  binary: "file",
 };
 
-/** Writes the active body plus any inactive content (so switching types keeps input). */
+/** `type` plus the active body's `content`; nothing for an empty body. */
 export function writeBody(b: RequestBody): Obj | undefined {
   const out: Obj = { type: BODY_TYPE_NAMES[b.type] ?? "none" };
-  if (b.raw) out.raw = b.raw;
-  const fields = b.fields?.filter((f) => f.key?.trim() || f.value);
-  if (fields?.length) out.content = fields.map(writeField);
-  if (b.graphqlQuery || b.graphqlVariables) {
-    const g: Obj = {};
-    if (b.graphqlQuery) g.query = b.graphqlQuery;
-    if (b.graphqlVariables) g.variables = b.graphqlVariables;
-    out.graphql = g;
+  switch (b.type) {
+    case "none":
+      return undefined;
+    case "form-data":
+    case "urlencoded": {
+      const fields = b.fields?.filter((f) => f.key?.trim() || f.value);
+      out.content = (fields ?? []).map((f) => writeField(f, b.type === "form-data"));
+      break;
+    }
+    case "graphql": {
+      const g: Obj = { query: b.graphqlQuery ?? "" };
+      if (b.graphqlVariables) g.variables = b.graphqlVariables;
+      out.content = g;
+      break;
+    }
+    case "binary":
+      out.src = b.binaryFile ?? "";
+      break;
+    default:
+      out.content = b.raw ?? "";
   }
-  if (b.binaryFile) out.file = b.binaryFile;
-  if (b.type === "none" && Object.keys(out).length === 1) return undefined;
   return out;
 }
 
@@ -529,9 +656,12 @@ function writeExamples(list: ResponseExample[] | undefined): Obj[] | undefined {
 // Request files
 
 export const REQUEST_KEYS: ReadonlySet<string> = new Set([
-  "id", "name", "description", "order", "method", "url", "queryParams", "headers", "pathVariables", "variables",
+  "$kind", "id", "name", "description", "order", "method", "url", "queryParams", "headers", "pathVariables", "variables",
   "auth", "body", "scripts", "settings", "examples", "skipSslVerification", "ssl", "protocolProfileBehavior",
 ]);
+
+export const REQUEST_KIND = "http-request";
+export const COLLECTION_KIND = "collection";
 
 /** `Get All.request.yaml` -> `Get All`; `health.yaml` -> `health`. */
 export function deriveNameFromFile(filePath: string): string {
@@ -570,12 +700,17 @@ export function requestFromDto(raw: unknown, sourceFilePath?: string): YamletReq
   return req;
 }
 
-export function requestToDto(r: YamletRequest): Obj {
-  const o: Obj = { id: r.id, name: r.name };
+/**
+ * The request file. The name comes from the file name (`Get All.request.yaml`), so `name`
+ * is written only when they differ (characters a file name cannot hold, a numbered copy).
+ * Yamlet-only keys (`id`, `variables`, `settings`, `examples`) follow the shared ones.
+ */
+export function requestToDto(r: YamletRequest, filePath?: string): Obj {
+  const o: Obj = { $kind: REQUEST_KIND };
+  if (!filePath || deriveNameFromFile(filePath) !== r.name) o.name = r.name;
   if (r.description) o.description = r.description;
-  o.order = r.order ?? 0;
-  o.method = (r.method || "GET").toUpperCase();
   o.url = r.url ?? "";
+  o.method = (r.method || "GET").toUpperCase();
   const put = (k: string, v: unknown) => {
     if (v !== undefined) o[k] = v;
   };
@@ -591,10 +726,12 @@ export function requestToDto(r: YamletRequest): Obj {
         })
       : undefined,
   );
-  put("variables", writeVariables(r.variables));
   if (r.auth && r.auth.type !== "inherit") o.auth = writeAuth(r.auth);
   put("body", r.body ? writeBody(r.body) : undefined);
   put("scripts", writeScripts(r.preRequestScript, r.postResponseScript));
+  o.order = r.order ?? 0;
+  o.id = r.id;
+  put("variables", writeVariables(r.variables));
   put("settings", writeSettings(r.settings));
   put("examples", writeExamples(r.examples));
   return o;
@@ -604,16 +741,31 @@ export function requestFromYaml(text: string, sourceFilePath?: string): YamletRe
   return requestFromDto(loadYaml(text), sourceFilePath);
 }
 
-/** Native request YAML; unknown top-level keys of `original` are preserved. */
-export function requestToYaml(r: YamletRequest, original?: string): string {
-  return dumpYamlPreserving(requestToDto(r), original, REQUEST_KEYS);
+const sameRows = (v: unknown) => readRows(v).map(({ o: _o, ...row }) => row);
+const REQUEST_READERS: Record<string, (v: unknown) => unknown> = {
+  headers: sameRows,
+  queryParams: sameRows,
+  pathVariables: sameRows,
+  variables: readVariables,
+  auth: normalizedAuth,
+  body: (v) => writeBody(readBody(v)),
+  scripts: readScripts,
+};
+
+/** Request YAML for the file at `filePath`; unknown top-level keys of `original` are preserved. */
+export function requestToYaml(r: YamletRequest, original?: string, filePath?: string): string {
+  const out = requestToDto(r, filePath);
+  const prev = parsedObj(original);
+  if (isObj(out.auth)) out.auth = mergeAuth(out.auth, prev?.auth);
+  keepEquivalent(out, prev, REQUEST_READERS);
+  return dumpYamlPreserving(out, original, REQUEST_KEYS);
 }
 
 // ---------------------------------------------------------------------------
 // Collections
 
 export const COLLECTION_KEYS: ReadonlySet<string> = new Set([
-  "id", "name", "description", "order", "variables", "auth", "scripts",
+  "$kind", "id", "name", "description", "order", "variables", "variableSettings", "auth", "scripts",
   // Read-only aliases from the collection v2.1 shape; migrated on save.
   "info", "item", "variable", "event",
 ]);
@@ -658,14 +810,18 @@ export function applyCollectionMetadata(c: YamletCollection, raw: unknown): void
 }
 
 /**
- * Applies an exported `.resources/definition.yaml`: variables as a name->value map (or
- * list), auth as a list of schemes (the first is used), and collection-scope scripts.
+ * Applies a collection's `.resources/definition.yaml`: variables as a name->value map (or
+ * list) with Yamlet's per-variable flags in `variableSettings`, auth as one scheme (or a list
+ * of schemes, the first is used), collection-scope scripts, and Yamlet's `id` / `order`.
  */
 export function applyCollectionDefinition(c: YamletCollection, raw: unknown): void {
   if (!isObj(raw)) return;
+  if (str(raw.id).trim()) c.id = str(raw.id);
   if (str(raw.name).trim()) c.name = str(raw.name);
   if (raw.description) c.description = str(raw.description);
-  const vars = readVariables(raw.variables);
+  const order = int(raw.order);
+  if (order !== undefined) c.order = order;
+  const vars = applyVariableSettings(readVariables(raw.variables), raw.variableSettings);
   if (vars.length) c.variables = vars;
   const auth = Array.isArray(raw.auth) ? raw.auth.find(isObj) : isObj(raw.auth) ? raw.auth : undefined;
   if (auth) c.auth = readAuth(auth, "none");
@@ -674,26 +830,35 @@ export function applyCollectionDefinition(c: YamletCollection, raw: unknown): vo
   if (scripts.post) c.postResponseScript = scripts.post;
 }
 
+/** The collection's `.resources/definition.yaml`. */
 export function collectionToDto(c: YamletCollection): Obj {
-  const o: Obj = { id: c.id, name: c.name };
+  const o: Obj = { $kind: COLLECTION_KIND, name: c.name };
   if (c.description) o.description = c.description;
-  o.order = c.order ?? 0;
-  const vars = writeVariables(c.variables);
-  if (vars) o.variables = vars;
-  if (c.auth && c.auth.type !== "none" && c.auth.type !== "inherit") o.auth = writeAuth(c.auth);
-  const scripts = writeScripts(c.preRequestScript, c.postResponseScript);
+  const vars = c.variables?.length ? writeVariableMap(c.variables) : undefined;
+  if (vars) o.variables = vars.values;
+  const scripts = writeScripts(c.preRequestScript, c.postResponseScript, "http:");
   if (scripts) o.scripts = scripts;
+  if (c.auth && c.auth.type !== "none" && c.auth.type !== "inherit") o.auth = writeAuth(c.auth);
+  o.order = c.order ?? 0;
+  o.id = c.id;
+  if (vars?.settings) o.variableSettings = vars.settings;
   return o;
 }
 
 export function collectionToYaml(c: YamletCollection, original?: string): string {
-  return dumpYamlPreserving(collectionToDto(c), original, COLLECTION_KEYS);
+  const out = collectionToDto(c);
+  const prev = parsedObj(original);
+  // A definition may hold auth as a list of schemes; compare against the one Yamlet reads.
+  const prevAuth = Array.isArray(prev?.auth) ? prev.auth.find(isObj) : prev?.auth;
+  if (isObj(out.auth)) out.auth = mergeAuth(out.auth, prevAuth);
+  keepEquivalent(out, prev && { ...prev, auth: prevAuth }, { auth: normalizedAuth, scripts: readScripts });
+  return dumpYamlPreserving(out, original, COLLECTION_KEYS);
 }
 
 // ---------------------------------------------------------------------------
 // Folders
 
-export const FOLDER_KEYS: ReadonlySet<string> = new Set(["id", "name", "description", "order"]);
+export const FOLDER_KEYS: ReadonlySet<string> = new Set(["$kind", "id", "name", "description", "order"]);
 
 export function applyFolderMetadata(f: YamletFolder, raw: unknown): void {
   if (!isObj(raw)) return;
@@ -704,15 +869,18 @@ export function applyFolderMetadata(f: YamletFolder, raw: unknown): void {
   if (order !== undefined) f.order = order;
 }
 
-export function folderToDto(f: YamletFolder): Obj {
-  const o: Obj = { id: f.id, name: f.name };
+/** A folder's `.resources/definition.yaml`; the name comes from the directory unless they differ. */
+export function folderToDto(f: YamletFolder, directoryName?: string): Obj {
+  const o: Obj = { $kind: COLLECTION_KIND };
+  if (directoryName === undefined || directoryName !== f.name) o.name = f.name;
   if (f.description) o.description = f.description;
   o.order = f.order ?? 0;
+  o.id = f.id;
   return o;
 }
 
-export function folderToYaml(f: YamletFolder, original?: string): string {
-  return dumpYamlPreserving(folderToDto(f), original, FOLDER_KEYS);
+export function folderToYaml(f: YamletFolder, original?: string, directoryName?: string): string {
+  return dumpYamlPreserving(folderToDto(f, directoryName), original, FOLDER_KEYS);
 }
 
 // ---------------------------------------------------------------------------
@@ -739,10 +907,7 @@ export function environmentFromDto(raw: unknown, filePath?: string): YamletEnvir
 }
 
 export function environmentToDto(e: YamletEnvironment): Obj {
-  const o: Obj = { id: e.id, name: e.name };
-  const vars = writeVariables(e.variables);
-  if (vars) o.variables = vars;
-  return o;
+  return { name: e.name, values: writeVariables(e.variables) ?? [], id: e.id };
 }
 
 export function environmentFromYaml(text: string, filePath?: string): YamletEnvironment {
@@ -750,7 +915,7 @@ export function environmentFromYaml(text: string, filePath?: string): YamletEnvi
 }
 
 export function environmentToYaml(e: YamletEnvironment, original?: string): string {
-  return dumpYamlPreserving(environmentToDto(e), original, ENVIRONMENT_KEYS);
+  return dumpYamlPreserving(environmentToDto(e), original, ENVIRONMENT_KEYS, { quoteValues: true });
 }
 
 export function globalsFromYaml(text: string): Variable[] {
@@ -759,5 +924,5 @@ export function globalsFromYaml(text: string): Variable[] {
 }
 
 export function globalsToYaml(vars: Variable[], original?: string): string {
-  return dumpYamlPreserving({ variables: writeVariables(vars) ?? [] }, original, new Set(["variables", "values"]));
+  return dumpYamlPreserving({ name: "Globals", values: writeVariables(vars) ?? [] }, original, new Set(["name", "variables", "values"]), { quoteValues: true });
 }

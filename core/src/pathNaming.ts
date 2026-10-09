@@ -1,45 +1,57 @@
-// Git-friendly on-disk names derived from user-entered names.
-import { existsSync } from "node:fs";
+// On-disk names derived from user-entered names. Files and folders carry the display name
+// itself (`Get All.request.yaml`), minus characters that some file systems reject.
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 
-/** Lowercase, hyphen-separated, ASCII-safe slug; `fallback` when nothing usable remains. */
-export function slugify(name: string, fallback = "untitled"): string {
-  if (!name?.trim()) return fallback;
-  let out = "";
-  let lastHyphen = false;
-  for (const ch of name.trim().toLowerCase()) {
-    if (/[a-z0-9]/.test(ch)) {
-      out += ch;
-      lastHyphen = false;
-    } else if (" -_./".includes(ch)) {
-      if (!lastHyphen && out.length > 0) {
-        out += "-";
-        lastHyphen = true;
-      }
-    }
-  }
-  out = out.replace(/^-+|-+$/g, "");
-  return out || fallback;
+const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+
+/**
+ * `name` as a file or folder name that works on Windows, macOS and Linux: reserved
+ * characters become `-`, whitespace collapses, no leading dot (hidden) or trailing dot/space.
+ */
+export function fileSafeName(name: string, fallback = "Untitled"): string {
+  let out = (name ?? "")
+    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "")
+    .replace(/[. ]+$/, "");
+  if (out.length > 120) out = out.slice(0, 120).trimEnd();
+  if (!out) return fallback;
+  return RESERVED.test(out) ? `${out}_` : out;
 }
 
 /**
- * A path in `directory` for `fileName` that does not collide with an existing entry,
- * appending `-2`, `-3`, ... as needed. `except` is treated as free (the file being renamed).
+ * A path in `directory` for `<base><suffix>` that does not collide with an existing entry,
+ * appending ` 2`, ` 3`, ... to the base as needed. `except` is treated as free (the file
+ * being renamed). The suffix may be compound (`.request.yaml`).
  */
-export function uniqueFilePath(directory: string, fileName: string, except?: string): string {
-  const ext = path.extname(fileName);
-  const base = fileName.slice(0, fileName.length - ext.length);
-  let candidate = path.join(directory, fileName);
-  for (let n = 2; existsSync(candidate) && candidate !== except; n++) {
-    candidate = path.join(directory, `${base}-${n}${ext}`);
+export function uniqueFilePath(directory: string, base: string, suffix: string, except?: string): string {
+  let candidate = path.join(directory, base + suffix);
+  for (let n = 2; existsSync(candidate) && !samePath(candidate, except); n++) {
+    candidate = path.join(directory, `${base} ${n}${suffix}`);
   }
   return candidate;
 }
 
 export function uniqueDirectoryPath(parent: string, name: string, except?: string): string {
   let candidate = path.join(parent, name);
-  for (let n = 2; existsSync(candidate) && candidate !== except; n++) {
-    candidate = path.join(parent, `${name}-${n}`);
+  for (let n = 2; existsSync(candidate) && !samePath(candidate, except); n++) {
+    candidate = path.join(parent, `${name} ${n}`);
   }
   return candidate;
+}
+
+/** Same entry, including a case-only rename on a case-insensitive file system. */
+function samePath(a: string, b: string | undefined): boolean {
+  if (!b) return false;
+  if (a === b) return true;
+  if (a.toLowerCase() !== b.toLowerCase()) return false;
+  try {
+    const x = statSync(a);
+    const y = statSync(b);
+    return x.ino === y.ino && x.dev === y.dev;
+  } catch {
+    return false;
+  }
 }

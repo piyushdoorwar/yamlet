@@ -20,10 +20,11 @@ Then open <http://localhost:7878>. The folder you mount at `/workspace` is your
 workspace. If it isn't one yet, Yamlet offers to set it up (it creates `collections/`,
 `environments/` and `globals/`).
 
-The `yamlet-data` volume holds private app state outside your workspace, such as the
-Chrome extension pairing. Keep the same `-v yamlet-data:/data` whenever you recreate the
-container (for example after an update); without it each new container starts with an
-empty `/data` and the extension has to pair again.
+The `yamlet-data` volume holds private app state outside your workspace: variable values
+you keep local (see below) and the Chrome extension pairing. Keep the same
+`-v yamlet-data:/data` whenever you recreate the container (for example after an update);
+without it each new container starts with an empty `/data`, local values are gone and the
+extension has to pair again.
 
 **Install as an app.** With the container running, open Yamlet at
 <http://localhost:7878> and use your browser's **Install app** option (or **Add to Home
@@ -56,12 +57,17 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 
 ## Features
 
-- **Plain files, one per request.** Collections are folders, folders have a tiny
-  `folder.yaml`, and each request is its own `.yaml` file. Diffs and reviews stay small.
+- **Plain files, one per request.** Collections are folders and each request is its own
+  `<Name>.request.yaml`. Diffs and reviews stay small, and the layout is the local
+  collection format other v2.1-compatible clients read and write, so one Git folder works
+  in both.
 - **Tabs, tree and quick open.** Drag and drop to reorder or move, rename inline,
   duplicate, Ctrl+K to jump to any request. Open tabs come back when you reload.
 - **Variables.** Request, collection, environment and global scopes, with
   `{{variable}}` highlighting. Hover a variable to see its value and edit it in place.
+  Switch an environment, the collection variables or globals (or a single variable) to
+  **Local** to keep values such as tokens on your machine only: the YAML keeps the key with
+  a blank value, and the value survives restarts and upgrades in Yamlet's data folder.
   Dynamic values such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}` are built
   in; type `{{$` for the full list.
 - **Requests.** Every HTTP method, including the new `QUERY` (a safe method with a body), or
@@ -89,36 +95,44 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 ```
 my-workspace/
   collections/
-    jsonplaceholder/
-      collection.yaml        # name, variables, auth, scripts
-      list-posts.yaml        # one request per file
-      users/
-        folder.yaml          # name + order
-        list-users.yaml
+    JSONPlaceholder/
+      .resources/
+        definition.yaml      # name, variables, auth, scripts
+      List Posts.request.yaml  # one request per file, named after the request
+      Users/
+        .resources/
+          definition.yaml    # order
+        List Users.request.yaml
   environments/
-    dev.yaml
+    dev.environment.yaml
   globals/
-    globals.yaml
+    workspace.globals.yaml
   files/                     # files attached to form-data / binary bodies
 ```
 
 A request file looks like this:
 
 ```yaml
-id: demo-create-post
-name: Create Post
-order: 2
+$kind: http-request
+url: "{{baseUrl}}/posts"
 method: POST
-url: '{{baseUrl}}/posts'
 body:
   type: json
-  raw: |
+  content: |
     { "title": "Yamlet", "userId": {{$randomInt}} }
 scripts:
   - type: afterResponse
     code: |
       pm.test('status is 201', () => pm.expect(pm.response.code).to.equal(201));
+    language: text/javascript
+order: 3000
+id: demo-create-post
 ```
+
+Yamlet-only details (`id`, request variables, settings, saved examples) are extra keys
+that other clients ignore. Workspaces from older Yamlet versions (`collection.yaml`,
+`folder.yaml`, `<slug>.yaml`) still open; each file moves to this layout when it is next
+saved.
 
 Try [samples/demo](samples/demo): mount it with `-v ./samples/demo:/workspace`.
 
@@ -173,7 +187,8 @@ samples/  a ready-to-run workspace
 | `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
 | `YAMLET_TIMEOUT_MS` | `30000` | Default request timeout |
 | `YAMLET_UPDATE_CHECK` | `1` | Set to `0` to stop the hourly check for a newer release on GitHub (only made while the app is open; never in dev builds) |
-| `YAMLET_INTERCEPTOR_DATA_DIR` | `/data` in the container | Private pairing state; mount a persistent volume for container recreation |
+| `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`) and extension pairing; mount a persistent volume so they survive container recreation |
+| `YAMLET_INTERCEPTOR_DATA_DIR` | `YAMLET_DATA_DIR` | Private pairing state, if it should live elsewhere |
 
 ## Releases
 

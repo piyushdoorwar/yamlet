@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { Variable } from "../../../core/src/models.js";
+import { inheritLocal, type Variable } from "../../../core/src/models.js";
 import { execute } from "../../../core/src/requestExecutor.js";
 import type { WorkspaceStore } from "../../../core/src/workspaceStore.js";
 import type { SendBody, SendResult } from "../../../shared/api.js";
@@ -21,7 +21,10 @@ export interface ScopeChanges {
   globals?: Variable[];
 }
 
-/** Write variable changes made by scripts back to their files. Returns true if anything changed. */
+/**
+ * Write variable changes made by scripts back to their files (local ones to the data folder).
+ * Variables a script creates are local when the scope is. Returns true if anything changed.
+ */
 export async function persistChanges(
   store: WorkspaceStore,
   changes: ScopeChanges,
@@ -34,17 +37,17 @@ export async function persistChanges(
   if (changes.environment && environmentId) {
     const env = store.findEnvironment(environmentId);
     if (env && !same(env.variables, changes.environment)) {
-      await store.saveEnvironment({ ...env, variables: changes.environment });
+      await store.saveEnvironment({ ...env, variables: inheritLocal(env.variables, changes.environment) });
       changed = true;
     }
   }
   const collection = collectionId ? store.findCollection(collectionId) : undefined;
   if (changes.collectionVariables && collection && !same(collection.variables, changes.collectionVariables)) {
-    await store.updateCollection(collection.id, { variables: changes.collectionVariables });
+    await store.updateCollection(collection.id, { variables: inheritLocal(collection.variables, changes.collectionVariables) });
     changed = true;
   }
   if (changes.globals && !same(store.workspace.globals, changes.globals)) {
-    await store.saveGlobals(changes.globals);
+    await store.saveGlobals(inheritLocal(store.workspace.globals, changes.globals));
     changed = true;
   }
   return changed;

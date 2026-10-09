@@ -1,0 +1,5 @@
+name: dev
+values:
+  - key: baseUrl
+    value: 'https://jsonplaceholder.typicode.com'
+id: demo-env-dev

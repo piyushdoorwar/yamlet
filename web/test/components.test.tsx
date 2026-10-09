@@ -1,11 +1,13 @@
-import type { KeyValue } from "@core/models";
+import type { KeyValue, Variable } from "@core/models";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "../src/App";
 import { KeyValueTable } from "../src/components/KeyValueTable";
+import { DialogProvider } from "../src/components/Dialogs";
 import { StatusPill, statusCategory } from "../src/components/Labels";
+import { useValueStorage, ValueStorageSwitch } from "../src/components/ValueStorage";
 
 function Harness({ initial }: { initial: KeyValue[] }) {
   const [rows, setRows] = useState(initial);
@@ -16,6 +18,49 @@ function Harness({ initial }: { initial: KeyValue[] }) {
     </>
   );
 }
+
+function VariablesHarness({ initial }: { initial: Variable[] }) {
+  const [rows, setRows] = useState(initial);
+  const storage = useValueStorage(rows, setRows);
+  return (
+    <DialogProvider>
+      <ValueStorageSwitch vars={rows} onChange={setRows} {...storage} />
+      <KeyValueTable<Variable> rows={rows} onChange={setRows} blank={storage.blank} localValues />
+      <output data-testid="vars">{JSON.stringify(rows)}</output>
+    </DialogProvider>
+  );
+}
+
+const vars = () => JSON.parse(screen.getByTestId("vars").textContent!) as Variable[];
+
+describe("Local values", () => {
+  it("switches every variable between the file and this machine", async () => {
+    render(<VariablesHarness initial={[{ key: "a", value: "1", enabled: true }]} />);
+    await userEvent.click(screen.getByRole("radio", { name: /Local/ }));
+    expect(vars()).toEqual([{ key: "a", value: "1", enabled: true, local: true }]);
+    // New rows follow a local list.
+    await userEvent.type(screen.getAllByLabelText("Key")[1], "b");
+    expect(vars()[1]).toEqual({ key: "b", value: "", enabled: true, local: true });
+    // One row back to the file makes the list mixed.
+    await userEvent.click(screen.getByLabelText("Save a in the file"));
+    expect(vars()[0]).toEqual({ key: "a", value: "1", enabled: true });
+    expect(screen.getByRole("radio", { name: /Local/ })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Values: per variable")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: /File/ }));
+    expect(vars().some((v) => v.local)).toBe(false);
+  });
+
+  it("clears stored local values after confirming", async () => {
+    render(<VariablesHarness initial={[{ key: "token", value: "s3cret", enabled: true, local: true }, { key: "base", value: "u", enabled: true }]} />);
+    await userEvent.click(screen.getByText("Clear local values"));
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(vars()).toEqual([
+      { key: "token", value: "", enabled: true, local: true },
+      { key: "base", value: "u", enabled: true },
+    ]);
+    expect(screen.queryByText("Clear local values")).not.toBeInTheDocument();
+  });
+});
 
 describe("KeyValueTable", () => {
   it("adds a row when typing into the trailing blank row", async () => {

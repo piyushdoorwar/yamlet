@@ -6,6 +6,7 @@ import { Button } from "../components/Button";
 import { KeyValueTable } from "../components/KeyValueTable";
 import { Card, PageHeader, SaveStatus, ScrollPage } from "../components/Page";
 import { TabButton } from "../components/Tabs";
+import { LOCAL_VALUES_NOTE, useValueStorage, ValueStorageSwitch } from "../components/ValueStorage";
 import { CodeEditor } from "../editor/CodeEditor";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
@@ -17,8 +18,6 @@ import { ScriptsEditor } from "./request/ScriptsEditor";
 
 type Section = "overview" | "variables" | "auth" | "scripts";
 type Editable = Pick<YamletCollection, "description" | "variables" | "auth" | "preRequestScript" | "postResponseScript">;
-
-const blankVar = (): Variable => ({ key: "", value: "", enabled: true });
 
 export function CollectionView({ collectionId }: { collectionId: string }) {
   const collection = useStore((s) => s.workspace?.collections.find((c) => c.id === collectionId));
@@ -54,6 +53,9 @@ export function CollectionView({ collectionId }: { collectionId: string }) {
     useMemo(() => ({ ...ctx, collection: value.variables }), [ctx, value.variables]),
     targets,
   );
+
+  const setVariables = useCallback((variables: Variable[]) => updateRef.current((v) => ({ ...v, variables })), []);
+  const storage = useValueStorage(value.variables, setVariables);
 
   if (!collection) return <p className="p-8 text-13 text-muted">This collection no longer exists.</p>;
 
@@ -99,8 +101,10 @@ export function CollectionView({ collectionId }: { collectionId: string }) {
         </Card>
       )}
       {section === "variables" && (
-        <Card title="Collection variables" actions={<span className="text-12 text-muted">Override environment and globals; overridden by request variables.</span>}>
-          <KeyValueTable<Variable> rows={value.variables} onChange={(variables) => update((v) => ({ ...v, variables }))} blank={blankVar} variables={vars} keyPlaceholder="Variable" secrets />
+        <Card title="Collection variables" actions={<ValueStorageSwitch vars={value.variables} onChange={setVariables} {...storage} />}>
+          <KeyValueTable<Variable> rows={value.variables} onChange={setVariables} blank={storage.blank} variables={vars} keyPlaceholder="Variable" secrets localValues />
+          <p className="mt-3 text-12 text-muted">Override environment and globals; overridden by request variables.</p>
+          <p className="mt-1 text-12 text-muted">{LOCAL_VALUES_NOTE}</p>
         </Card>
       )}
       {section === "auth" && (

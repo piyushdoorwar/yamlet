@@ -389,45 +389,46 @@
             <ul class="bullets">
               <li><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg><span>A request is self-contained: method, URL, headers, body, auth, scripts and its order in the tree.</span></li>
               <li><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg><span>Small, stable files mean a change to one request touches one file.</span></li>
-              <li><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg><span>Keep secrets out of Git by leaving them in a local environment file.</span></li>
+              <li><svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-check" /></svg><span>Mark tokens and personal values Local: the file keeps the key, the value stays on your machine.</span></li>
             </ul>
           </div>
 
           <div class="filecard" data-reveal style="--d: 0.08s">
             <div class="filecard-head">
               <svg class="ic" aria-hidden="true"><use href="assets/icons.svg#i-file" /></svg>
-              <b>collections/jsonplaceholder/posts/create-post.yaml</b>
+              <b>collections/JSONPlaceholder/Posts/Create Post.request.yaml</b>
             </div>
             <div class="filecard-body">
 <pre class="filetree"><b>collections/</b>
-  jsonplaceholder/
-    collection.yaml
-    posts/
-      folder.yaml
-      list-posts.yaml
-      <span class="on">create-post.yaml</span>
-    users/
+  JSONPlaceholder/
+    .resources/definition.yaml
+    Posts/
+      .resources/definition.yaml
+      List Posts.request.yaml
+      <span class="on">Create Post.request.yaml</span>
+    Users/
 <b>environments/</b>
-  dev.yaml
+  dev.environment.yaml
 <b>globals/</b>
-  globals.yaml</pre>
-<pre class="yaml"><span class="tok-k">name</span>: Create Post
-<span class="tok-k">order</span>: <span class="tok-n">2</span>
+  workspace.globals.yaml</pre>
+<pre class="yaml"><span class="tok-k">$kind</span>: http-request
+<span class="tok-k">url</span>: <span class="tok-s">"{{baseUrl}}/posts"</span>
 <span class="tok-k">method</span>: POST
-<span class="tok-k">url</span>: <span class="tok-s">'{{baseUrl}}/posts'</span>
 <span class="tok-k">headers</span>:
   - <span class="tok-k">key</span>: Content-Type
     <span class="tok-k">value</span>: application/json
 <span class="tok-k">body</span>:
   <span class="tok-k">type</span>: json
-  <span class="tok-k">raw</span>: |
+  <span class="tok-k">content</span>: |
     { "title": "Hello from Yamlet",
       "email": "{{$randomEmail}}" }
 <span class="tok-k">scripts</span>:
   - <span class="tok-k">type</span>: afterResponse
     <span class="tok-k">code</span>: |
 <span class="diffline add">      pm.test('created', () =&gt;
-        pm.response.to.have.status(201));</span></pre>
+        pm.response.to.have.status(201));</span>
+    <span class="tok-k">language</span>: text/javascript
+<span class="tok-k">order</span>: <span class="tok-n">3000</span></pre>
             </div>
           </div>
         </div>

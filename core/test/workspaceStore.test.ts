@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { newCollection, newFolder, newRequest } from "../src/models.js";
-import { slugify } from "../src/pathNaming.js";
+import { LocalValuesFile } from "../src/localValues.js";
+import { fileSafeName } from "../src/pathNaming.js";
 import { WorkspaceStore } from "../src/workspaceStore.js";
 
 let tmp: string;
@@ -23,7 +24,7 @@ describe("WorkspaceStore", () => {
     const root = path.join(tmp, "yamlet");
     expect(store.workspace.rootPath).toBe(root);
     for (const d of ["collections", "environments", "globals"]) expect(existsSync(path.join(root, d))).toBe(true);
-    expect(existsSync(path.join(root, "globals", "globals.yaml"))).toBe(true);
+    expect(existsSync(path.join(root, "globals", "workspace.globals.yaml"))).toBe(true);
     expect(store.workspace.globals).toContainEqual({ key: "appName", value: "Yamlet", enabled: true });
     expect(store.workspace.name).toBe(path.basename(tmp));
     expect(await WorkspaceStore.isWorkspace(tmp)).toBe(true);
@@ -47,9 +48,12 @@ describe("WorkspaceStore", () => {
   it("writes collection metadata only, never embedded requests", async () => {
     const store = await WorkspaceStore.create(tmp);
     const c = await store.createCollection("My API");
-    expect(c.directoryPath!.endsWith(path.join("collections", "my-api"))).toBe(true);
-    await store.createRequest(c.id, null, { name: "Get Users" });
+    expect(c.directoryPath!.endsWith(path.join("collections", "My API"))).toBe(true);
+    expect(c.filePath).toBe(path.join(c.directoryPath!, ".resources", "definition.yaml"));
+    const r = await store.createRequest(c.id, null, { name: "Get Users" });
+    expect(r.sourceFilePath).toBe(path.join(c.directoryPath!, "Get Users.request.yaml"));
     const yaml = await read(c.filePath!);
+    expect(yaml).toContain("$kind: collection");
     expect(yaml).toContain("name: My API");
     expect(yaml).not.toContain("item:");
     expect(yaml).not.toContain("info:");
@@ -92,7 +96,8 @@ describe("WorkspaceStore", () => {
     await store.createFolder(c.id, null, "Yankee");
     const z = await store.createFolder(c.id, null, "Zulu");
     await store.move("folder", z.id, c.id, null, 0);
-    expect(existsSync(path.join(z.directoryPath!, "folder.yaml"))).toBe(true);
+    expect(existsSync(path.join(z.directoryPath!, ".resources", "definition.yaml"))).toBe(true);
+    expect(store.findCollection(c.id)!.requests.map((r) => r.order)).toEqual([1000, 2000, 3000]);
 
     const re = await WorkspaceStore.open(tmp);
     expect(names(re.workspace.collections[0].requests)).toEqual(["Charlie", "Alpha", "Bravo"]);
@@ -116,19 +121,25 @@ describe("WorkspaceStore", () => {
     const store = await WorkspaceStore.create(tmp);
     const c = await store.createCollection("API");
     const r = await store.createRequest(c.id, null, { name: "First" });
-    await fs.appendFile(r.sourceFilePath!, "$kind: http-request\n");
+    await fs.appendFile(r.sourceFilePath!, "team: core\n");
     const saved = await store.saveRequest({ ...r, name: "Renamed Thing", url: "https://x.test" });
-    expect(path.basename(saved.sourceFilePath!)).toBe("renamed-thing.yaml");
+    expect(path.basename(saved.sourceFilePath!)).toBe("Renamed Thing.request.yaml");
     expect(existsSync(r.sourceFilePath!)).toBe(false);
     const text = await read(saved.sourceFilePath!);
-    expect(text).toContain("$kind: http-request");
+    expect(text).toContain("team: core");
+    expect(text).not.toContain("name:");
     expect(text).toContain("url: https://x.test");
     expect(store.findRequest(r.id)!.request.url).toBe("https://x.test");
 
-    // A colliding slug gets a unique file name.
+    // A colliding name gets a numbered file name and keeps its own name inside.
     const other = await store.createRequest(c.id, null, { name: "Other" });
     const s2 = await store.saveRequest({ ...other, name: "Renamed Thing" });
-    expect(path.basename(s2.sourceFilePath!)).toBe("renamed-thing-2.yaml");
+    expect(path.basename(s2.sourceFilePath!)).toBe("Renamed Thing 2.request.yaml");
+    expect(await read(s2.sourceFilePath!)).toContain("name: Renamed Thing");
+    const again = await store.saveRequest({ ...s2, url: "https://y.test" });
+    expect(again.sourceFilePath).toBe(s2.sourceFilePath);
+    const re = await WorkspaceStore.open(tmp);
+    expect(names(re.findCollection(c.id)!.requests).sort()).toEqual(["Renamed Thing", "Renamed Thing"]);
   });
 
   it("moves requests and folders across containers on disk", async () => {
@@ -142,7 +153,7 @@ describe("WorkspaceStore", () => {
     expect(existsSync(moved.sourceFilePath!)).toBe(true);
     await store.move("folder", f.id, c2.id, null, 0);
     expect(store.findFolder(f.id)!.collection.id).toBe(c2.id);
-    expect(existsSync(path.join(c2.directoryPath!, "folder", "folder.yaml"))).toBe(true);
+    expect(existsSync(path.join(c2.directoryPath!, "Folder", ".resources", "definition.yaml"))).toBe(true);
     const inner = await store.createFolder(c2.id, f.id, "Inner");
     await expect(store.move("folder", f.id, c2.id, inner.id, 0)).rejects.toThrow(/itself/);
 
@@ -159,7 +170,7 @@ describe("WorkspaceStore", () => {
     const f = await store.createFolder(c.id, null, "Sub");
     await store.createRequest(c.id, f.id, { name: "R" });
     const renamed = await store.updateCollection(c.id, { name: "Better Name", variables: [{ key: "a", value: "1", enabled: true }] });
-    expect(path.basename(renamed.directoryPath!)).toBe("better-name");
+    expect(path.basename(renamed.directoryPath!)).toBe("Better Name");
     expect(store.findRequest(renamed.folders[0].requests[0].id)!.request.sourceFilePath!.startsWith(renamed.directoryPath!)).toBe(true);
 
     const copy = await store.duplicateCollection(c.id);
@@ -170,7 +181,7 @@ describe("WorkspaceStore", () => {
     const fcopy = await store.duplicateFolder(f.id);
     expect(names(store.findCollection(c.id)!.folders)).toEqual(["Sub", "Sub Copy"]);
     const uf = await store.updateFolder(fcopy.id, { name: "Third", description: "desc" });
-    expect(path.basename(uf.directoryPath!)).toBe("third");
+    expect(path.basename(uf.directoryPath!)).toBe("Third");
 
     const rcopy = await store.duplicateRequest(c.folders[0].requests[0].id);
     expect(rcopy.name).toBe("R Copy");
@@ -211,15 +222,15 @@ describe("WorkspaceStore", () => {
     expect(ids2).toEqual(ids);
   });
 
-  it("manages environments and globals in the native format", async () => {
+  it("manages environments and globals in the shared format", async () => {
     const store = await WorkspaceStore.create(tmp);
     const env = await store.createEnvironment("Local");
     const saved = await store.saveEnvironment({ ...env, variables: [{ key: "baseUrl", value: "http://localhost", enabled: true }] });
     const yaml = await read(saved.filePath!);
-    expect(yaml).toContain("variables:");
-    expect(yaml).not.toContain("values:");
+    expect(yaml).toContain("values:");
+    expect(path.basename(saved.filePath!)).toBe("Local.environment.yaml");
     const renamed = await store.saveEnvironment({ ...saved, name: "Staging" });
-    expect(path.basename(renamed.filePath!)).toBe("staging.yaml");
+    expect(path.basename(renamed.filePath!)).toBe("Staging.environment.yaml");
     const dup = await store.duplicateEnvironment(env.id);
     expect(dup.name).toBe("Staging Copy");
     await store.saveGlobals([{ key: "g", value: "1", enabled: true }]);
@@ -274,7 +285,106 @@ describe("WorkspaceStore", () => {
     await Promise.all(Array.from({ length: 10 }, (_, i) => store.createRequest(c.id, null, { name: "Same" + (i % 2) })));
     const re = await WorkspaceStore.open(tmp);
     expect(re.workspace.collections[0].requests).toHaveLength(10);
-    expect(re.workspace.collections[0].requests.map((r) => r.order)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(re.workspace.collections[0].requests.map((r) => r.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => n * 1000));
+  });
+
+  it("moves an older Yamlet layout over as each file is saved", async () => {
+    const root = path.join(tmp, "ws");
+    const col = path.join(root, "collections", "my-api");
+    await fs.mkdir(path.join(col, "users"), { recursive: true });
+    await fs.mkdir(path.join(root, "environments"), { recursive: true });
+    await fs.mkdir(path.join(root, "globals"), { recursive: true });
+    await fs.writeFile(path.join(col, "collection.yaml"), "id: c1\nname: My API\norder: 0\nvariables:\n  - key: a\n    value: '1'\n");
+    await fs.writeFile(path.join(col, "users", "folder.yaml"), "id: f1\nname: Users\norder: 0\n");
+    await fs.writeFile(path.join(col, "users", "list-users.yaml"), "id: r1\nname: List Users\norder: 0\nmethod: GET\nurl: http://x\nbody:\n  type: json\n  raw: '{}'\n");
+    await fs.writeFile(path.join(root, "environments", "dev.yaml"), "id: e1\nname: dev\nvariables:\n  - key: b\n    value: '2'\n");
+    await fs.writeFile(path.join(root, "globals", "globals.yaml"), "variables:\n  - key: g\n    value: '3'\n");
+
+    const store = await WorkspaceStore.open(root);
+    const r = store.findRequest("r1")!.request;
+    expect(r.body.raw).toBe("{}");
+    await store.saveRequest(r);
+    await store.updateCollection("c1", {});
+    await store.updateFolder("f1", {});
+    await store.saveEnvironment(store.findEnvironment("e1")!);
+    await store.saveGlobals(store.workspace.globals);
+
+    const moved = path.join(root, "collections", "My API");
+    expect(existsSync(col)).toBe(false);
+    expect(existsSync(path.join(moved, "collection.yaml"))).toBe(false);
+    expect(await read(path.join(moved, ".resources", "definition.yaml"))).toContain("a: \"1\"");
+    expect(existsSync(path.join(moved, "Users", "folder.yaml"))).toBe(false);
+    expect(existsSync(path.join(moved, "Users", ".resources", "definition.yaml"))).toBe(true);
+    const req = await read(path.join(moved, "Users", "List Users.request.yaml"));
+    expect(req).toContain("$kind: http-request");
+    expect(req).toContain("content: \"{}\"");
+    expect(existsSync(path.join(root, "environments", "dev.environment.yaml"))).toBe(true);
+    expect(existsSync(path.join(root, "environments", "dev.yaml"))).toBe(false);
+    expect(existsSync(path.join(root, "globals", "globals.yaml"))).toBe(false);
+
+    const re = await WorkspaceStore.open(root);
+    expect(re.findRequest("r1")!.folders.map((f) => f.id)).toEqual(["f1"]);
+    expect(re.findCollection("c1")!.variables).toEqual([{ key: "a", value: "1", enabled: true }]);
+    expect(re.findEnvironment("e1")!.variables).toEqual([{ key: "b", value: "2", enabled: true }]);
+    expect(re.workspace.globals).toEqual([{ key: "g", value: "3", enabled: true }]);
+  });
+
+  it("leaves items of other kinds alone", async () => {
+    const store = await WorkspaceStore.create(tmp);
+    const c = await store.createCollection("API");
+    await fs.writeFile(path.join(c.directoryPath!, "Stream.request.yaml"), "$kind: websocket-request\nurl: ws://x\n");
+    const re = await WorkspaceStore.open(tmp);
+    expect(re.findCollection(c.id)!.requests).toHaveLength(0);
+  });
+
+  it("keeps local values out of the YAML and in the data folder", async () => {
+    const data = path.join(tmp, "data");
+    const open = async () => WorkspaceStore.open(tmp, { localValues: (await LocalValuesFile.open(data)).forWorkspace(path.join(tmp, "yamlet")) });
+    await WorkspaceStore.create(tmp);
+    const store = await open();
+    const env = await store.createEnvironment("Mine");
+    await store.saveEnvironment({
+      ...env,
+      variables: [
+        { key: "baseUrl", value: "http://localhost", enabled: true },
+        { key: "token", value: "s3cret", enabled: true, local: true },
+      ],
+    });
+    const c = await store.createCollection("API");
+    await store.updateCollection(c.id, { variables: [{ key: "apiKey", value: "k-123", enabled: true, local: true }] });
+    await store.saveGlobals([{ key: "me", value: "pd", enabled: true, local: true }]);
+
+    expect(await read(store.findEnvironment(env.id)!.filePath!)).not.toContain("s3cret");
+    expect(await read(store.findCollection(c.id)!.filePath!)).not.toContain("k-123");
+    const stored = JSON.parse(await read(path.join(data, "local-values.json")));
+    expect(stored.workspaces[path.join(tmp, "yamlet")]).toEqual({
+      [`environment:${env.id}`]: { token: "s3cret" },
+      [`collection:${c.id}`]: { apiKey: "k-123" },
+      globals: { me: "pd" },
+    });
+
+    // Reopened (a restart or an upgrade), the values come back.
+    const re = await open();
+    expect(re.findEnvironment(env.id)!.variables).toEqual([
+      { key: "baseUrl", value: "http://localhost", enabled: true },
+      { key: "token", value: "s3cret", enabled: true, local: true },
+    ]);
+    expect(re.findCollection(c.id)!.variables).toEqual([{ key: "apiKey", value: "k-123", enabled: true, local: true }]);
+    expect(re.workspace.globals).toEqual([{ key: "me", value: "pd", enabled: true, local: true }]);
+    // Without the data folder (e.g. the CLI in CI) the keys are there with blank values.
+    expect((await WorkspaceStore.open(tmp)).findEnvironment(env.id)!.variables[1]).toEqual({ key: "token", value: "", enabled: true, local: true });
+
+    // Another tool that drops the flag but keeps the blank key still gets the local value back.
+    const file = re.findEnvironment(env.id)!.filePath!;
+    await fs.writeFile(file, (await read(file)).replace("    local: true\n", ""));
+    expect((await open()).findEnvironment(env.id)!.variables[1]).toEqual({ key: "token", value: "s3cret", enabled: true, local: true });
+
+    // Switching a variable back to the file moves its value into the YAML; deleting forgets the rest.
+    await re.saveEnvironment({ ...re.findEnvironment(env.id)!, variables: [{ key: "token", value: "s3cret", enabled: true }] });
+    expect(await read(re.findEnvironment(env.id)!.filePath!)).toContain("s3cret");
+    await re.deleteCollection(c.id);
+    const after = JSON.parse(await read(path.join(data, "local-values.json")));
+    expect(after.workspaces[path.join(tmp, "yamlet")]).toEqual({ globals: { me: "pd" } });
   });
 
   it("opens the sample workspace", async () => {
@@ -292,10 +402,12 @@ describe("WorkspaceStore", () => {
   });
 });
 
-describe("slugify", () => {
-  it("produces git-friendly names", () => {
-    expect(slugify("My API")).toBe("my-api");
-    expect(slugify("  Get / Users (v2)  ")).toBe("get-users-v2");
-    expect(slugify("!!!", "request")).toBe("request");
+describe("fileSafeName", () => {
+  it("keeps the display name and replaces what file systems reject", () => {
+    expect(fileSafeName("My API")).toBe("My API");
+    expect(fileSafeName("  Get / Users: (v2)?  ")).toBe("Get - Users- (v2)-");
+    expect(fileSafeName("..hidden.")).toBe("hidden");
+    expect(fileSafeName("CON")).toBe("CON_");
+    expect(fileSafeName("   ", "New Request")).toBe("New Request");
   });
 });

@@ -8,16 +8,18 @@ network access but no secrets.
 
 ```
 demo/
-  collections/jsonplaceholder/
-    collection.yaml        # collection metadata (name, id, a collection variable)
-    list-posts.yaml        # GET  {{baseUrl}}/posts        (order 0)
-    get-post.yaml          # GET  {{baseUrl}}/posts/{{postId}}  (order 1)
-    create-post.yaml       # POST {{baseUrl}}/posts        (order 2, JSON body)
-    users/
-      folder.yaml          # folder metadata (name, order)
-      list-users.yaml      # GET  {{baseUrl}}/users
-  environments/dev.yaml    # baseUrl -> https://jsonplaceholder.typicode.com
-  globals/globals.yaml     # appName -> Yamlet
+  collections/JSONPlaceholder/
+    .resources/definition.yaml   # collection: name, id, a collection variable
+    Posts/
+      .resources/definition.yaml # folder order
+      List Posts.request.yaml    # GET  {{baseUrl}}/posts              (order 1000)
+      Get Post.request.yaml      # GET  {{baseUrl}}/posts/{{postId}}   (order 2000)
+      Create Post.request.yaml   # POST {{baseUrl}}/posts              (order 3000, JSON body)
+    Users/
+      .resources/definition.yaml
+      List Users.request.yaml    # GET  {{baseUrl}}/users
+  environments/dev.environment.yaml   # baseUrl -> https://jsonplaceholder.typicode.com
+  globals/workspace.globals.yaml      # appName -> Yamlet
 ```
 
 Each request carries `pm.test` assertions, so it doubles as a CLI smoke test.

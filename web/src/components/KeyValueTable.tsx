@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Eye, EyeOff, Lock, Trash2 } from "lucide-react";
+import { Eye, EyeOff, FileText, HardDrive, Lock, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { CodeEditor, type VariableSource } from "../editor/CodeEditor";
 
@@ -9,6 +9,7 @@ export interface Row {
   description?: string;
   enabled?: boolean;
   secret?: boolean;
+  local?: boolean;
 }
 
 interface Props<T extends Row> {
@@ -29,6 +30,8 @@ interface Props<T extends Row> {
   /** Replaces the value cell for some rows (file picker). */
   renderValue?: (row: T, update: (patch: Partial<T>) => void) => ReactNode | undefined;
   secrets?: boolean;
+  /** Per-row switch between saving the value in the file and keeping it on this machine. */
+  localValues?: boolean;
   /** Keys come from the URL (path variables) and can't be edited or added. */
   fixedKeys?: boolean;
   bulk?: boolean;
@@ -37,7 +40,7 @@ interface Props<T extends Row> {
 /** Spreadsheet-style editor with a trailing blank row and optional bulk-edit mode. */
 export function KeyValueTable<T extends Row>(props: Props<T>) {
   const [bulk, setBulk] = useState(false);
-  const { rows, onChange, blank, variables, showDescription, noToggle, locked, renderExtra, renderValue, secrets, fixedKeys } = props;
+  const { rows, onChange, blank, variables, showDescription, noToggle, locked, renderExtra, renderValue, secrets, localValues, fixedKeys } = props;
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
 
   const all = fixedKeys ? rows : [...rows, blank()];
@@ -163,6 +166,18 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                 <td className="text-center whitespace-nowrap">
                   {!isBlank && (
                     <span className="inline-flex items-center">
+                      {localValues && (
+                        <button
+                          type="button"
+                          title={row.local ? "Value kept on this machine only: click to save it in the file" : "Value saved in the file: click to keep it on this machine only"}
+                          aria-label={row.local ? `Save ${row.key || "value"} in the file` : `Keep ${row.key || "value"} local`}
+                          aria-pressed={!!row.local}
+                          className={clsx("rounded p-1", row.local ? "text-primary" : "text-faint hover:text-grey")}
+                          onClick={() => update(i, { local: row.local ? undefined : true } as Partial<T>)}
+                        >
+                          {row.local ? <HardDrive size={13} aria-hidden /> : <FileText size={13} aria-hidden />}
+                        </button>
+                      )}
                       {secrets && (
                         <button
                           type="button"

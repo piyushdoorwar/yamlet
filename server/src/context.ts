@@ -1,5 +1,6 @@
 import type { Dispatcher } from "undici";
 import { CookieJar } from "../../core/src/cookieJar.js";
+import { LocalValuesFile } from "../../core/src/localValues.js";
 import { WorkspaceStore } from "../../core/src/workspaceStore.js";
 import { WORKSPACE_HEADER } from "../../shared/api.js";
 import { HttpError } from "./errors.js";
@@ -14,6 +15,11 @@ export interface ServerConfig {
   /** Injected in tests so no real network is used. */
   dispatcher?: Dispatcher;
   defaultTimeoutMs: number;
+  /**
+   * Yamlet's own data folder (the /data volume in the container): local variable values.
+   * Without it, local values are kept in memory only (tests).
+   */
+  dataDir?: string;
   /** Private state outside the workspace YAML files. */
   interceptorDataDir?: string;
   /** Look for newer releases on GitHub (off unless set; index.ts turns it on). */
@@ -29,8 +35,16 @@ interface OpenWorkspace {
 export class Workspaces {
   private readonly open = new Map<string, OpenWorkspace>();
   private readonly pending = new Map<string, Promise<OpenWorkspace>>();
+  private localValues?: Promise<LocalValuesFile>;
 
   constructor(private readonly config: ServerConfig) {}
+
+  /** The shared local-values file, loaded once. */
+  private async localFor(root: string) {
+    if (!this.config.dataDir) return undefined;
+    this.localValues ??= LocalValuesFile.open(this.config.dataDir);
+    return (await this.localValues).forWorkspace(root);
+  }
 
   async openAt(path: string, create = false): Promise<OpenWorkspace> {
     const dir = confine(this.config.browseRoot, path);
@@ -46,7 +60,8 @@ export class Workspaces {
     const inflight = this.pending.get(root);
     if (inflight) return inflight;
     const loading = (async () => {
-      const store = create ? await WorkspaceStore.create(dir) : await WorkspaceStore.open(dir);
+      const options = { localValues: await this.localFor(root) };
+      const store = create ? await WorkspaceStore.create(dir, options) : await WorkspaceStore.open(dir, options);
       const entry = { store, cookies: existing?.cookies ?? new CookieJar() };
       this.open.set(store.workspace.rootPath, entry);
       return entry;

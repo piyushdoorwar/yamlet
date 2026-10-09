@@ -14,6 +14,8 @@ const webRoot = process.env.WEB_ROOT ?? resolve(here, "../../web");
 const inContainer = process.env.YAMLET_IN_CONTAINER === "1" || existsSync("/.dockerenv");
 const defaultWorkspace = process.env.YAMLET_WORKSPACE ?? (inContainer ? "/workspace" : null);
 const browseRoot = resolve(process.env.YAMLET_BROWSE_ROOT ?? (inContainer ? "/workspace" : homedir()));
+// Local variable values and the extension pairing. Keep the /data volume across upgrades.
+const dataDir = resolve(process.env.YAMLET_DATA_DIR ?? (inContainer ? "/data" : resolve(homedir(), ".config/yamlet")));
 
 const app = await buildApp({
   config: {
@@ -23,7 +25,8 @@ const app = await buildApp({
     inContainer,
     publicUrl: process.env.YAMLET_PUBLIC_URL ?? `http://localhost:${port}`,
     defaultTimeoutMs: Number(process.env.YAMLET_TIMEOUT_MS ?? 30_000),
-    interceptorDataDir: process.env.YAMLET_INTERCEPTOR_DATA_DIR ?? (inContainer ? "/data" : resolve(homedir(), ".config/yamlet")),
+    dataDir,
+    interceptorDataDir: process.env.YAMLET_INTERCEPTOR_DATA_DIR ?? dataDir,
     updateCheck: process.env.YAMLET_UPDATE_CHECK !== "0" && (process.env.APP_VERSION ?? "dev") !== "dev",
   },
   webRoot,

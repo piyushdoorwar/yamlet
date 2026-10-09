@@ -57,7 +57,8 @@ core/src/     UI-free engine (TypeScript, NodeNext: relative imports end in .js)
   models.ts            domain types + factories (newRequest, defaultAuth, ...)
   yamlDtos.ts          on-disk YAML shapes, toDomain/fromDomain, imported-format readers
   workspaceStore.ts    WorkspaceStore: load a workspace, id-based mutations written to disk
-  pathNaming.ts        safe, unique file and folder names
+  pathNaming.ts        file-safe display names, unique file and folder names
+  localValues.ts       local variable values in <dataDir>/local-values.json
   variableResolver.ts  {{var}} resolution, lookup, placeholder scan        (isomorphic)
   dynamicVariables.ts  {{$guid}}, {{$timestamp}}, {{$random*}} catalog    (isomorphic)
   requestBuilder.ts    request + scopes -> BuiltRequest (url, headers, auth, body) (isomorphic)
@@ -97,20 +98,35 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 - **Domain models are decoupled from the file format.** `core/src/models.ts` is what the
   UI and server speak; `yamlDtos.ts` maps to/from on-disk YAML. Never serialize domain
   objects straight to YAML.
-- **Each request file is the single source of truth.** A request lives entirely in its
-  own `<request>.yaml` (method, url, params, headers, path vars, variables, auth, body,
-  scripts, settings, examples, description, `order`). `collection.yaml` is metadata only
-  (id, name, description, variables, auth, scripts, `order`). Each folder has a
-  `folder.yaml` (name, description, `order`).
-- **Tree order is persisted per file** via `order`; ties fall back to filename. After
-  structural changes the store renumbers the affected container.
+- **The on-disk format is the local collection format of v2.1-compatible clients**, so a
+  workspace opens in either tool. A request lives entirely in its own
+  `<Name>.request.yaml` (`$kind: http-request`, url, method, queryParams, headers,
+  pathVariables, auth `{type, credentials}`, body `{type, content}`, scripts with
+  `beforeRequest`/`afterResponse` + `language`, `order`); the name comes from the file
+  name and `name:` is written only when they differ. A collection or folder is a
+  directory named after it with `.resources/definition.yaml` (`$kind: collection`;
+  collection variables as a `name: value` map, scripts as `http:beforeRequest` /
+  `http:afterResponse`). Environments are `<name>.environment.yaml` (`name`, `values`),
+  globals `globals/workspace.globals.yaml`. Rows use `disabled: true`. Yamlet-only data
+  goes in extra keys after the shared ones: `id`, request `variables`/`settings`/`examples`,
+  per-row `type: secret` / `local: true`, and `variableSettings` for collection-variable flags.
+- **Tree order is persisted per file** via `order`, spaced by 1000 (`ORDER_STEP`); ties
+  fall back to filename. After structural changes the store renumbers the affected container.
 - **Backward compatibility: old and imported formats are read, never written.**
-  `yamlDtos.ts` reads legacy `collection.yaml` (info/variable/event), exported
-  `.resources/definition.yaml` (variables as a map, auth as a list incl. `oauth2`
-  credentials, collection scripts), environments with `values:`, rows with `disabled:`,
-  scalar body `content:`, list `content:` for form bodies, headers as a map or list,
-  names from `*.request.yaml` / `*.environment.yaml` filenames. Unknown top-level keys
-  are preserved on save. Everything is written back in Yamlet's native shape.
+  `yamlDtos.ts` and the store read older Yamlet files (`collection.yaml` incl. the
+  info/variable/event shape, `folder.yaml`, `<slug>.yaml`, `raw:` bodies, `enabled: false`,
+  `preRequest` scripts, `globals/globals.yaml`), auth as a list or per-type credential lists,
+  headers as a map. Each legacy file is moved to the current layout when it is next saved.
+  Items with another `$kind` are skipped. Unknown top-level keys are preserved on save.
+- **Local variable values.** A variable with `local: true` is written with a blank value;
+  its real value is in `<dataDir>/local-values.json` (`localValues.ts`), keyed by workspace
+  root and scope (`environment:<id>`, `collection:<id>`, `globals`). The server passes it to
+  `WorkspaceStore` (`StoreOptions.localValues`), which splits values on write and overlays
+  them on load (a blank file value with a stored one counts as local, in case another tool
+  dropped the flag). `dataDir` is `YAMLET_DATA_DIR`, `/data` in the container,
+  `~/.config/yamlet` otherwise. The CLI has no data folder, so local values are blank there.
+  The UI's File / Local switch (`components/ValueStorage.tsx`) sets every row; new rows and
+  script-created variables are local when the whole scope is (`inheritLocal`).
 - **Variable precedence** (highest first): request, runner data row, collection,
   environment, globals. Unknown `{{placeholders}}` are left untouched so missing
   variables stay visible. `{{$name}}` falls back to dynamic variables (user variables
@@ -152,13 +168,16 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 ## On-disk layout
 
 ```
-<workspace>/collections/<name>/collection.yaml
-<workspace>/collections/<name>/<request>.yaml
-<workspace>/collections/<name>/<folder>/folder.yaml + <request>.yaml
-<workspace>/environments/<name>.yaml
-<workspace>/globals/globals.yaml
+<workspace>/collections/<Collection>/.resources/definition.yaml
+<workspace>/collections/<Collection>/<Request>.request.yaml
+<workspace>/collections/<Collection>/<Folder>/.resources/definition.yaml + <Request>.request.yaml
+<workspace>/environments/<name>.environment.yaml
+<workspace>/globals/workspace.globals.yaml
 <workspace>/files/                 # attachments
 ```
+
+File and folder names are the display names with characters that Windows, macOS or Linux
+reject replaced by `-` (`fileSafeName`); collisions get ` 2`, ` 3`, ....
 
 `WorkspaceStore.resolveRoot` treats the picked folder as the root if it contains
 `collections/` and `environments/`, else uses its `yamlet/` subfolder.
