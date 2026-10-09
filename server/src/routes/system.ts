@@ -2,13 +2,19 @@ import type { FastifyInstance } from "fastify";
 import { readdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { WorkspaceStore } from "../../../core/src/workspaceStore.js";
-import type { FsEntry, FsListing, ServerInfo } from "../../../shared/api.js";
+import type { FsEntry, FsListing, ServerInfo, UpdateInfo } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
 import { confine, isInside } from "../paths.js";
+import { UpdateChecker } from "../updates.js";
 
 export function systemRoutes(app: FastifyInstance, { config }: Deps): void {
+  const updates = new UpdateChecker(config.version, !!config.updateCheck, config.dispatcher);
+
   app.get("/api/health", async () => ({ ok: true }));
+
+  // ?refresh=1 checks now instead of reusing a result from the last hour.
+  app.get<{ Querystring: { refresh?: string } }>("/api/update", async (req): Promise<UpdateInfo> => updates.get(req.query.refresh === "1"));
 
   app.get("/api/info", async (): Promise<ServerInfo> => ({
     version: config.version,

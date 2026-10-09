@@ -61,6 +61,8 @@ interface State {
   environmentId: string | null;
   drafts: Record<string, YamletRequest>;
   saveState: Record<string, SaveState>;
+  /** Why the last save of a request failed; cleared by the next successful save. */
+  saveErrors: Record<string, string>;
   responses: Record<string, ResponseState>;
   history: HistoryEntry[];
   layout: ResponseLayout;
@@ -83,6 +85,7 @@ interface State {
   setLayout: (layout: ResponseLayout) => void;
 
   updateDraft: (id: string, update: (r: YamletRequest) => YamletRequest) => void;
+  /** Writes pending (or previously failed) edits now; saves of one request run in order. */
   saveNow: (id: string) => Promise<void>;
 
   send: (id: string) => Promise<void>;
@@ -93,6 +96,11 @@ interface State {
 const SAVE_DEBOUNCE_MS = 500;
 const HISTORY_LIMIT = 150;
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// The latest queued save per request. While one is queued, server copies of that
+// request are older than the draft and must not replace it.
+const savesInFlight = new Map<string, Promise<void>>();
+// Requests whose last save failed; their drafts are kept until a save succeeds.
+const unsaved = new Set<string>();
 const inflight = new Map<string, AbortController>();
 
 function persistSession(s: Pick<State, "workspace" | "tabs" | "active" | "environmentId">) {
@@ -138,6 +146,7 @@ export const useStore = create<State>((set, get) => ({
   environmentId: null,
   drafts: {},
   saveState: {},
+  saveErrors: {},
   responses: {},
   history: [],
   layout: prefs.layout,
@@ -161,6 +170,7 @@ export const useStore = create<State>((set, get) => ({
       environmentId,
       drafts: {},
       saveState: {},
+      saveErrors: {},
       responses: {},
       history: readJson<HistoryEntry[]>(keys.history(ws.rootPath), []),
     });
@@ -180,7 +190,7 @@ export const useStore = create<State>((set, get) => ({
     for (const [id, draft] of Object.entries(s.drafts)) {
       const loc = findRequest(ws, id);
       if (!loc) continue;
-      const pending = saveTimers.has(id);
+      const pending = saveTimers.has(id) || savesInFlight.has(id) || unsaved.has(id);
       drafts[id] = pending ? { ...draft, sourceFilePath: loc.request.sourceFilePath } : loc.request;
     }
     const environmentId = ws.environments.some((e) => e.id === s.environmentId) ? s.environmentId : (ws.environments[0]?.id ?? null);
@@ -271,19 +281,33 @@ export const useStore = create<State>((set, get) => ({
 
   saveNow: async (id) => {
     const timer = saveTimers.get(id);
-    if (!timer) return;
-    clearTimeout(timer);
+    if (!timer && !unsaved.has(id)) return savesInFlight.get(id);
+    if (timer) clearTimeout(timer);
     saveTimers.delete(id);
-    const draft = get().drafts[id];
-    if (!draft) return;
-    set({ saveState: { ...get().saveState, [id]: "saving" } });
+    unsaved.delete(id);
+    const run = async () => {
+      // Read the draft when this save starts, so it carries every edit made while
+      // the previous save was in flight.
+      const draft = get().drafts[id];
+      if (!draft) return;
+      set({ saveState: { ...get().saveState, [id]: "saving" } });
+      try {
+        const { workspace } = await api.saveRequest(draft);
+        const { [id]: _, ...saveErrors } = get().saveErrors;
+        set({ saveState: { ...get().saveState, [id]: "saved" }, saveErrors });
+        if (savesInFlight.get(id) === queued) savesInFlight.delete(id);
+        get().applyWorkspace(workspace);
+      } catch (err) {
+        unsaved.add(id);
+        set({ saveState: { ...get().saveState, [id]: "error" }, saveErrors: { ...get().saveErrors, [id]: errorMessage(err) } });
+      }
+    };
+    const queued: Promise<void> = (savesInFlight.get(id) ?? Promise.resolve()).then(run);
+    savesInFlight.set(id, queued);
     try {
-      const { workspace } = await api.saveRequest(draft);
-      set({ saveState: { ...get().saveState, [id]: "saved" } });
-      get().applyWorkspace(workspace);
-    } catch (err) {
-      set({ saveState: { ...get().saveState, [id]: "error" } });
-      console.error("Save failed", errorMessage(err));
+      await queued;
+    } finally {
+      if (savesInFlight.get(id) === queued) savesInFlight.delete(id);
     }
   },
 

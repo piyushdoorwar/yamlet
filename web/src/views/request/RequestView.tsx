@@ -1,11 +1,12 @@
 import type { YamletRequest } from "@core/models";
 import { Check, ChevronRight, CircleAlert, Loader2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
+import { useToast } from "../../components/Toast";
 import { useStore } from "../../lib/store";
 import { findRequest } from "../../lib/tree";
 import { useActions } from "../../lib/useActions";
-import { useVariableContext, useVariableSource } from "../../lib/variables";
+import { upsertVariable, useVariableContext, useVariableSource, useVariableTargets } from "../../lib/variables";
 import { RenameInput } from "../../sidebar/CollectionsTree";
 import { useUi } from "../../lib/ui";
 import { RequestPanes } from "./RequestPanes";
@@ -14,6 +15,11 @@ import { UrlBar } from "./UrlBar";
 
 function SaveIndicator({ id }: { id: string }) {
   const state = useStore((s) => s.saveState[id]);
+  const error = useStore((s) => s.saveErrors[id]);
+  const toast = useToast();
+  useEffect(() => {
+    if (error) toast.error("Changes not saved", `${error}. Your edits are kept here; use Retry to save them again.`);
+  }, [error, toast]);
   if (state === "saving") {
     return (
       <span className="flex items-center gap-1 text-11 text-muted">
@@ -23,8 +29,13 @@ function SaveIndicator({ id }: { id: string }) {
   }
   if (state === "error") {
     return (
-      <span className="flex items-center gap-1 text-11 text-danger">
-        <CircleAlert size={12} aria-hidden /> Not saved
+      <span className="flex items-center gap-2 text-11 text-danger" title={error}>
+        <span className="flex items-center gap-1">
+          <CircleAlert size={12} aria-hidden /> Not saved
+        </span>
+        <button type="button" className="rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft" onClick={() => void useStore.getState().saveNow(id)}>
+          Retry
+        </button>
       </span>
     );
   }
@@ -48,8 +59,13 @@ export function RequestView({ requestId }: { requestId: string }) {
   const loc = useMemo(() => findRequest(workspace, requestId), [workspace, requestId]);
   const request = draft ?? loc?.request;
   const ctx = useVariableContext(loc?.collection.id, request?.variables);
-  const variables = useVariableSource(ctx);
   const update = useCallback((fn: (r: YamletRequest) => YamletRequest) => updateDraft(requestId, fn), [updateDraft, requestId]);
+  const writeRequestVariable = useCallback(
+    (name: string, value: string) => update((r) => ({ ...r, variables: upsertVariable(r.variables, name, value) })),
+    [update],
+  );
+  const targets = useVariableTargets({ collectionId: loc?.collection.id, request: writeRequestVariable });
+  const variables = useVariableSource(ctx, targets);
 
   if (!request || !loc) {
     return <p className="p-8 text-13 text-muted">This request no longer exists on disk.</p>;

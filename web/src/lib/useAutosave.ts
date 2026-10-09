@@ -1,48 +1,61 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage } from "./api";
 
 /**
  * Local editable copy of `source`, written back with `save` shortly after edits
- * stop. Re-syncs from `source` when it changes and nothing is pending.
+ * stop. Saves run one at a time, in order. The copy re-syncs from `source` only when
+ * nothing is pending, in flight or failed, so a slow save's echo never overwrites
+ * newer edits and a failed save never discards them.
  */
 export function useAutosave<T>(source: T, save: (value: T) => Promise<void>, delay = 500) {
   const [value, setValue] = useState(source);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<Promise<void> | null>(null);
+  const failed = useRef(false);
   const latest = useRef(value);
   const saveRef = useRef(save);
   saveRef.current = save;
 
   useEffect(() => {
-    if (!pending.current) {
+    if (!pending.current && !queue.current && !failed.current) {
       setValue(source);
       latest.current = source;
     }
   }, [source]);
 
-  const flush = async () => {
-    if (!pending.current) return;
-    clearTimeout(pending.current);
+  const flush = useCallback(async () => {
+    if (!pending.current && !failed.current) return queue.current ?? undefined;
+    if (pending.current) clearTimeout(pending.current);
     pending.current = null;
-    setStatus("saving");
+    failed.current = false;
+    const run = async () => {
+      setStatus("saving");
+      try {
+        await saveRef.current(latest.current);
+        setStatus("saved");
+        setError(null);
+      } catch (err) {
+        failed.current = true;
+        setStatus("error");
+        setError(errorMessage(err));
+      }
+    };
+    const queued: Promise<void> = (queue.current ?? Promise.resolve()).then(run);
+    queue.current = queued;
     try {
-      await saveRef.current(latest.current);
-      setStatus("saved");
-      setError(null);
-    } catch (err) {
-      setStatus("error");
-      setError(errorMessage(err));
+      await queued;
+    } finally {
+      if (queue.current === queued) queue.current = null;
     }
-  };
+  }, []);
 
   useEffect(
     () => () => {
       void flush();
     },
-    // Flush once on unmount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [flush],
   );
 
   const update = (next: T | ((prev: T) => T)) => {
@@ -53,5 +66,8 @@ export function useAutosave<T>(source: T, save: (value: T) => Promise<void>, del
     pending.current = setTimeout(() => void flush(), delay);
   };
 
-  return { value, update, status, error, flush };
+  /** Saves again after a failure (or saves pending edits now). */
+  const retry = useCallback(() => void flush(), [flush]);
+
+  return { value, update, status, error, flush, retry };
 }

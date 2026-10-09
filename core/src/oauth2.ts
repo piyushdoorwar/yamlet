@@ -20,6 +20,91 @@ export interface OAuth2RequestOptions {
 
 type Resolve = (s: string) => string;
 
+/**
+ * A token request that failed. `kind` says whose problem it is: `config` (fix the
+ * settings), `network` (the token URL could not be reached) or `provider` (the
+ * authorization server answered with an error).
+ */
+export class OAuth2Error extends Error {
+  constructor(
+    public readonly kind: "config" | "network" | "provider",
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = "OAuth2Error";
+  }
+}
+
+const UNRESOLVED = /\{\{\s*([^{}\s]+)\s*\}\}/;
+
+/** Resolves a URL field and checks it can be requested. */
+function resolveUrl(label: string, raw: string, resolve: Resolve): string {
+  const url = resolve(raw).trim();
+  if (!url) throw new OAuth2Error("config", `${label} is not set`);
+  const missing = UNRESOLVED.exec(url);
+  if (missing) throw new OAuth2Error("config", `${label} uses {{${missing[1]}}}, which is not defined in any active scope`);
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new OAuth2Error("config", `${label} is not a valid URL: ${url}`);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new OAuth2Error("config", `${label} must start with http:// or https://`);
+  return url;
+}
+
+const NETWORK_HINTS: Record<string, string> = {
+  ENOTFOUND: "the host name could not be found",
+  EAI_AGAIN: "the host name could not be resolved",
+  ECONNREFUSED: "the connection was refused",
+  ECONNRESET: "the connection was reset",
+  ETIMEDOUT: "the connection timed out",
+  UND_ERR_CONNECT_TIMEOUT: "the connection timed out",
+  UND_ERR_HEADERS_TIMEOUT: "the server took too long to answer",
+  UND_ERR_BODY_TIMEOUT: "the server took too long to answer",
+  CERT_HAS_EXPIRED: "the server's TLS certificate has expired",
+  DEPTH_ZERO_SELF_SIGNED_CERT: "the server uses a self-signed TLS certificate",
+  SELF_SIGNED_CERT_IN_CHAIN: "the server's TLS certificate chain is self-signed",
+  UNABLE_TO_VERIFY_LEAF_SIGNATURE: "the server's TLS certificate could not be verified",
+};
+
+function networkError(url: string, err: unknown): OAuth2Error {
+  const e = err as { code?: string; message?: string; cause?: { code?: string; message?: string } };
+  const code = e?.cause?.code ?? e?.code;
+  const reason = (code && NETWORK_HINTS[code]) ?? e?.cause?.message ?? e?.message ?? String(err);
+  let host = url;
+  try {
+    host = new URL(url).host;
+  } catch {
+    // keep the raw URL
+  }
+  return new OAuth2Error("network", `Could not reach the token URL (${host}): ${reason}`);
+}
+
+/** The provider's own error (RFC 6749 `error` / `error_description`), or a body excerpt. */
+function providerError(status: number, text: string): OAuth2Error {
+  let detail = "";
+  try {
+    const o = JSON.parse(text) as Record<string, unknown>;
+    const err = typeof o.error === "string" ? o.error : typeof o.message === "string" ? o.message : "";
+    const desc = typeof o.error_description === "string" ? o.error_description : "";
+    detail = [err, desc].filter(Boolean).join(": ");
+  } catch {
+    const form = new URLSearchParams(text);
+    if (form.get("error")) detail = [form.get("error"), form.get("error_description")].filter(Boolean).join(": ");
+  }
+  if (!detail) detail = text.trim().replace(/\s+/g, " ").slice(0, 300) || "empty response";
+  const hint = /invalid_client/i.test(detail)
+    ? " Check the client ID and secret, and whether the provider expects them in the Basic auth header or the request body."
+    : /invalid_grant/i.test(detail)
+      ? " The username, password, code or refresh token was rejected."
+      : /invalid_scope/i.test(detail)
+        ? " Check the scope value."
+        : "";
+  return new OAuth2Error("provider", `The token endpoint answered ${status}: ${detail}.${hint}`, status);
+}
+
 const base64url = (buf: Buffer) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export function createPkce(method: "S256" | "plain" = "S256"): { verifier: string; challenge: string } {
@@ -33,8 +118,7 @@ export function buildAuthorizationUrl(
   resolve: Resolve,
   opts: { state: string; codeChallenge?: string; redirectUri: string },
 ): string {
-  const authUrl = resolve(cfg.authUrl).trim();
-  if (!authUrl) throw new Error("OAuth 2.0 authorization URL is not set");
+  const authUrl = resolveUrl("Auth URL", cfg.authUrl, resolve);
   const params = new URLSearchParams({ response_type: "code", client_id: resolve(cfg.clientId), redirect_uri: opts.redirectUri });
   const scope = resolve(cfg.scope).trim();
   if (scope) params.set("scope", scope);
@@ -54,14 +138,14 @@ function parseTokenBody(text: string, contentType: string): TokenResponse {
     try {
       raw = JSON.parse(text);
     } catch {
-      throw new Error(`Token endpoint returned a non-JSON response: ${text.slice(0, 200)}`);
+      throw new OAuth2Error("provider", `The token endpoint did not return JSON: ${text.trim().slice(0, 200) || "empty response"}`);
     }
   }
   const o = (raw ?? {}) as Record<string, unknown>;
   const accessToken = typeof o.access_token === "string" ? o.access_token : "";
   if (!accessToken) {
-    const err = o.error ? `${o.error}${o.error_description ? `: ${o.error_description}` : ""}` : "no access_token in response";
-    throw new Error(`Token request failed: ${err}`);
+    const err = o.error ? `${o.error}${o.error_description ? `: ${o.error_description}` : ""}` : "the response has no access_token";
+    throw new OAuth2Error("provider", `Token request failed: ${err}`);
   }
   const expires = Number(o.expires_in);
   const result: TokenResponse = { accessToken, raw };
@@ -77,8 +161,7 @@ async function requestToken(
   form: Record<string, string>,
   opts: OAuth2RequestOptions = {},
 ): Promise<TokenResponse> {
-  const url = resolve(cfg.accessTokenUrl).trim();
-  if (!url) throw new Error("OAuth 2.0 access token URL is not set");
+  const url = resolveUrl("Token URL", cfg.accessTokenUrl, resolve);
   const clientId = resolve(cfg.clientId);
   const clientSecret = resolve(cfg.clientSecret);
   const headers: Record<string, string> = {
@@ -92,17 +175,22 @@ async function requestToken(
   } else if (clientId || clientSecret) {
     headers.authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`, "utf8").toString("base64")}`;
   }
-  const res = await request(url, {
-    method: "POST",
-    headers,
-    body: body.toString(),
-    dispatcher: opts.dispatcher ?? defaultAgent(),
-    signal: opts.signal,
-  });
-  const text = await res.body.text();
-  if (res.statusCode < 200 || res.statusCode >= 300) {
-    throw new Error(`Token request failed (${res.statusCode}): ${text.slice(0, 500)}`);
+  let res: Dispatcher.ResponseData;
+  let text: string;
+  try {
+    res = await request(url, {
+      method: "POST",
+      headers,
+      body: body.toString(),
+      dispatcher: opts.dispatcher ?? defaultAgent(),
+      signal: opts.signal,
+    });
+    text = await res.body.text();
+  } catch (err) {
+    if (opts.signal?.aborted) throw err;
+    throw networkError(url, err);
   }
+  if (res.statusCode < 200 || res.statusCode >= 300) throw providerError(res.statusCode, text);
   const ct = res.headers["content-type"];
   return parseTokenBody(text, String(Array.isArray(ct) ? ct[0] : ct ?? ""));
 }

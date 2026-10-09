@@ -172,6 +172,7 @@ samples/  a ready-to-run workspace
 | `YAMLET_PUBLIC_URL` | `http://localhost:$PORT` | Base URL for the OAuth 2.0 redirect |
 | `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
 | `YAMLET_TIMEOUT_MS` | `30000` | Default request timeout |
+| `YAMLET_UPDATE_CHECK` | `1` | Set to `0` to stop the hourly check for a newer release on GitHub (only made while the app is open; never in dev builds) |
 | `YAMLET_INTERCEPTOR_DATA_DIR` | `/data` in the container | Private pairing state; mount a persistent volume for container recreation |
 
 ## Releases

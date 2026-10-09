@@ -33,8 +33,10 @@
   --color-s-client-ink: #7a4a00;
   --color-s-server: #fde4e9;
   --color-s-server-ink: #8f0620;
-  --color-var-ok: #b26a00;
-  --color-var-missing: #ba0724;
+  --color-var-ok: #0b7a3f;
+  --color-var-missing: #a35f00;
+  --color-var-ok-soft: rgba(14, 122, 67, 0.1);
+  --color-var-missing-soft: rgba(214, 140, 0, 0.16);
   --color-m-get: #0e7a43;
   --color-m-post: #b26a00;
   --color-m-put: #1f5fbf;
@@ -50,61 +52,63 @@
 /* Editor tokens (read by CodeMirror's theme, not by utilities). */
 :root {
   color-scheme: light;
-  --syn-property: #1f5fbf;
-  --syn-string: #0b6537;
-  --syn-number: #b26a00;
+  --syn-property: #a1288f;
+  --syn-string: #0a7a45;
+  --syn-number: #1c5fd0;
+  --syn-atom: #c25400;
   --syn-keyword: #7442c8;
   --syn-comment: #8b968f;
   --syn-type: #0e7a43;
-  --syn-punct: #6b7a71;
+  --syn-punct: #7d8a82;
   --editor-active-line: rgba(14, 122, 67, 0.035);
   --editor-selection: rgba(14, 122, 67, 0.16);
   --editor-fold-line: #cfe5d7;
   --editor-search: rgba(178, 106, 0, 0.18);
-  --var-ok-bg: rgba(178, 106, 0, 0.09);
-  --var-missing-bg: rgba(186, 7, 36, 0.08);
+  --var-missing-line: rgba(178, 106, 0, 0.55);
   --scroll-thumb: rgba(14, 122, 67, 0.4);
   --scroll-thumb-hover: rgba(14, 122, 67, 0.65);
   --shadow-pop: 0 8px 24px rgba(15, 26, 20, 0.12);
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234b5a52' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
-/* Dark theme follows the OS setting; there is no in-app switch. Unlayered, so it
-   overrides the @theme values above. */
+/* Dark theme follows the OS setting; there is no in-app switch. Neutral charcoal
+   surfaces with the green accent. Unlayered, so it overrides the @theme values above. */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
     --color-primary: #15904f;
     --color-primary-hover: #1a9a57;
     --color-primary-soft: rgba(46, 184, 110, 0.16);
-    --color-primary-tint: #15281e;
-    --color-grey: #a3b0a8;
+    --color-primary-tint: #1b2a21;
+    --color-grey: #acafad;
     --color-danger: #de4058;
-    --color-danger-soft: #2c171c;
+    --color-danger-soft: #2e1a1d;
     --color-warning: #e3a443;
-    --color-ink: #e8eeea;
-    --color-body: #cdd6d0;
-    --color-muted: #84918a;
-    --color-line: #2b3530;
-    --color-line-soft: #212925;
-    --color-canvas: #121714;
-    --color-surface: #171d1a;
-    --color-page: #101512;
-    --color-subtle: #1b221e;
-    --color-line-strong: #3b4741;
-    --color-placeholder: #66736b;
-    --color-faint: #56635c;
+    --color-ink: #f2f3f2;
+    --color-body: #d7d9d8;
+    --color-muted: #8e9290;
+    --color-line: #303131;
+    --color-line-soft: #262727;
+    --color-canvas: #181818;
+    --color-surface: #1e1e1e;
+    --color-page: #141414;
+    --color-subtle: #232323;
+    --color-line-strong: #424443;
+    --color-placeholder: #6f7371;
+    --color-faint: #5c5f5e;
     --color-danger-line: #5a2631;
     --color-danger-ink: #ff9fb0;
-    --color-var-ok: #e3a443;
-    --color-var-missing: #f0657c;
+    --color-var-ok: #5fd896;
+    --color-var-missing: #f2bd5e;
+    --color-var-ok-soft: rgba(46, 184, 110, 0.15);
+    --color-var-missing-soft: rgba(242, 189, 94, 0.16);
     --color-m-get: #3cc27a;
     --color-m-post: #e3a443;
     --color-m-put: #6ea4f2;
     --color-m-patch: #b391f2;
     --color-m-delete: #f0657c;
     --color-m-query: #3fc0c8;
-    --color-m-other: #95a39b;
+    --color-m-other: #9a9e9c;
     --color-s-success: #173a27;
     --color-s-success-ink: #84e2ac;
     --color-s-redirect: #1a2d4b;
@@ -113,23 +117,23 @@
     --color-s-client-ink: #f0c274;
     --color-s-server: #45202a;
     --color-s-server-ink: #ffa3b3;
-    --syn-property: #7fb0f5;
-    --syn-string: #6fd39a;
-    --syn-number: #e9b05c;
+    --syn-property: #e591d6;
+    --syn-string: #74d6a0;
+    --syn-number: #84b6ff;
+    --syn-atom: #f4a463;
     --syn-keyword: #c2a0f5;
-    --syn-comment: #6e7d74;
+    --syn-comment: #737775;
     --syn-type: #4fc787;
-    --syn-punct: #8d9a92;
+    --syn-punct: #858987;
     --editor-active-line: rgba(46, 184, 110, 0.05);
     --editor-selection: rgba(46, 184, 110, 0.24);
     --editor-fold-line: #24523a;
     --editor-search: rgba(227, 164, 67, 0.25);
-    --var-ok-bg: rgba(227, 164, 67, 0.14);
-    --var-missing-bg: rgba(240, 101, 124, 0.14);
+    --var-missing-line: rgba(242, 189, 94, 0.6);
     --scroll-thumb: rgba(46, 184, 110, 0.4);
     --scroll-thumb-hover: rgba(46, 184, 110, 0.65);
-    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.45);
-    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a3b0a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.55);
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23acafad' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
 }
 
@@ -367,15 +371,17 @@ button:disabled {
 }
 .cm-var-ok {
   color: var(--color-var-ok);
-  background: var(--var-ok-bg);
+  background: var(--color-var-ok-soft);
   border-radius: 3px;
   font-weight: 500;
 }
 .cm-var-missing {
   color: var(--color-var-missing);
-  background: var(--var-missing-bg);
+  background: var(--color-var-missing-soft);
   border-radius: 3px;
   font-weight: 500;
+  text-decoration: underline dotted var(--var-missing-line);
+  text-underline-offset: 3px;
 }
 .cm-tooltip.cm-var-tip {
   border: 1px solid var(--color-line);
@@ -383,6 +389,7 @@ button:disabled {
   background: var(--color-surface);
   box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
+  overflow: hidden;
 }
 .cm-tooltip-autocomplete {
   border: 1px solid var(--color-line) !important;
@@ -392,6 +399,7 @@ button:disabled {
   color: var(--color-body);
   box-shadow: var(--shadow-pop);
   font-family: var(--font-sans);
+  overflow: hidden;
 }
 .cm-tooltip-autocomplete > ul > li[aria-selected] {
   background: var(--color-primary) !important;

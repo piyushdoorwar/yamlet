@@ -27,6 +27,20 @@ export interface ServerInfo {
   oauthCallbackUrl: string;
 }
 
+/** Result of the hourly check for a newer Yamlet release. */
+export interface UpdateInfo {
+  /** False for dev builds or with YAMLET_UPDATE_CHECK=0. */
+  enabled: boolean;
+  current: string;
+  latest?: string;
+  available: boolean;
+  releaseUrl?: string;
+  publishedAt?: string;
+  checkedAt?: string;
+  /** Why the last check failed (the previous result is kept). */
+  error?: string;
+}
+
 export interface FsEntry {
   name: string;
   path: string;

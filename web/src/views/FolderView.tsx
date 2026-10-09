@@ -16,7 +16,7 @@ export function FolderView({ folderId }: { folderId: string }) {
   const openTab = useStore((s) => s.openTab);
   const actions = useActions();
   const loc = useMemo(() => findFolder(workspace, folderId), [workspace, folderId]);
-  const { value, update, status, error } = useAutosave(loc?.folder.description ?? "", async (description) => {
+  const { value, update, status, error, retry } = useAutosave(loc?.folder.description ?? "", async (description) => {
     const res = await api.updateFolder(folderId, { description });
     applyWorkspace(res.workspace);
   });
@@ -32,7 +32,7 @@ export function FolderView({ folderId }: { folderId: string }) {
         subtitle={[collection.name, ...loc.folders.map((f) => f.name)].join(" / ")}
         actions={
           <>
-            <SaveStatus status={status} error={error} />
+            <SaveStatus status={status} error={error} onRetry={retry} />
             <Button variant="cancel" icon={FolderPlus} onClick={() => void actions.newFolder(collection.id, folder.id)}>
               Add folder
             </Button>

@@ -17,6 +17,7 @@ import {
   type ServerInfo,
   type TokenBody,
   type TokenResult,
+  type UpdateInfo,
   type UploadResult,
   WORKSPACE_HEADER,
   type WorkspaceResult,
@@ -79,6 +80,7 @@ const enc = encodeURIComponent;
 
 export const api = {
   info: () => request<ServerInfo>("GET", "/api/info"),
+  update: (refresh = false) => request<UpdateInfo>("GET", `/api/update${refresh ? "?refresh=1" : ""}`),
   listDir: (path?: string, files = false) =>
     request<FsListing>("GET", `/api/fs/list?${new URLSearchParams({ ...(path ? { path } : {}), ...(files ? { files: "1" } : {}) })}`),
 

@@ -24,6 +24,7 @@ const app = await buildApp({
     publicUrl: process.env.YAMLET_PUBLIC_URL ?? `http://localhost:${port}`,
     defaultTimeoutMs: Number(process.env.YAMLET_TIMEOUT_MS ?? 30_000),
     interceptorDataDir: process.env.YAMLET_INTERCEPTOR_DATA_DIR ?? (inContainer ? "/data" : resolve(homedir(), ".config/yamlet")),
+    updateCheck: process.env.YAMLET_UPDATE_CHECK !== "0" && (process.env.APP_VERSION ?? "dev") !== "dev",
   },
   webRoot,
   logger: true,

@@ -1,6 +1,6 @@
 import type { Auth, Variable, YamletCollection } from "@core/models";
 import { FilePlus, FolderPlus, Layers, Play } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { AuthEditor } from "../components/AuthEditor";
 import { Button } from "../components/Button";
 import { KeyValueTable } from "../components/KeyValueTable";
@@ -12,7 +12,7 @@ import { useStore } from "../lib/store";
 import { countRequests } from "../lib/tree";
 import { useActions } from "../lib/useActions";
 import { useAutosave } from "../lib/useAutosave";
-import { useVariableContext, useVariableSource } from "../lib/variables";
+import { upsertVariable, useVariableContext, useVariableSource, useVariableTargets } from "../lib/variables";
 import { ScriptsEditor } from "./request/ScriptsEditor";
 
 type Section = "overview" | "variables" | "auth" | "scripts";
@@ -37,12 +37,23 @@ export function CollectionView({ collectionId }: { collectionId: string }) {
     }),
     [collection],
   );
-  const { value, update, status, error } = useAutosave(source, async (v) => {
+  const { value, update, status, error, retry } = useAutosave(source, async (v) => {
     const res = await api.updateCollection(collectionId, v);
     applyWorkspace(res.workspace);
   });
   const ctx = useVariableContext(collectionId);
-  const vars = useVariableSource(useMemo(() => ({ ...ctx, collection: value.variables }), [ctx, value.variables]));
+  const updateRef = useRef(update);
+  updateRef.current = update;
+  // The page edits its own copy of the variables, so peek writes go there too.
+  const writeCollectionVariable = useCallback(
+    (name: string, value: string) => updateRef.current((v) => ({ ...v, variables: upsertVariable(v.variables, name, value) })),
+    [],
+  );
+  const targets = useVariableTargets({ collection: writeCollectionVariable });
+  const vars = useVariableSource(
+    useMemo(() => ({ ...ctx, collection: value.variables }), [ctx, value.variables]),
+    targets,
+  );
 
   if (!collection) return <p className="p-8 text-13 text-muted">This collection no longer exists.</p>;
 
@@ -54,7 +65,7 @@ export function CollectionView({ collectionId }: { collectionId: string }) {
         subtitle={`${countRequests(collection)} requests · ${collection.directoryPath ?? ""}`}
         actions={
           <>
-            <SaveStatus status={status} error={error} />
+            <SaveStatus status={status} error={error} onRetry={retry} />
             <Button variant="cancel" icon={FolderPlus} onClick={() => void actions.newFolder(collection.id, null)}>
               Add folder
             </Button>

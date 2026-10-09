@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import type { OAuth2Config } from "../../../core/src/models.js";
-import { buildAuthorizationUrl, createPkce, exchangeAuthorizationCode, fetchToken } from "../../../core/src/oauth2.js";
+import { buildAuthorizationUrl, createPkce, exchangeAuthorizationCode, fetchToken, OAuth2Error } from "../../../core/src/oauth2.js";
 import { resolveVariables, type VariableContext } from "../../../core/src/variableResolver.js";
 import type { WorkspaceStore } from "../../../core/src/workspaceStore.js";
 import type { AuthorizeResult, AuthorizeStatus, TokenBody, TokenResult } from "../../../shared/api.js";
@@ -18,6 +18,16 @@ interface PendingAuth {
 }
 
 const PENDING_TTL_MS = 10 * 60 * 1000;
+
+/** Settings problems are the caller's (400); unreachable or failing providers are upstream (502). */
+async function asHttp<T>(fn: () => Promise<T> | T): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof OAuth2Error) throw new HttpError(err.kind === "config" ? 400 : 502, err.message);
+    throw err;
+  }
+}
 
 function contextFor(store: WorkspaceStore, body: TokenBody): VariableContext {
   const collection = body.collectionId ? store.findCollection(body.collectionId) : undefined;
@@ -56,7 +66,7 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps):
     const { store } = await workspaces.fromHeaders(req.headers);
     if (!req.body?.config) throw new HttpError(400, "Missing OAuth 2.0 settings");
     const ctx = contextFor(store, req.body);
-    const token = await fetchToken(req.body.config, (s) => resolveVariables(s, ctx), { dispatcher: config.dispatcher });
+    const token = await asHttp(() => fetchToken(req.body.config, (s) => resolveVariables(s, ctx), { dispatcher: config.dispatcher }));
     return toResult(token);
   });
 
@@ -71,7 +81,7 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps):
     const state = randomBytes(16).toString("hex");
     const { verifier, challenge } = createPkce(cfg.challengeAlgorithm);
     const redirectUri = resolveVariables(cfg.redirectUri, ctx).trim() || callbackUrl;
-    const authUrl = buildAuthorizationUrl(cfg, (s) => resolveVariables(s, ctx), { state, codeChallenge: challenge, redirectUri });
+    const authUrl = await asHttp(() => buildAuthorizationUrl(cfg, (s) => resolveVariables(s, ctx), { state, codeChallenge: challenge, redirectUri }));
     pending.set(state, { config: cfg, ctx, verifier, redirectUri, status: { status: "pending" }, createdAt: Date.now() });
     return { authUrl, state };
   });
@@ -90,12 +100,12 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps):
       const p = req.query.state ? pending.get(req.query.state) : undefined;
       if (!p) return page("Authorization expired", "Start again from Yamlet.");
       if (req.query.error) {
-        const error = req.query.error_description || req.query.error;
+        const error = `The provider refused the sign-in: ${[req.query.error, req.query.error_description].filter(Boolean).join(": ")}`;
         p.status = { status: "error", error };
         return page("Authorization failed", escapeHtml(error));
       }
       if (!req.query.code) {
-        p.status = { status: "error", error: "No authorization code returned" };
+        p.status = { status: "error", error: "The provider redirected back without an authorization code" };
         return page("Authorization failed", "No authorization code was returned.");
       }
       try {

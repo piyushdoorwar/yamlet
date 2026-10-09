@@ -30,7 +30,7 @@ export function Card({ title, actions, children, className = "", flush }: { titl
   );
 }
 
-export function SaveStatus({ status, error }: { status: "idle" | "saving" | "saved" | "error"; error?: string | null }) {
+export function SaveStatus({ status, error, onRetry }: { status: "idle" | "saving" | "saved" | "error"; error?: string | null; onRetry?: () => void }) {
   if (status === "saving")
     return (
       <span className="flex items-center gap-1 text-12 text-muted">
@@ -39,8 +39,16 @@ export function SaveStatus({ status, error }: { status: "idle" | "saving" | "sav
     );
   if (status === "error")
     return (
-      <span className="flex items-center gap-1 text-12 text-danger" title={error ?? undefined}>
-        <CircleAlert size={13} aria-hidden /> Not saved
+      <span role="alert" className="flex max-w-md items-center gap-2 text-12 text-danger">
+        <CircleAlert size={13} className="shrink-0" aria-hidden />
+        <span className="truncate" title={error ?? undefined}>
+          Not saved{error ? `: ${error}` : ""}
+        </span>
+        {onRetry && (
+          <button type="button" className="shrink-0 rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft" onClick={onRetry}>
+            Retry
+          </button>
+        )}
       </span>
     );
   if (status === "saved")

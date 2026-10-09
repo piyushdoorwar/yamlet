@@ -26,7 +26,7 @@ tagged `dotnet-final`.
 - **Commits carry only the user's name.** No co-author trailers or "generated with"
   lines. Work directly on `main` (trunk-based); don't create feature branches.
 - **Theme follows the OS (`prefers-color-scheme`); there is no in-app switch.** Light:
-  white surfaces, dark-green accent. Dark: green-tinted dark surfaces, slightly brighter
+  white surfaces, dark-green accent. Dark: neutral charcoal surfaces, slightly brighter
   green. Colors are tokens in [web/src/styles.css](web/src/styles.css)
   (`--color-primary: #0e7a43`, overridden in the dark media query); never hard-code a
   color in a component, add a token with both values. The site (`site/styles.css`) and
@@ -182,10 +182,17 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   (Collections / Environments / History) and a tree whose selected row is solid green
   with white text.
 - Status bar (`views/StatusBar.tsx`) under the workbench: Cookies, Interceptor pairing
-  state, the response layout toggle (below / right), shortcuts and About with the version.
+  state, an "Update available" badge, the response layout toggle (below / right), shortcuts
+  and About with the version. The server checks GitHub's latest release at most hourly,
+  only when the UI asks (`server/src/updates.ts`, `/api/update`; off in dev and with
+  `YAMLET_UPDATE_CHECK=0`); About shows the update commands. The app never replaces its
+  own container.
 - Text editing surfaces use `CodeEditor` (CodeMirror 6): JSON/JS/XML/HTML/YAML modes,
-  folding, `{{variable}}` coloring (amber when defined, red when not), hover peek with
-  in-place "Set" (writes to the active environment), `{{` and `{{$` autocomplete.
+  folding, `{{variable}}` coloring (green when it resolves to a value, amber when undefined
+  or empty), a hover peek (`editor/VariablePeek.tsx`, a React root inside the tooltip)
+  whose Edit/Add opens a pinned card to write the value to a chosen scope (request,
+  collection, environment, globals; views editing a local copy pass their own writer via
+  `useVariableTargets`), `{{` and `{{$` autocomplete.
   Single-line mode is used for the URL bar and table cells.
 - Avoid `?? []` inside zustand selectors (a new array each call loops renders); use a
   module-level empty constant.

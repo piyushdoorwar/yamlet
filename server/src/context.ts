@@ -16,6 +16,8 @@ export interface ServerConfig {
   defaultTimeoutMs: number;
   /** Private state outside the workspace YAML files. */
   interceptorDataDir?: string;
+  /** Look for newer releases on GitHub (off unless set; index.ts turns it on). */
+  updateCheck?: boolean;
 }
 
 interface OpenWorkspace {

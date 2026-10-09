@@ -5,31 +5,21 @@ import { json } from "@codemirror/lang-json";
 import { xml } from "@codemirror/lang-xml";
 import { yaml } from "@codemirror/lang-yaml";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { EditorState, type Extension, Prec } from "@codemirror/state";
-import { Decoration, EditorView, hoverTooltip, keymap, MatchDecorator, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { EditorState, type Extension, Prec, StateEffect, StateField } from "@codemirror/state";
+import { closeHoverTooltips, Decoration, EditorView, hoverTooltip, keymap, MatchDecorator, showTooltip, type Tooltip, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import clsx from "clsx";
 import { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { DYNAMIC_VARIABLES } from "@core/dynamicVariables";
 import { PM_COMPLETIONS } from "./pmCompletions";
+import { isResolved, VariablePeek, type VariableSource } from "./VariablePeek";
+
+export type { VariableInfo, VariableSource, VariableTarget } from "./VariablePeek";
 
 export type EditorLanguage = "json" | "javascript" | "xml" | "html" | "yaml" | "text" | "graphql";
-
-export interface VariableInfo {
-  value: string;
-  scope: string;
-}
-
-/** What the editor needs to color, peek and edit `{{variables}}`. */
-export interface VariableSource {
-  lookup: (name: string) => VariableInfo | undefined;
-  names: () => { name: string; scope: string; value: string }[];
-  /** Write a value to the active environment; undefined when there is none. */
-  edit?: (name: string, value: string) => void;
-  /** Bumps whenever lookups would change, so decorations refresh. */
-  version: string;
-}
 
 export interface CodeEditorHandle {
   focus: () => void;
@@ -54,12 +44,6 @@ interface Props {
 }
 
 const PLACEHOLDER = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/g;
-const DYNAMIC_BY_NAME = new Map(DYNAMIC_VARIABLES.map((d) => [d.name.replace(/^\$/, ""), d]));
-
-function dynamicInfo(name: string) {
-  return name.startsWith("$") ? DYNAMIC_BY_NAME.get(name.slice(1)) : undefined;
-}
-
 // Colors come from CSS variables in styles.css, so the editor follows the OS light/dark setting.
 const editorTheme = EditorView.theme({
   "&": { backgroundColor: "var(--color-surface)", color: "var(--color-body)" },
@@ -79,7 +63,8 @@ const editorTheme = EditorView.theme({
 const highlight = HighlightStyle.define([
   { tag: t.propertyName, color: "var(--syn-property)" },
   { tag: [t.string, t.special(t.string)], color: "var(--syn-string)" },
-  { tag: [t.number, t.bool, t.null, t.atom], color: "var(--syn-number)" },
+  { tag: t.number, color: "var(--syn-number)" },
+  { tag: [t.bool, t.null, t.atom], color: "var(--syn-atom)", fontWeight: "500" },
   { tag: [t.keyword, t.operatorKeyword, t.controlKeyword, t.definitionKeyword], color: "var(--syn-keyword)" },
   { tag: [t.comment, t.lineComment, t.blockComment], color: "var(--syn-comment)", fontStyle: "italic" },
   { tag: [t.function(t.variableName), t.function(t.propertyName)], color: "var(--syn-property)" },
@@ -107,14 +92,15 @@ function languageExtension(lang: EditorLanguage): Extension {
   }
 }
 
+interface PinnedPeek {
+  name: string;
+  tooltip: Tooltip;
+}
+
 function variableExtensions(source: VariableSource): { ext: Extension; complete: (ctx: CompletionContext) => CompletionResult | null } {
   const decorator = new MatchDecorator({
     regexp: PLACEHOLDER,
-    decoration: (m) => {
-      const name = m[1];
-      const known = !!source.lookup(name) || !!dynamicInfo(name);
-      return Decoration.mark({ class: known ? "cm-var-ok" : "cm-var-missing" });
-    },
+    decoration: (m) => Decoration.mark({ class: isResolved(source, m[1]) ? "cm-var-ok" : "cm-var-missing" }),
   });
   const plugin = ViewPlugin.fromClass(
     class {
@@ -129,7 +115,37 @@ function variableExtensions(source: VariableSource): { ext: Extension; complete:
     { decorations: (v) => v.decorations },
   );
 
-  const tooltip = hoverTooltip((view, pos) => {
+  // The hover card closes when the mouse leaves it, so editing happens in a pinned
+  // card that stays open until it is saved, cancelled or clicked away from.
+  const pin = StateEffect.define<{ name: string; from: number; to: number } | null>();
+  const peekTooltip = (name: string, from: number, to: number, pinned: boolean): Tooltip => ({
+    pos: from,
+    end: to,
+    above: false,
+    create: (view) => {
+      const dom = document.createElement("div");
+      dom.className = "cm-var-tip";
+      const root = createRoot(dom);
+      const close = (refocus = true) => {
+        view.dispatch({ effects: pin.of(null) });
+        if (refocus) view.focus();
+      };
+      const edit = () => view.dispatch({ effects: [closeHoverTooltips, pin.of({ name, from, to })] });
+      flushSync(() => root.render(<VariablePeek name={name} source={source} pinned={pinned} onEdit={edit} onClose={close} />));
+      return { dom, destroy: () => queueMicrotask(() => root.unmount()) };
+    },
+  });
+  const pinned = StateField.define<PinnedPeek | null>({
+    create: () => null,
+    update(value, tr) {
+      for (const e of tr.effects) if (e.is(pin)) value = e.value ? { name: e.value.name, tooltip: peekTooltip(e.value.name, e.value.from, e.value.to, true) } : null;
+      return tr.docChanged ? null : value;
+    },
+    provide: (f) => showTooltip.from(f, (v) => v?.tooltip ?? null),
+  });
+
+  const hover = hoverTooltip((view, pos) => {
+    if (view.state.field(pinned)) return null;
     const line = view.state.doc.lineAt(pos);
     PLACEHOLDER.lastIndex = 0;
     let m: RegExpExecArray | null;
@@ -137,13 +153,7 @@ function variableExtensions(source: VariableSource): { ext: Extension; complete:
       const from = line.from + m.index;
       const to = from + m[0].length;
       if (pos < from || pos > to) continue;
-      const name = m[1];
-      return {
-        pos: from,
-        end: to,
-        above: true,
-        create: () => ({ dom: renderPeek(name, source) }),
-      };
+      return peekTooltip(m[1], from, to, false);
     }
     return null;
   });
@@ -168,67 +178,7 @@ function variableExtensions(source: VariableSource): { ext: Extension; complete:
     return { from, options, validFor: /^\$?[\w.\-]*$/ };
   };
 
-  return { ext: [plugin, tooltip], complete };
-}
-
-function renderPeek(name: string, source: VariableSource): HTMLElement {
-  const dom = document.createElement("div");
-  dom.className = "cm-var-tip";
-  dom.style.cssText = "padding:10px 12px;min-width:220px;max-width:360px;font-size:12px";
-  const title = document.createElement("div");
-  title.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px";
-  const nameEl = document.createElement("span");
-  nameEl.style.cssText = "font-family:var(--font-mono);font-weight:600;color:var(--color-ink)";
-  nameEl.textContent = name;
-  const scopeEl = document.createElement("span");
-  scopeEl.style.cssText = "font-size:11px;color:var(--color-muted);text-transform:uppercase;letter-spacing:.04em";
-  title.append(nameEl, scopeEl);
-  dom.append(title);
-
-  const dyn = dynamicInfo(name);
-  if (dyn) {
-    scopeEl.textContent = "dynamic";
-    const desc = document.createElement("div");
-    desc.style.color = "var(--color-grey)";
-    desc.textContent = dyn.description;
-    const ex = document.createElement("div");
-    ex.style.cssText = "margin-top:6px;font-family:var(--font-mono);color:var(--syn-string);word-break:break-all";
-    ex.textContent = `e.g. ${dyn.example}`;
-    dom.append(desc, ex);
-    return dom;
-  }
-
-  const info = source.lookup(name);
-  scopeEl.textContent = info ? info.scope : "undefined";
-  if (!source.edit) {
-    const val = document.createElement("div");
-    val.style.cssText = "font-family:var(--font-mono);word-break:break-all;color:" + (info ? "var(--color-body)" : "var(--color-danger)");
-    val.textContent = info ? info.value || "(empty)" : "Not defined in any active scope";
-    dom.append(val);
-    return dom;
-  }
-  const form = document.createElement("form");
-  form.style.cssText = "display:flex;gap:6px";
-  const input = document.createElement("input");
-  input.className = "input";
-  input.style.cssText = "height:28px;font-family:var(--font-mono);font-size:12px";
-  input.value = info?.value ?? "";
-  input.placeholder = "Value";
-  const save = document.createElement("button");
-  save.type = "submit";
-  save.className = "btn btn-primary btn-sm";
-  save.textContent = "Set";
-  form.append(input, save);
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    source.edit?.(name, input.value);
-    save.textContent = "Saved";
-  });
-  const hint = document.createElement("div");
-  hint.style.cssText = "margin-top:6px;font-size:11px;color:var(--color-muted)";
-  hint.textContent = info && info.scope !== "environment" ? `Defined in ${info.scope}. Setting writes to the active environment.` : "Writes to the active environment.";
-  dom.append(form, hint);
-  return dom;
+  return { ext: [plugin, pinned, hover], complete };
 }
 
 const singleLineExtensions: Extension = [

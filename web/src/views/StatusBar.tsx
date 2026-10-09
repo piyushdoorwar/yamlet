@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import { Cookie, Info, Keyboard, PanelBottom, PanelRight } from "lucide-react";
+import { ArrowUpCircle, Cookie, Info, Keyboard, PanelBottom, PanelRight } from "lucide-react";
 import { useEffect } from "react";
 import { refreshInterceptorStatus, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
 import { useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
+import { useUpdatePolling, useUpdates } from "../lib/updates";
 
 const item = "inline-flex h-6 items-center gap-1.5 rounded px-1.5 text-grey transition-colors hover:bg-primary-soft hover:text-primary";
 
@@ -32,6 +33,8 @@ export function StatusBar() {
   const paired = useInterceptorPaired((s) => s.paired);
   const extension = useInterceptorExtension();
   useInterceptorStatusPolling(rootPath);
+  useUpdatePolling();
+  const update = useUpdates((s) => (s.info?.available ? s.info : null));
 
   // Only worth a mention once the extension is around or has been paired.
   const interceptor = paired ? "Interceptor connected" : extension ? "Interceptor not paired" : null;
@@ -50,6 +53,16 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-1">
+        {update && (
+          <button
+            type="button"
+            className="inline-flex h-6 items-center gap-1.5 rounded-full bg-primary-soft px-2 font-medium text-primary transition-colors hover:bg-primary hover:text-white"
+            title={`Yamlet ${update.latest} is available`}
+            onClick={() => setModal({ kind: "about" })}
+          >
+            <ArrowUpCircle size={13} aria-hidden /> Update available
+          </button>
+        )}
         <button
           type="button"
           className={item}
