@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultAuth, newCollection, newRequest, type YamletRequest } from "../src/models.js";
+import { defaultAuth, defaultSettings, newCollection, newRequest, type YamletRequest } from "../src/models.js";
 import {
   applyCollectionDefinition,
   applyCollectionMetadata,
@@ -205,7 +205,7 @@ describe("request files", () => {
   it("round-trips settings, examples, secrets, description and new body types", () => {
     const r = newRequest({
       description: "Lists things",
-      settings: { timeoutMs: 1500, followRedirects: false, skipSslVerification: true },
+      settings: { ...defaultSettings(), timeoutMs: 1500, followRedirects: false, skipSslVerification: true, maxRedirects: 3, followOriginalMethod: true, disableCookieJar: true },
       examples: [{ id: "ex1", name: "OK", status: 200, headers: [{ key: "Content-Type", value: "application/json", enabled: true }], body: "{}", contentType: "application/json" }],
       variables: [{ key: "token", value: "s3cret", enabled: true, secret: true }],
       body: { ...newRequest().body, type: "graphql", graphqlQuery: "{ me { id } }", graphqlVariables: '{"a":1}' },
@@ -214,7 +214,7 @@ describe("request files", () => {
     expect(yaml).toContain("type: secret");
     const back = roundTrip(r);
     expect(back.description).toBe("Lists things");
-    expect(back.settings).toEqual({ timeoutMs: 1500, followRedirects: false, skipSslVerification: true });
+    expect(back.settings).toEqual({ ...defaultSettings(), timeoutMs: 1500, followRedirects: false, skipSslVerification: true, maxRedirects: 3, followOriginalMethod: true, disableCookieJar: true });
     expect(back.examples).toEqual(r.examples);
     expect(back.variables[0].secret).toBe(true);
     expect(back.body.type).toBe("graphql");

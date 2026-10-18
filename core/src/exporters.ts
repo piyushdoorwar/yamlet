@@ -99,9 +99,19 @@ function v2Request(r: YamletRequest): Obj {
     ...(r.description ? { description: r.description } : {}),
   };
   const ev = events(r.preRequestScript, r.postResponseScript);
+  const s = r.settings;
+  const behavior: Obj = {
+    ...(s.followRedirects === false ? { followRedirects: false } : {}),
+    ...(s.skipSslVerification ? { strictSSL: false } : {}),
+    ...(s.maxRedirects !== undefined && s.maxRedirects !== 10 ? { maxRedirects: s.maxRedirects } : {}),
+    ...(s.followOriginalMethod ? { followOriginalHttpMethod: true } : {}),
+    ...(s.followAuthorizationHeader ? { followAuthorizationHeader: true } : {}),
+    ...(s.disableCookieJar ? { disableCookies: true } : {}),
+  };
   return {
     name: r.name,
     ...(ev ? { event: ev } : {}),
+    ...(Object.keys(behavior).length ? { protocolProfileBehavior: behavior } : {}),
     request,
     response: r.examples.map((e) => v2Response(e, request)),
   };

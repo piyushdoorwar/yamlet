@@ -153,8 +153,9 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 - **Attachments live in the workspace.** Form-data file fields and binary bodies
   reference a path relative to the workspace root; uploads from the browser are copied
   into `<workspace>/files/`.
-- **Cookies** are kept per open workspace in memory (`CookieJar`), sent on matching
-  requests, and managed from the Cookies modal.
+- **Cookies** are kept per workspace (`CookieJar`), saved to `<dataDir>/cookies.json`
+  (`cookieFile.ts`; browser-synced ones are left out), sent on matching requests, and
+  added, edited or deleted from the Cookies modal. A request can turn the jar off.
 - **UI state lives in the browser.** Open tabs, active tab, chosen environment, request
   history, response layout and recent workspaces are in `localStorage`
   (`web/src/lib/storage.ts`); workspace content is always on disk. Request edits

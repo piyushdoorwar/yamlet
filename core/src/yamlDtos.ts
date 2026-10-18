@@ -637,6 +637,10 @@ export function readSettings(o: Obj): RequestSettings {
     bool(ssl.skipVerification) ??
     (bool(ssl.verify) === false ? true : undefined) ??
     false;
+  s.maxRedirects = int(raw.maxRedirects ?? behavior.maxRedirects) ?? s.maxRedirects;
+  s.followOriginalMethod = bool(raw.followOriginalMethod) ?? bool(behavior.followOriginalHttpMethod) ?? false;
+  s.followAuthorizationHeader = bool(raw.followAuthorizationHeader) ?? bool(behavior.followAuthorizationHeader) ?? false;
+  s.disableCookieJar = bool(raw.disableCookieJar) ?? bool(behavior.disableCookies) ?? false;
   return s;
 }
 
@@ -646,6 +650,10 @@ function writeSettings(s: RequestSettings | undefined): Obj | undefined {
   if (s.timeoutMs > 0) out.timeoutMs = s.timeoutMs;
   if (s.followRedirects === false) out.followRedirects = false;
   if (s.skipSslVerification) out.skipSslVerification = true;
+  if (s.maxRedirects !== undefined && s.maxRedirects !== defaultSettings().maxRedirects) out.maxRedirects = s.maxRedirects;
+  if (s.followOriginalMethod) out.followOriginalMethod = true;
+  if (s.followAuthorizationHeader) out.followAuthorizationHeader = true;
+  if (s.disableCookieJar) out.disableCookieJar = true;
   return Object.keys(out).length ? out : undefined;
 }
 

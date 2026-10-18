@@ -1,4 +1,8 @@
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { CookieFile } from "../src/cookieFile.js";
 import { CookieJar, parseSetCookie } from "../src/cookieJar.js";
 
 describe("CookieJar", () => {
@@ -49,5 +53,24 @@ describe("CookieJar", () => {
     expect(copy.cookieHeaderFor("https://b.test/")).toBeUndefined();
     copy.clear();
     expect(copy.list()).toEqual([]);
+  });
+});
+
+describe("cookie file", () => {
+  it("saves each workspace's jar, without browser-synced cookies, and loads it back", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "yamlet-cookies-"));
+    try {
+      const file = await CookieFile.open(dir);
+      const jar = file.jarFor("/ws/a");
+      jar.setFromResponse("https://api.test/login", ["sid=1; Path=/", "gone=x; Path=/; Max-Age=0"]);
+      jar.replaceBrowserSite("chrome.test", [{ name: "b", value: "2", domain: "chrome.test", path: "/", hostOnly: true, secure: false, httpOnly: false }]);
+      expect(file.jarFor("/ws/a")).toBe(jar);
+      await file.flush();
+      const again = await CookieFile.open(dir);
+      expect(again.jarFor("/ws/a").list().map((c) => `${c.domain} ${c.name}=${c.value}`)).toEqual(["api.test sid=1"]);
+      expect(again.jarFor("/ws/b").list()).toEqual([]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

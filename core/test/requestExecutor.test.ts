@@ -4,7 +4,7 @@ import path from "node:path";
 import { FormData, MockAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CookieJar } from "../src/cookieJar.js";
-import { defaultAuth, defaultBody, newCollection, newEnvironment, newRequest, type Variable } from "../src/models.js";
+import { defaultAuth, defaultBody, defaultSettings, newCollection, newEnvironment, newRequest, type Variable } from "../src/models.js";
 import { clearTokenCache } from "../src/oauth2.js";
 import { execute, type ExecuteInput } from "../src/requestExecutor.js";
 
@@ -330,6 +330,31 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(noFollow.response.statusCode).toBe(302);
     expect(noFollow.response.redirects).toBeUndefined();
     expect(noFollow.response.cookies).toContainEqual(expect.objectContaining({ name: "sid", value: "abc", domain: "site.test", path: "/" }));
+  });
+
+  it("honors max redirects, keeping the method, keeping auth across hosts and skipping the jar", async () => {
+    route("https://a.test", (s) => {
+      if (s.path === "/1") return { status: 302, headers: { location: "/2" } };
+      if (s.path === "/2") return { status: 302, headers: { location: "https://b.test/3", "set-cookie": "k=v; Path=/" } };
+      return { status: 200 };
+    });
+    route("https://b.test", (s) => ({ status: 200, body: `${s.method} auth=${h(s, "authorization") ?? ""}` }));
+    const settings = (patch: Partial<ReturnType<typeof defaultSettings>>) => ({ ...defaultSettings(), ...patch });
+    const post = (patch: Partial<ReturnType<typeof defaultSettings>>, cookieJar?: CookieJar) =>
+      send({
+        request: newRequest({ method: "POST", url: "https://a.test/1", headers: [{ key: "Authorization", value: "Bearer t", enabled: true }], body: { ...defaultBody(), type: "text", raw: "x" }, settings: settings(patch) }),
+        cookieJar,
+      });
+
+    expect((await post({ maxRedirects: 1 })).response.statusCode).toBe(302);
+    expect((await post({})).response.body).toBe("GET auth=");
+    expect((await post({ followOriginalMethod: true, followAuthorizationHeader: true })).response.body).toBe("POST auth=Bearer t");
+
+    const jar = new CookieJar();
+    await post({ disableCookieJar: true }, jar);
+    expect(jar.cookieHeaderFor("https://a.test/")).toBeFalsy();
+    await post({}, jar);
+    expect(jar.cookieHeaderFor("https://a.test/")).toBe("k=v");
   });
 
   it("backs pm.sendRequest with the same transport", async () => {

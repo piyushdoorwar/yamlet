@@ -167,6 +167,17 @@ describe("send", () => {
     expect(events[2]).toMatchObject({ bodyStreamed: true, result: { response: { body: "", sizeBytes: 10 } } });
   });
 
+  it("adds, edits and lists cookies", async () => {
+    await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
+    const put = (payload: unknown) => app.inject({ method: "PUT", url: "/api/cookies", headers: W(), payload });
+    expect((await put({ cookie: { domain: ".API.test", path: "", name: "sid", value: "1" } })).statusCode).toBe(200);
+    expect((await put({ cookie: { domain: "api.test", path: "/", name: "sid", value: "2", secure: true }, original: { domain: "api.test", name: "sid", path: "/" } })).statusCode).toBe(200);
+    expect((await put({ cookie: { domain: "api.test", name: "bad name", value: "" } })).statusCode).toBe(400);
+    expect((await put({ cookie: { domain: "api.test", name: "x", value: "", expires: "soon" } })).statusCode).toBe(400);
+    const list = (await app.inject({ method: "GET", url: "/api/cookies", headers: W() })).json();
+    expect(list).toEqual([expect.objectContaining({ domain: "api.test", path: "/", name: "sid", value: "2", secure: true })]);
+  });
+
   it("uploads attachments into the workspace files/ folder", async () => {
     await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
     const boundary = "----yamlet";

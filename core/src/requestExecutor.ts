@@ -277,6 +277,11 @@ async function exchange(opts: {
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
   followRedirects: boolean;
+  maxRedirects?: number;
+  /** Keep the method and body on 301/302. */
+  keepMethod?: boolean;
+  /** Keep Authorization and Cookie headers across hosts. */
+  keepAuth?: boolean;
   jar?: CookieJar;
   onHead?: (status: number, headers: Record<string, string | string[] | undefined>, firstByteMs: number) => void;
   onChunk?: (chunk: Uint8Array) => void;
@@ -310,16 +315,16 @@ async function exchange(opts: {
     const setCookie = res.headers["set-cookie"];
     if (opts.jar && setCookie) opts.jar.setFromResponse(url, Array.isArray(setCookie) ? setCookie : [setCookie]);
     const location = headerValue(res.headers, "location");
-    if (opts.followRedirects && location && [301, 302, 303, 307, 308].includes(res.statusCode) && hop < MAX_REDIRECTS) {
+    if (opts.followRedirects && location && [301, 302, 303, 307, 308].includes(res.statusCode) && hop < (opts.maxRedirects ?? MAX_REDIRECTS)) {
       await res.body.dump();
       redirects.push({ statusCode: res.statusCode, url });
       const next = new URL(location, url);
-      if (next.host !== new URL(url).host) {
+      if (next.host !== new URL(url).host && !opts.keepAuth) {
         // Credentials set for one host are not forwarded to another.
         headers = headers.filter((h) => !["authorization", "cookie"].includes(h.key.toLowerCase()));
         explicitCookie = undefined;
       }
-      if (res.statusCode === 303 || ((res.statusCode === 301 || res.statusCode === 302) && method === "POST")) {
+      if (res.statusCode === 303 || ((res.statusCode === 301 || res.statusCode === 302) && method === "POST" && !opts.keepMethod)) {
         if (method !== "HEAD") method = "GET";
         body = undefined;
         headers = headers.filter((h) => !["content-type", "content-length"].includes(h.key.toLowerCase()));
@@ -579,7 +584,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
         dispatcher,
         signal,
         followRedirects: settings.followRedirects !== false,
-        jar: input.cookieJar,
+        maxRedirects: settings.maxRedirects,
+        keepMethod: settings.followOriginalMethod,
+        keepAuth: settings.followAuthorizationHeader,
+        jar: settings.disableCookieJar ? undefined : input.cookieJar,
         onHead: input.onHead && live
           ? (status, headers, firstByteMs) =>
               input.onHead!({ statusCode: status, reasonPhrase: STATUS_CODES[status] ?? "", headers: toHeaderList(headers), contentType: headerValue(headers, "content-type") ?? "", firstByteMs: Math.round(firstByteMs) })

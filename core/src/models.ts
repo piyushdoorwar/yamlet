@@ -112,6 +112,14 @@ export interface RequestSettings {
   timeoutMs: number;
   followRedirects: boolean;
   skipSslVerification: boolean;
+  /** Redirects followed before giving up (and showing the last 3xx). */
+  maxRedirects: number;
+  /** Keep the method and body on 301/302 instead of switching to GET. */
+  followOriginalMethod: boolean;
+  /** Keep Authorization and Cookie headers when a redirect goes to another host. */
+  followAuthorizationHeader: boolean;
+  /** Neither send cookies from the jar nor store the ones the response sets. */
+  disableCookieJar: boolean;
 }
 
 /** A saved response shown under a request ("example"). */
@@ -321,7 +329,7 @@ export function defaultBody(): RequestBody {
 }
 
 export function defaultSettings(): RequestSettings {
-  return { timeoutMs: 0, followRedirects: true, skipSslVerification: false };
+  return { timeoutMs: 0, followRedirects: true, skipSslVerification: false, maxRedirects: 10, followOriginalMethod: false, followAuthorizationHeader: false, disableCookieJar: false };
 }
 
 export function newRequest(partial: Partial<YamletRequest> = {}): YamletRequest {

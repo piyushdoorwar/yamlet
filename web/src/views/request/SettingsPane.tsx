@@ -25,6 +25,45 @@ export function SettingsPane({ settings, onChange }: { settings: RequestSettings
         checked={settings.followRedirects}
         onChange={(followRedirects) => onChange({ ...settings, followRedirects })}
       />
+      {settings.followRedirects && (
+        <>
+          <div className="flex items-start justify-between gap-6 border-b border-line-soft py-4">
+            <span>
+              <label htmlFor="req-max-redirects" className="block text-13 font-medium text-ink">
+                Maximum redirects
+              </label>
+              <span className="mt-0.5 block text-12 text-muted">After this many, the last redirect response is shown.</span>
+            </span>
+            <input
+              id="req-max-redirects"
+              type="number"
+              min={0}
+              max={100}
+              className="input w-32 text-right"
+              value={settings.maxRedirects ?? 10}
+              onChange={(e) => onChange({ ...settings, maxRedirects: Math.min(100, Math.max(0, Math.round(Number(e.target.value) || 0))) })}
+            />
+          </div>
+          <Toggle
+            label="Keep the method on redirect"
+            hint="Repeat POST, PUT and the body after a 301 or 302 instead of switching to GET. A 303 always becomes GET."
+            checked={!!settings.followOriginalMethod}
+            onChange={(followOriginalMethod) => onChange({ ...settings, followOriginalMethod })}
+          />
+          <Toggle
+            label="Keep the Authorization header on redirect"
+            hint="Send Authorization and Cookie headers to a different host when a redirect leads there."
+            checked={!!settings.followAuthorizationHeader}
+            onChange={(followAuthorizationHeader) => onChange({ ...settings, followAuthorizationHeader })}
+          />
+        </>
+      )}
+      <Toggle
+        label="Don't use the cookie jar"
+        hint="Send no stored cookies with this request, and don't store the cookies its response sets."
+        checked={!!settings.disableCookieJar}
+        onChange={(disableCookieJar) => onChange({ ...settings, disableCookieJar })}
+      />
       <Toggle
         label="Skip SSL certificate verification"
         hint="Accept self-signed or expired certificates for this request."

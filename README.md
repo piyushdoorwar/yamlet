@@ -97,8 +97,9 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   that JSON.
 - **Code snippets.** cURL, raw HTTP, JavaScript fetch, Node axios, Python requests, Go,
   C#, Java, PHP, PowerShell and Ruby.
-- **Cookies and history.** A cookie jar shared across requests, and a per-workspace
-  history of what you sent.
+- **Cookies and history.** A cookie jar per workspace, kept across restarts, where you
+  can add and edit cookies; a request can opt out of it. A per-workspace history of what
+  you sent: open the request, restore the version you sent, or save it as a new request.
 
 ## Workspace layout
 
@@ -199,7 +200,7 @@ samples/  a ready-to-run workspace
 | `YAMLET_MAX_RESPONSE_MB` | `50` | Initial maximum response size, until changed in Settings (`0` keeps everything) |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | | Used while Settings is on "Use the system proxy" (the default) |
 | `YAMLET_UPDATE_CHECK` | `1` | Set to `0` to stop the hourly check for a newer release on GitHub (only made while the app is open; never in dev builds) |
-| `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`), Settings (`settings.json`) and extension pairing; mount a persistent volume so they survive container recreation |
+| `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`), Settings (`settings.json`), cookies (`cookies.json`) and extension pairing; mount a persistent volume so they survive container recreation |
 | `YAMLET_INTERCEPTOR_DATA_DIR` | `YAMLET_DATA_DIR` | Private pairing state, if it should live elsewhere |
 
 ## Releases

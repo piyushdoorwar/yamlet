@@ -252,6 +252,10 @@ function v2Request(item: Obj, inherited: Inherited): YamletRequest {
   const behavior = behaviorOf(item.protocolProfileBehavior, inherited.behavior);
   if (behavior.followRedirects === false) req.settings.followRedirects = false;
   if (behavior.strictSSL === false) req.settings.skipSslVerification = true;
+  if (typeof behavior.maxRedirects === "number" && behavior.maxRedirects >= 0) req.settings.maxRedirects = behavior.maxRedirects;
+  if (behavior.followOriginalHttpMethod === true) req.settings.followOriginalMethod = true;
+  if (behavior.followAuthorizationHeader === true) req.settings.followAuthorizationHeader = true;
+  if (behavior.disableCookies === true) req.settings.disableCookieJar = true;
   return req;
 }
 

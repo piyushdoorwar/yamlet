@@ -1,4 +1,4 @@
-import { Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { CookieInfo } from "../../../shared/api";
 import { Button, IconButton } from "../components/Button";
@@ -18,6 +18,7 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
     }
   }, [toast]);
   useEffect(() => void load(), [load]);
+  const [editing, setEditing] = useState<{ cookie: CookieInfo; original?: CookieInfo } | null>(null);
   const domains = new Map<string, CookieInfo[]>();
   for (const c of cookies ?? []) domains.set(c.domain, [...(domains.get(c.domain) ?? []), c]);
 
@@ -33,11 +34,14 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title="Cookies"
-      subtitle="Set-Cookie responses are stored here and sent back on matching requests. Kept in memory until the server restarts."
+      subtitle="Cookies that responses set, or that you add, go back on matching requests. They are kept per workspace in Yamlet's data folder."
       onClose={onClose}
       width={760}
       footer={
         <>
+          <Button variant="cancel" icon={Plus} onClick={() => setEditing({ cookie: { domain: "", path: "/", name: "", value: "" } })}>
+            Add cookie
+          </Button>
           <Button variant="cancel" icon={RefreshCw} onClick={() => void load()}>
             Refresh
           </Button>
@@ -48,6 +52,19 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
       }
     >
       <ExtensionPairing onPaired={load} />
+      {editing && (
+        <CookieForm
+          initial={editing.cookie}
+          isNew={!editing.original}
+          onCancel={() => setEditing(null)}
+          onSave={(cookie) =>
+            act(async () => {
+              await api.saveCookie(cookie, editing.original && { domain: editing.original.domain, name: editing.original.name, path: editing.original.path });
+              setEditing(null);
+            })
+          }
+        />
+      )}
       {cookies === null ? (
         <p className="text-13 text-muted">Loading…</p>
       ) : cookies.length === 0 ? (
@@ -75,6 +92,7 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
                       {c.httpOnly ? " · HttpOnly" : ""}
                       {c.secure ? " · Secure" : ""}
                     </span>
+                    <IconButton icon={Pencil} label={`Edit ${c.name}`} onClick={() => setEditing({ cookie: c, original: c })} />
                     <IconButton icon={Trash2} label={`Delete ${c.name}`} danger onClick={() => void act(() => api.deleteCookie(c.domain, c.name, c.path))} />
                   </li>
                 ))}
@@ -84,6 +102,68 @@ export function CookiesModal({ onClose }: { onClose: () => void }) {
         </div>
       )}
     </Modal>
+  );
+}
+
+/** Adds a cookie or edits one; dates are entered in local time. */
+function CookieForm({ initial, isNew, onSave, onCancel }: { initial: CookieInfo; isNew: boolean; onSave: (c: CookieInfo) => Promise<void>; onCancel: () => void }) {
+  const toLocalInput = (iso?: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? "" : new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  };
+  const [c, setC] = useState({ ...initial, expires: toLocalInput(initial.expires) });
+  const [saving, setSaving] = useState(false);
+  const set = (patch: Partial<typeof c>) => setC((x) => ({ ...x, ...patch }));
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({ ...c, expires: c.expires ? new Date(c.expires).toISOString() : undefined });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <form onSubmit={(e) => void submit(e)} className="mb-5 grid grid-cols-2 gap-3 rounded-lg border border-line p-4" aria-label={isNew ? "Add cookie" : "Edit cookie"}>
+      <h3 className="col-span-2 text-13 font-semibold text-ink">{isNew ? "Add cookie" : `Edit ${initial.name}`}</h3>
+      <label className="flex flex-col gap-1">
+        <span className="label">Domain</span>
+        <input className="input font-mono" required placeholder="api.example.com" value={c.domain} onChange={(e) => set({ domain: e.target.value })} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">Path</span>
+        <input className="input font-mono" placeholder="/" value={c.path} onChange={(e) => set({ path: e.target.value })} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">Name</span>
+        <input className="input font-mono" required value={c.name} onChange={(e) => set({ name: e.target.value })} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">Value</span>
+        <input className="input font-mono" value={c.value} onChange={(e) => set({ value: e.target.value })} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="label">Expires (empty for a session cookie)</span>
+        <input className="input" type="datetime-local" value={c.expires} onChange={(e) => set({ expires: e.target.value })} />
+      </label>
+      <span className="flex items-end gap-4 pb-2 text-13">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="check" checked={!!c.secure} onChange={(e) => set({ secure: e.target.checked })} /> Secure
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" className="check" checked={!!c.httpOnly} onChange={(e) => set({ httpOnly: e.target.checked })} /> HttpOnly
+        </label>
+      </span>
+      <div className="col-span-2 flex justify-end gap-2">
+        <Button variant="cancel" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="primary" type="submit" disabled={saving}>
+          {isNew ? "Add" : "Save"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -91,6 +91,16 @@ function parseUrl(url: string): URL | undefined {
 
 export class CookieJar {
   private cookies: StoredCookie[] = [];
+  private listeners: (() => void)[] = [];
+
+  /** Called after every change (to save the jar). */
+  onChange(listener: () => void): void {
+    this.listeners.push(listener);
+  }
+
+  private changed(): void {
+    for (const l of this.listeners) l();
+  }
 
   /** Stores cookies from a response's Set-Cookie headers. */
   setFromResponse(url: string, setCookie: string[]): void {
@@ -125,6 +135,7 @@ export class CookieJar {
       if (idx >= 0) this.cookies.splice(idx, 1);
       if (!expired) this.cookies.push(stored);
     }
+    if (setCookie.length) this.changed();
   }
 
   /** Cookies that apply to a request URL, longest path first. */
@@ -154,23 +165,27 @@ export class CookieJar {
   /** Adds or replaces a cookie directly (e.g. from a cookie manager UI). */
   set(cookie: Omit<StoredCookie, "createdAt" | "hostOnly"> & { hostOnly?: boolean; createdAt?: string }): void {
     const domain = cookie.domain.replace(/^\./, "").toLowerCase();
-    this.remove(domain, cookie.name, cookie.path);
+    this.cookies = this.cookies.filter((c) => !(c.domain === domain && c.name === cookie.name && c.path === cookie.path));
     this.cookies.push({ ...cookie, domain, hostOnly: cookie.hostOnly ?? false, createdAt: cookie.createdAt ?? new Date().toISOString() });
+    this.changed();
   }
 
   /** Replace only cookies previously imported for this site. */
   replaceBrowserSite(site: string, cookies: Omit<StoredCookie, "createdAt" | "browserSite">[]): void {
     this.cookies = this.cookies.filter((cookie) => cookie.browserSite !== site);
     for (const cookie of cookies) this.set({ ...cookie, browserSite: site });
+    this.changed();
   }
 
   clearBrowserSites(): void {
     this.cookies = this.cookies.filter((cookie) => !cookie.browserSite);
+    this.changed();
   }
 
   remove(domain: string, name: string, path?: string): void {
     const d = domain.replace(/^\./, "").toLowerCase();
     this.cookies = this.cookies.filter((c) => !(c.domain === d && c.name === name && (path === undefined || c.path === path)));
+    this.changed();
   }
 
   clear(domain?: string): void {
@@ -179,6 +194,7 @@ export class CookieJar {
       const d = domain.replace(/^\./, "").toLowerCase();
       this.cookies = this.cookies.filter((c) => c.domain !== d);
     }
+    this.changed();
   }
 
   toJSON(): { cookies: StoredCookie[] } {

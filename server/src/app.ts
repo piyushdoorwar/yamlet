@@ -77,6 +77,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   interceptorRoutes(app, deps);
   fileRoutes(app, deps);
 
+  app.addHook("onClose", async () => workspaces.flush());
+
   const webRoot = opts.webRoot && existsSync(join(opts.webRoot, "index.html")) ? opts.webRoot : undefined;
   if (webRoot) await app.register(fastifyStatic, { root: webRoot });
 

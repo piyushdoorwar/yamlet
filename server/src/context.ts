@@ -1,4 +1,5 @@
 import type { Dispatcher } from "undici";
+import { CookieFile } from "../../core/src/cookieFile.js";
 import { CookieJar } from "../../core/src/cookieJar.js";
 import { LocalValuesFile } from "../../core/src/localValues.js";
 import { WorkspaceStore } from "../../core/src/workspaceStore.js";
@@ -38,6 +39,7 @@ export class Workspaces {
   private readonly open = new Map<string, OpenWorkspace>();
   private readonly pending = new Map<string, Promise<OpenWorkspace>>();
   private localValues?: Promise<LocalValuesFile>;
+  private cookieFile?: Promise<CookieFile>;
 
   constructor(private readonly config: ServerConfig) {}
 
@@ -46,6 +48,18 @@ export class Workspaces {
     if (!this.config.dataDir) return undefined;
     this.localValues ??= LocalValuesFile.open(this.config.dataDir);
     return (await this.localValues).forWorkspace(root);
+  }
+
+  /** A workspace's cookie jar: saved in the data folder when there is one, else in memory. */
+  private async jarFor(root: string): Promise<CookieJar> {
+    if (!this.config.dataDir) return new CookieJar();
+    this.cookieFile ??= CookieFile.open(this.config.dataDir);
+    return (await this.cookieFile).jarFor(root);
+  }
+
+  /** Saves pending cookie changes (on shutdown). */
+  async flush(): Promise<void> {
+    if (this.cookieFile) await (await this.cookieFile).flush();
   }
 
   async openAt(path: string, create = false): Promise<OpenWorkspace> {
@@ -64,7 +78,7 @@ export class Workspaces {
     const loading = (async () => {
       const options = { localValues: await this.localFor(root) };
       const store = create ? await WorkspaceStore.create(dir, options) : await WorkspaceStore.open(dir, options);
-      const entry = { store, cookies: existing?.cookies ?? new CookieJar() };
+      const entry = { store, cookies: existing?.cookies ?? (await this.jarFor(store.workspace.rootPath)) };
       this.open.set(store.workspace.rootPath, entry);
       return entry;
     })();
