@@ -1,7 +1,8 @@
-import { DEFAULT_REQUEST_HEADERS, type KeyValue, type PathVariable, type Variable, yamletUserAgent, type YamletCollection, type YamletRequest } from "@core/models";
+import { DEFAULT_REQUEST_HEADERS, type KeyValue, type PathVariable, type Variable, yamletUserAgent, type YamletCollection, type YamletFolder, type YamletRequest } from "@core/models";
+import { effectiveAuth } from "@core/requestBuilder";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import { AuthEditor } from "../../components/AuthEditor";
+import { AUTH_LABELS, AuthEditor } from "../../components/AuthEditor";
 import { KeyValueTable } from "../../components/KeyValueTable";
 import { StatusPill } from "../../components/Labels";
 import { CountBadge, Dot, UnderlineTabs } from "../../components/Tabs";
@@ -16,20 +17,11 @@ type PaneId = "params" | "auth" | "headers" | "body" | "scripts" | "vars" | "set
 const blankKv = (): KeyValue => ({ key: "", value: "", enabled: true });
 const blankVar = (): Variable => ({ key: "", value: "", enabled: true });
 
-const AUTH_LABEL: Record<string, string> = {
-  none: "No auth",
-  bearer: "Bearer token",
-  basic: "Basic auth",
-  digest: "Digest auth",
-  apikey: "API key",
-  cookie: "Cookie",
-  oauth2: "OAuth 2.0",
-  awsv4: "AWS Signature",
-};
-
 interface Props {
   request: YamletRequest;
   collection?: YamletCollection;
+  /** Folders around the request, outermost first. */
+  folders?: YamletFolder[];
   update: (fn: (r: YamletRequest) => YamletRequest) => void;
   variables: VariableSource;
 }
@@ -46,7 +38,7 @@ function Section({ title, children, hint }: { title: string; children: React.Rea
   );
 }
 
-export function RequestPanes({ request, collection, update, variables }: Props) {
+export function RequestPanes({ request, collection, folders, update, variables }: Props) {
   const [pane, setPane] = useState<PaneId>(request.body.type !== "none" && request.method !== "GET" ? "body" : "params");
   const set = (patch: Partial<YamletRequest>) => update((r) => ({ ...r, ...patch }));
 
@@ -109,7 +101,7 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
             variables={variables}
             collectionId={collection?.id}
             requestVariables={request.variables}
-            inheritedLabel={collection ? AUTH_LABEL[collection.auth.type] : undefined}
+            inheritedLabel={collection ? AUTH_LABELS[effectiveAuth({ ...request, auth: { ...request.auth, type: "inherit" } }, collection, folders).type] : undefined}
           />
         )}
 

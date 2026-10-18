@@ -1,7 +1,7 @@
 // Turns a YamletRequest into the concrete HTTP request that will be sent: variables
 // resolved, query and path parameters applied, auth and default headers added.
 // Isomorphic: shared by the executor and the UI's code snippets.
-import { yamletUserAgent, type Auth, type KeyValue, type YamletCollection, type YamletRequest } from "./models.js";
+import { yamletUserAgent, type Auth, type KeyValue, type YamletCollection, type YamletFolder, type YamletRequest } from "./models.js";
 import { resolveVariables, type VariableContext } from "./variableResolver.js";
 
 export type BuiltBody =
@@ -23,6 +23,8 @@ export interface BuiltRequest {
 export interface BuildOptions {
   ctx: VariableContext;
   collection?: YamletCollection;
+  /** Folders around the request, outermost first (for inherited auth). */
+  folders?: YamletFolder[];
   /** An OAuth2 access token obtained by the caller; overrides the stored one. */
   oauthToken?: string;
 }
@@ -36,9 +38,16 @@ const DEFAULT_CONTENT_TYPES: Record<string, string> = {
   graphql: "application/json",
 };
 
-/** Request auth, or the collection's when the request inherits. */
-export function effectiveAuth(request: YamletRequest, collection?: YamletCollection): Auth {
+/**
+ * Request auth; when the request inherits, the nearest enclosing folder's that doesn't,
+ * else the collection's. `folders` runs from the outermost folder to the innermost.
+ */
+export function effectiveAuth(request: YamletRequest, collection?: YamletCollection, folders: YamletFolder[] = []): Auth {
   if (request.auth?.type === "inherit") {
+    for (let i = folders.length - 1; i >= 0; i--) {
+      const a = folders[i].auth;
+      if (a && a.type !== "inherit") return a;
+    }
     return collection?.auth && collection.auth.type !== "inherit" ? collection.auth : { ...request.auth, type: "none" };
   }
   return request.auth;
@@ -145,7 +154,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   const hasHeader = (name: string) => headers.some((h) => h.key.toLowerCase() === name.toLowerCase());
 
   // Auth
-  const auth = effectiveAuth(request, opts.collection);
+  const auth = effectiveAuth(request, opts.collection, opts.folders);
   switch (auth.type) {
     case "bearer": {
       const token = r(auth.token);

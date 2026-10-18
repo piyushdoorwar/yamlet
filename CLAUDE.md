@@ -136,12 +136,14 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   win; each occurrence is fresh).
 - **Requests are built once, in the engine.** `requestBuilder.ts` turns a request and
   its scopes into a `BuiltRequest`. The executor sends it; the UI's code snippets
-  render it. Auth inheritance (`inherit` uses the collection's auth) lives there.
+  render it. Auth inheritance lives there: `inherit` uses the nearest enclosing folder
+  whose auth isn't `inherit`, else the collection's (`effectiveAuth(request, collection,
+  folders)`). Digest and AWS SigV4 are applied at send time (`authSigning.ts`).
 - **Every request sends `User-Agent: Yamlet/<version>`** (the running build's version, set
   at startup with `setYamletVersion`; `dev` in development). Shown as a locked row in the
   Headers tab; not persisted.
-- **Scripts** run in `node:vm` with a timeout: collection pre, request pre, send,
-  request post, collection post. Request-script errors abort the send;
+- **Scripts** run in `node:vm` with a timeout: collection pre, folder pres (outer first),
+  request pre, send, request post, folder posts (inner first), collection post. Request-script errors abort the send;
   collection-script errors are logged and swallowed. `pm.test` results are always
   captured (shown in the Tests tab, counted by the runner and CLI). Variable changes from
   `pm.environment/collectionVariables/globals.set` are persisted by the server after

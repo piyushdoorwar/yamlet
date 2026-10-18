@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectImportFormat, importCollectionV2, importEnvironmentJson, importOpenApi } from "../src/importers.js";
+import { effectiveAuth } from "../src/requestBuilder.js";
 
 const v21 = {
   info: { name: "Shop API", description: "All the things", schema: "https://schema.example/json/collection/v2.1.0/collection.json" },
@@ -87,7 +88,9 @@ describe("importCollectionV2", () => {
   });
 
   it("maps url objects, headers, path variables and examples", () => {
-    const list = importCollectionV2(v21).folders[0].requests[0];
+    const imported = importCollectionV2(v21);
+    const folder = imported.folders[0];
+    const list = folder.requests[0];
     expect(list.method).toBe("GET");
     expect(list.url).toBe("{{baseUrl}}/products/:category");
     expect(list.queryParams).toEqual([
@@ -97,9 +100,12 @@ describe("importCollectionV2", () => {
     expect(list.pathVariables).toEqual([{ key: "category", value: "shoes", description: "Category slug" }]);
     expect(list.headers[1].enabled).toBe(false);
     expect(list.examples).toMatchObject([{ name: "Success", status: 200, body: "[]", contentType: "application/json" }]);
-    // Folder auth is pushed down onto inheriting requests; folder scripts are prepended.
-    expect(list.auth).toMatchObject({ type: "apikey", apiKeyName: "X-Key", apiKeyValue: "{{k}}", apiKeyIn: "header" });
-    expect(list.preRequestScript).toContain("folder pre");
+    // Folder auth and scripts stay on the folder; the request inherits them when sent.
+    expect(list.auth.type).toBe("inherit");
+    expect(folder.auth).toMatchObject({ type: "apikey", apiKeyName: "X-Key", apiKeyValue: "{{k}}", apiKeyIn: "header" });
+    expect(effectiveAuth(list, imported, [folder])).toMatchObject({ type: "apikey", apiKeyName: "X-Key" });
+    expect(folder.preRequestScript).toContain("folder pre");
+    expect(list.preRequestScript).not.toContain("folder pre");
     expect(list.postResponseScript).toContain("have.status(200)");
   });
 

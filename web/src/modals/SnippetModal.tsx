@@ -30,7 +30,7 @@ export function SnippetModal({ requestId, onClose }: { requestId: string; onClos
   const code = useMemo(() => {
     if (!request) return "";
     try {
-      const built = buildRequest(request, { ctx: resolve ? ctx : {}, collection: loc?.collection });
+      const built = buildRequest(request, { ctx: resolve ? ctx : {}, collection: loc?.collection, folders: loc?.folders });
       return generateSnippet(lang, built);
     } catch (err) {
       return `// Could not generate this snippet: ${(err as Error).message}`;

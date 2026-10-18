@@ -106,7 +106,7 @@ export function RequestView({ requestId }: { requestId: string }) {
         <Group key={layout} orientation={layout === "side" ? "horizontal" : "vertical"} id={`yamlet-request-${layout}`}>
           <Panel id="req" defaultSize="52%" minSize={layout === "side" ? 320 : 140}>
             <div className="h-full bg-canvas">
-              <RequestPanes request={request} collection={loc.collection} update={update} variables={variables} />
+              <RequestPanes request={request} collection={loc.collection} folders={loc.folders} update={update} variables={variables} />
             </div>
           </Panel>
           <Separator className={layout === "side" ? "w-px" : "h-px"} />

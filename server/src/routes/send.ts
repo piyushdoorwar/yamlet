@@ -60,6 +60,13 @@ export async function saveCollectionToken(store: WorkspaceStore, collectionId: s
   await store.updateCollection(c.id, { auth: { ...c.auth, oauth2: { ...c.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || c.auth.oauth2.refreshToken } } });
 }
 
+/** Stores a refreshed OAuth 2.0 token in a folder's auth. */
+export async function saveFolderToken(store: WorkspaceStore, folderId: string, t: { accessToken: string; refreshToken?: string }): Promise<void> {
+  const f = store.findFolder(folderId)?.folder;
+  if (!f?.auth || f.auth.type !== "oauth2") return;
+  await store.updateFolder(f.id, { auth: { ...f.auth, oauth2: { ...f.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || f.auth.oauth2.refreshToken } } });
+}
+
 /** Gap between streamed body pieces; small pieces arriving faster are merged. */
 const CHUNK_FLUSH_MS = 50;
 
@@ -68,7 +75,8 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
     const { store, cookies } = await workspaces.fromHeaders(req.headers);
     const { request, environmentId } = req.body ?? ({} as SendBody);
     if (!request) throw new HttpError(400, "Missing request");
-    const collectionId = req.body.collectionId ?? store.findRequest(request.id)?.collection.id;
+    const loc = store.findRequest(request.id);
+    const collectionId = req.body.collectionId ?? loc?.collection.id;
     const collection = collectionId ? store.findCollection(collectionId) : undefined;
     const environment = environmentId ? store.findEnvironment(environmentId) : undefined;
     const signal = abortOnDisconnect(reply);
@@ -81,6 +89,7 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
         globals: store.workspace.globals,
         workspaceRoot: store.workspace.rootPath,
         cookieJar: cookies,
+        folders: loc && loc.collection.id === collection?.id ? loc.folders : undefined,
         ...sendOptions(),
         signal,
         ...stream,
@@ -88,6 +97,9 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
       let changed = await persistChanges(store, changes, environmentId, collection?.id);
       if (oauthRefreshed?.source === "collection" && collection) {
         await saveCollectionToken(store, collection.id, oauthRefreshed);
+        changed = true;
+      } else if (oauthRefreshed?.source === "folder" && oauthRefreshed.folderId) {
+        await saveFolderToken(store, oauthRefreshed.folderId, oauthRefreshed);
         changed = true;
       }
       const token = oauthRefreshed?.source === "request" ? { oauthRefreshed: { accessToken: oauthRefreshed.accessToken, refreshToken: oauthRefreshed.refreshToken } } : {};

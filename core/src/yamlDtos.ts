@@ -895,7 +895,7 @@ export function collectionToYaml(c: YamletCollection, original?: string): string
 // ---------------------------------------------------------------------------
 // Folders
 
-export const FOLDER_KEYS: ReadonlySet<string> = new Set(["$kind", "id", "name", "description", "order"]);
+export const FOLDER_KEYS: ReadonlySet<string> = new Set(["$kind", "id", "name", "description", "order", "auth", "scripts"]);
 
 export function applyFolderMetadata(f: YamletFolder, raw: unknown): void {
   if (!isObj(raw)) return;
@@ -904,6 +904,12 @@ export function applyFolderMetadata(f: YamletFolder, raw: unknown): void {
   if (raw.description) f.description = str(raw.description);
   const order = int(raw.order);
   if (order !== undefined) f.order = order;
+  // No auth in a folder means its requests look further up.
+  const auth = Array.isArray(raw.auth) ? raw.auth.find(isObj) : isObj(raw.auth) ? raw.auth : undefined;
+  f.auth = auth ? readAuth(auth, "inherit") : defaultAuth("inherit");
+  const scripts = readScripts(raw.scripts);
+  f.preRequestScript = scripts.pre;
+  f.postResponseScript = scripts.post;
 }
 
 /** A folder's `.resources/definition.yaml`; the name comes from the directory unless they differ. */
@@ -911,13 +917,21 @@ export function folderToDto(f: YamletFolder, directoryName?: string): Obj {
   const o: Obj = { $kind: COLLECTION_KIND };
   if (directoryName === undefined || directoryName !== f.name) o.name = f.name;
   if (f.description) o.description = f.description;
+  const scripts = writeScripts(f.preRequestScript ?? "", f.postResponseScript ?? "", "http:");
+  if (scripts) o.scripts = scripts;
+  if (f.auth && f.auth.type !== "inherit") o.auth = writeAuth(f.auth);
   o.order = f.order ?? 0;
   o.id = f.id;
   return o;
 }
 
 export function folderToYaml(f: YamletFolder, original?: string, directoryName?: string): string {
-  return dumpYamlPreserving(folderToDto(f, directoryName), original, FOLDER_KEYS);
+  const out = folderToDto(f, directoryName);
+  const prev = parsedObj(original);
+  const prevAuth = Array.isArray(prev?.auth) ? prev.auth.find(isObj) : prev?.auth;
+  if (isObj(out.auth)) out.auth = mergeAuth(out.auth, prevAuth);
+  keepEquivalent(out, prev && { ...prev, auth: prevAuth }, { auth: normalizedAuth, scripts: readScripts });
+  return dumpYamlPreserving(out, original, FOLDER_KEYS);
 }
 
 // ---------------------------------------------------------------------------

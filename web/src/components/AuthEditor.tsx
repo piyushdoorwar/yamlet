@@ -8,7 +8,7 @@ import { useStore } from "../lib/store";
 import { Button } from "./Button";
 
 const TYPES: { id: AuthType; label: string }[] = [
-  { id: "inherit", label: "Inherit from collection" },
+  { id: "inherit", label: "Inherit from parent" },
   { id: "none", label: "No auth" },
   { id: "bearer", label: "Bearer token" },
   { id: "basic", label: "Basic auth" },
@@ -18,6 +18,10 @@ const TYPES: { id: AuthType; label: string }[] = [
   { id: "oauth2", label: "OAuth 2.0" },
   { id: "awsv4", label: "AWS Signature" },
 ];
+
+/** Short names of the schemes, for "inherits: …" notes. */
+export const AUTH_LABELS: Record<AuthType, string> = Object.fromEntries(TYPES.map((t) => [t.id, t.label])) as Record<AuthType, string>;
+AUTH_LABELS.none = "No auth";
 
 interface Props {
   auth: Auth;
@@ -139,7 +143,7 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
         </select>
       </Field>
 
-      {auth.type === "inherit" && <p className="text-13 text-muted">This request uses the collection's auth{inheritedLabel ? `: ${inheritedLabel}` : ""}.</p>}
+      {auth.type === "inherit" && <p className="text-13 text-muted">Uses the auth of the enclosing folder or collection{inheritedLabel ? `: ${inheritedLabel}` : ""}.</p>}
       {auth.type === "none" && <p className="text-13 text-muted">No authorization is sent.</p>}
 
       {auth.type === "bearer" && (

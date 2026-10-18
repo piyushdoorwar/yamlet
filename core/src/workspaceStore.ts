@@ -19,6 +19,7 @@ import {
   newFolder,
   newId,
   newRequest,
+  type Auth,
   type Variable,
   type YamletCollection,
   type YamletEnvironment,
@@ -405,13 +406,16 @@ export class WorkspaceStore {
     });
   }
 
-  async updateFolder(id: string, patch: { name?: string; description?: string }): Promise<YamletFolder> {
+  async updateFolder(id: string, patch: { name?: string; description?: string; auth?: Auth; preRequestScript?: string; postResponseScript?: string }): Promise<YamletFolder> {
     return this.enqueue(async () => {
       const hit = this.locateFolder(id);
       if (!hit) throw new Error(`Folder not found: ${id}`);
       const f = hit.folder;
       if (patch.name !== undefined && patch.name.trim()) f.name = patch.name;
       if (patch.description !== undefined) f.description = patch.description;
+      if (patch.auth !== undefined) f.auth = patch.auth;
+      if (patch.preRequestScript !== undefined) f.preRequestScript = patch.preRequestScript;
+      if (patch.postResponseScript !== undefined) f.postResponseScript = patch.postResponseScript;
       await this.writeFolder(f);
       return f;
     });

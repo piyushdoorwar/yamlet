@@ -119,7 +119,9 @@ function v2Request(r: YamletRequest): Obj {
 }
 
 function v2Folder(f: YamletFolder): Obj {
-  return { name: f.name, ...(f.description ? { description: f.description } : {}), item: items(f) };
+  const auth = f.auth ? v2Auth(f.auth) : undefined;
+  const ev = events(f.preRequestScript ?? "", f.postResponseScript ?? "");
+  return { name: f.name, ...(f.description ? { description: f.description } : {}), item: items(f), ...(auth ? { auth } : {}), ...(ev ? { event: ev } : {}) };
 }
 
 function items(node: { folders: YamletFolder[]; requests: YamletRequest[] }): Obj[] {

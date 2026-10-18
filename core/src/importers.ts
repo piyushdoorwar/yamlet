@@ -263,18 +263,14 @@ function v2Request(item: Obj, inherited: Inherited): YamletRequest {
 function v2Items(items: unknown, node: YamletCollection | YamletFolder, inherited: Inherited): void {
   for (const raw of arr(items).filter(isObj)) {
     if (Array.isArray(raw.item)) {
-      // Folder-level auth and scripts have no model of their own: they are pushed down
-      // onto the requests inside (auth only where a request inherits).
+      // Folder auth and scripts stay on the folder; requests inherit them when sent.
       const folder = newFolder({ name: str(raw.name) || "Folder", order: node.folders.length });
       const d = description(raw.description);
       if (d) folder.description = d;
-      const auth = raw.auth === undefined || raw.auth === null ? inherited.auth : v2Auth(raw.auth, "inherit");
-      v2Items(raw.item, folder, {
-        auth: auth?.type === "inherit" ? inherited.auth : auth,
-        pre: [...inherited.pre, eventScript(raw.event, "prerequest")].filter(Boolean),
-        post: [eventScript(raw.event, "test"), ...inherited.post].filter(Boolean),
-        behavior: behaviorOf(raw.protocolProfileBehavior, inherited.behavior),
-      });
+      if (raw.auth !== undefined && raw.auth !== null) folder.auth = v2Auth(raw.auth, "inherit");
+      folder.preRequestScript = eventScript(raw.event, "prerequest");
+      folder.postResponseScript = eventScript(raw.event, "test");
+      v2Items(raw.item, folder, { ...inherited, behavior: behaviorOf(raw.protocolProfileBehavior, inherited.behavior) });
       node.folders.push(folder);
     } else {
       const req = v2Request(raw, inherited);

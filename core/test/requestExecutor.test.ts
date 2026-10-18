@@ -4,7 +4,7 @@ import path from "node:path";
 import { FormData, MockAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CookieJar } from "../src/cookieJar.js";
-import { defaultAuth, defaultBody, defaultSettings, newCollection, newEnvironment, newRequest, type Variable } from "../src/models.js";
+import { defaultAuth, defaultBody, defaultSettings, newCollection, newFolder, newEnvironment, newRequest, type Variable } from "../src/models.js";
 import { clearTokenCache } from "../src/oauth2.js";
 import { execute, type ExecuteInput } from "../src/requestExecutor.js";
 
@@ -389,6 +389,20 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(jar.cookieHeaderFor("https://a.test/")).toBeFalsy();
     await post({}, jar);
     expect(jar.cookieHeaderFor("https://a.test/")).toBe("k=v");
+  });
+
+  it("runs folder scripts in order and inherits auth from the nearest folder that sets it", async () => {
+    route("https://api.test", (x) => ({ status: 200, body: `auth=${h(x, "authorization") ?? ""}` }));
+    const collection = newCollection({ auth: { ...defaultAuth("bearer"), token: "collection" }, preRequestScript: "console.log('c-pre')", postResponseScript: "console.log('c-post')" });
+    const outer = newFolder({ name: "outer", auth: { ...defaultAuth("bearer"), token: "outer" }, preRequestScript: "console.log('o-pre')", postResponseScript: "console.log('o-post')" });
+    const inner = newFolder({ name: "inner", preRequestScript: "console.log('i-pre')", postResponseScript: "console.log('i-post')" });
+    const request = newRequest({ url: "https://api.test/x", preRequestScript: "console.log('r-pre')", postResponseScript: "console.log('r-post')" });
+    const { response } = await send({ request, collection, folders: [outer, inner] });
+    expect(response.scriptLogs).toEqual(["c-pre", "o-pre", "i-pre", "r-pre", "r-post", "i-post", "o-post", "c-post"]);
+    expect(response.body).toBe("auth=Bearer outer");
+
+    inner.auth = { ...defaultAuth("none") };
+    expect((await send({ request, collection, folders: [outer, inner] })).response.body).toBe("auth=");
   });
 
   it("backs pm.sendRequest with the same transport", async () => {

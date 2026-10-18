@@ -3,7 +3,7 @@ import { parseDataFile, runCollection } from "../../../core/src/collectionRunner
 import type { RunBody, RunEvent } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
-import { abortOnDisconnect, persistChanges, saveCollectionToken } from "./send.js";
+import { abortOnDisconnect, persistChanges, saveCollectionToken, saveFolderToken } from "./send.js";
 
 // Streams one NDJSON line per finished request, then a summary line, so the
 // runner tab fills in live.
@@ -46,7 +46,7 @@ export function runnerRoutes(app: FastifyInstance, { workspaces, sendOptions }: 
         ...sendOptions(),
         signal,
         onResult: (r) => emit({ type: "result", ...r }),
-        onOAuthRefreshed: (id, token) => saveCollectionToken(store, id, token),
+        onOAuthRefreshed: (where, token) => (where.folderId ? saveFolderToken(store, where.folderId, token) : saveCollectionToken(store, where.collectionId!, token)),
       });
       // Keep variable changes made by scripts, as a single send would.
       if (body.persistVariables !== false) {

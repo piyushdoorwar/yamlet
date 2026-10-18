@@ -160,6 +160,11 @@ export interface YamletFolder {
   id: string;
   name: string;
   description?: string;
+  /** Used by requests inside that inherit; "inherit" passes on to the parent folder or collection. */
+  auth?: Auth;
+  /** Run between the collection's script and the request's (pre: outer folders first). */
+  preRequestScript?: string;
+  postResponseScript?: string;
   folders: YamletFolder[];
   requests: YamletRequest[];
   order: number;
@@ -359,7 +364,7 @@ export function newRequest(partial: Partial<YamletRequest> = {}): YamletRequest 
 }
 
 export function newFolder(partial: Partial<YamletFolder> = {}): YamletFolder {
-  return { id: newId(), name: "New Folder", folders: [], requests: [], order: 0, ...partial };
+  return { id: newId(), name: "New Folder", folders: [], requests: [], order: 0, auth: defaultAuth("inherit"), preRequestScript: "", postResponseScript: "", ...partial };
 }
 
 export function newCollection(partial: Partial<YamletCollection> = {}): YamletCollection {

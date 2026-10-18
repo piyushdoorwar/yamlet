@@ -63,24 +63,26 @@ export interface RunOptions {
   network?: NetworkSettings;
   onResult?: (r: RunRequestResult) => void;
   /** A collection's OAuth 2.0 token was refreshed during the run (to save it). */
-  onOAuthRefreshed?: (collectionId: string, token: { accessToken: string; refreshToken?: string }) => void | Promise<void>;
+  onOAuthRefreshed?: (where: { collectionId?: string; folderId?: string }, token: { accessToken: string; refreshToken?: string }) => void | Promise<void>;
 }
 
 interface PlannedRequest {
   request: YamletRequest;
   collection: YamletCollection;
   path: string[];
+  /** Enclosing folders, outermost first. */
+  folders: YamletFolder[];
 }
 
-function walk(collection: YamletCollection, node: YamletCollection | YamletFolder, chain: string[], out: PlannedRequest[]): void {
-  for (const f of node.folders) walk(collection, f, [...chain, f.name], out);
-  for (const request of node.requests) out.push({ request, collection, path: chain });
+function walk(collection: YamletCollection, node: YamletCollection | YamletFolder, chain: YamletFolder[], out: PlannedRequest[]): void {
+  for (const f of node.folders) walk(collection, f, [...chain, f], out);
+  for (const request of node.requests) out.push({ request, collection, path: chain.map((f) => f.name), folders: chain });
 }
 
-function findFolderNode(node: YamletCollection | YamletFolder, id: string, chain: string[]): { folder: YamletFolder; chain: string[] } | undefined {
+function findFolderNode(node: YamletCollection | YamletFolder, id: string, chain: YamletFolder[]): { folder: YamletFolder; chain: YamletFolder[] } | undefined {
   for (const f of node.folders) {
-    if (f.id === id) return { folder: f, chain: [...chain, f.name] };
-    const hit = findFolderNode(f, id, [...chain, f.name]);
+    if (f.id === id) return { folder: f, chain: [...chain, f] };
+    const hit = findFolderNode(f, id, [...chain, f]);
     if (hit) return hit;
   }
   return undefined;
@@ -190,6 +192,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         globals,
         workspaceRoot: opts.workspaceRoot,
         cookieJar: opts.cookieJar,
+        folders: item.folders,
         iterationData: opts.data?.[iteration],
         dispatcher: opts.dispatcher,
         signal: opts.signal,
@@ -199,7 +202,8 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         iteration,
         iterationCount: iterations,
       });
-      if (oauthRefreshed?.source === "collection") await opts.onOAuthRefreshed?.(item.collection.id, oauthRefreshed);
+      if (oauthRefreshed?.source === "collection") await opts.onOAuthRefreshed?.({ collectionId: item.collection.id }, oauthRefreshed);
+      else if (oauthRefreshed?.source === "folder" && oauthRefreshed.folderId) await opts.onOAuthRefreshed?.({ folderId: oauthRefreshed.folderId }, oauthRefreshed);
       if (changes.environment && environment) environment = { ...environment, variables: changes.environment };
       if (changes.globals) globals = changes.globals;
       if (changes.collectionVariables) collectionVars.set(item.collection.id, changes.collectionVariables);

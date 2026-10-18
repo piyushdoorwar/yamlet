@@ -78,7 +78,7 @@ export interface MutationResult<T> {
 export type CollectionPatch = Partial<
   Pick<YamletCollection, "name" | "description" | "variables" | "auth" | "preRequestScript" | "postResponseScript">
 >;
-export type FolderPatch = Partial<Pick<YamletFolder, "name" | "description">>;
+export type FolderPatch = Partial<Pick<YamletFolder, "name" | "description" | "auth" | "preRequestScript" | "postResponseScript">>;
 
 export interface MoveBody {
   kind: "request" | "folder";

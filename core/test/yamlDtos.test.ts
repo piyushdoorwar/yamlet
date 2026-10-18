@@ -482,6 +482,24 @@ describe("collections, folders, environments, globals", () => {
     expect(folderToYaml(f, undefined, "users")).toBe("$kind: collection\ndescription: Users\norder: 2\nid: f1\n");
   });
 
+  it("round-trips folder auth and scripts, and reads a folder without auth as inheriting", () => {
+    const f = newFolder({ id: "f2", name: "admin", auth: { ...defaultAuth("bearer"), token: "{{adminToken}}" }, preRequestScript: "console.log('in')", postResponseScript: "pm.test('t', () => {})" });
+    const yaml = folderToYaml(f, undefined, "admin");
+    expect(yaml).toContain("http:beforeRequest");
+    const back = newFolder({ name: "admin" });
+    applyFolderMetadata(back, loadYaml(yaml));
+    expect(back.auth).toMatchObject({ type: "bearer", token: "{{adminToken}}" });
+    expect(back.preRequestScript).toBe("console.log('in')");
+    expect(back.postResponseScript).toBe("pm.test('t', () => {})");
+
+    const plain = newFolder({ name: "x" });
+    applyFolderMetadata(plain, loadYaml("$kind: collection\norder: 1\n"));
+    expect(plain.auth?.type).toBe("inherit");
+    // An explicit "no auth" folder stops inheritance.
+    applyFolderMetadata(plain, loadYaml("$kind: collection\nauth:\n  type: noauth\n"));
+    expect(plain.auth?.type).toBe("none");
+  });
+
   it("writes environments with values and round-trips them", () => {
     const yaml = environmentToYaml({ id: "env-1", name: "Local", variables: [{ key: "baseUrl", value: "http://localhost:5000", enabled: true }] });
     expect(yaml).toBe("name: Local\nvalues:\n  - key: baseUrl\n    value: 'http://localhost:5000'\nid: env-1\n");

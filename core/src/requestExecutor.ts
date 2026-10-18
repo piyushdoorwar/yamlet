@@ -10,7 +10,7 @@ import zlib from "node:zlib";
 import { request, type Dispatcher } from "undici";
 import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
-import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
+import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletFolder, type YamletRequest, type YamletResponse } from "./models.js";
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
@@ -41,6 +41,8 @@ export interface ExecuteInput {
   onChunk?: (chunk: Uint8Array) => void;
   /** Bodies beyond this many bytes are cut off (default 50 MB; 0 keeps everything). */
   maxResponseBytes?: number;
+  /** Folders around the request, outermost first: their auth and scripts apply. */
+  folders?: YamletFolder[];
   /** Proxy, certificates and SSL defaults; the built-in defaults when absent. */
   network?: NetworkSettings;
 }
@@ -60,7 +62,7 @@ export interface ExecuteResult {
   /** Set by pm.execution.setNextRequest: the runner's next request (null stops the iteration). */
   nextRequest?: string | null;
   /** A new OAuth 2.0 token got with the stored refresh token, to save where the auth lives. */
-  oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "collection" };
+  oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "folder" | "collection"; folderId?: string };
   /** Full new variable lists for scopes that scripts changed. */
   changes: { environment?: Variable[]; collectionVariables?: Variable[]; globals?: Variable[] };
 }
@@ -568,12 +570,22 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     };
   };
 
-  // 1. Pre-request scripts: collection first (errors logged, never fatal), then the request's.
+  // 1. Pre-request scripts: collection, then folders from the outside in (errors logged,
+  // never fatal), then the request's.
+  const folders = input.folders ?? [];
   if (collection?.preRequestScript?.trim()) {
     try {
       await runScript({ ...scriptBase, script: collection.preRequestScript, phase: "pre" });
     } catch (e) {
       logs.push(`[error] Collection pre-request script: ${errMessage(e)}`);
+    }
+  }
+  for (const f of folders) {
+    if (!f.preRequestScript?.trim()) continue;
+    try {
+      await runScript({ ...scriptBase, script: f.preRequestScript, phase: "pre" });
+    } catch (e) {
+      logs.push(`[error] Folder "${f.name}" pre-request script: ${errMessage(e)}`);
     }
   }
   if (req.preRequestScript?.trim()) {
@@ -591,7 +603,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   // 2. Resolve (after scripts, so their mutations apply) and fetch an OAuth2 token if needed.
   const ctx = vars.toContext();
   const resolve = (s: string) => resolveVariables(s ?? "", ctx);
-  const auth = effectiveAuth(req, collection);
+  const auth = effectiveAuth(req, collection, folders);
   let oauthToken: string | undefined;
   if (auth.type === "oauth2" && canFetchAutomatically(auth.oauth2, resolve)) {
     try {
@@ -602,7 +614,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   } else if (auth.type === "oauth2") {
     oauthToken = refreshedTokenFor(auth.oauth2, resolve)?.accessToken;
   }
-  let built = buildRequest(req, { ctx, collection, oauthToken });
+  let built = buildRequest(req, { ctx, collection, folders, oauthToken });
   let response = emptyResponse(built.method, built.url);
   response.requestHeaders = built.headers;
 
@@ -668,9 +680,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       if (ex.status === 401 && auth.type === "oauth2" && !canFetchAutomatically(auth.oauth2, resolve) && resolve(auth.oauth2.refreshToken).trim()) {
         try {
           const token = await refreshAndRemember(auth.oauth2, resolve, { dispatcher, signal });
-          built = buildRequest(req, { ctx, collection, oauthToken: token.accessToken });
+          built = buildRequest(req, { ctx, collection, folders, oauthToken: token.accessToken });
           headers = withBodyType(built.headers);
-          oauthRefreshed = { accessToken: token.accessToken, refreshToken: token.refreshToken, source: req.auth.type === "inherit" ? "collection" : "request" };
+          oauthRefreshed = { accessToken: token.accessToken, refreshToken: token.refreshToken, source: req.auth.type === "inherit" ? (folders.some((f) => f.auth === auth) ? "folder" : "collection") : "request" };
+          if (oauthRefreshed.source === "folder") oauthRefreshed.folderId = [...folders].reverse().find((f) => f.auth === auth)?.id;
           logs.push("OAuth 2.0: the access token was rejected; got a new one with the refresh token and sent again.");
           ex = await send();
         } catch (e) {
@@ -729,6 +742,14 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
         tests.push({ name: "Post-response script", passed: false, error: message });
       }
       logs.push(`[error] Post-response script: ${message}`);
+    }
+  }
+  for (const f of [...folders].reverse()) {
+    if (!f.postResponseScript?.trim()) continue;
+    try {
+      await runScript({ ...scriptBase, script: f.postResponseScript, phase: "post", response });
+    } catch (e) {
+      logs.push(`[error] Folder "${f.name}" post-response script: ${errMessage(e)}`);
     }
   }
   if (collection?.postResponseScript?.trim()) {
