@@ -89,6 +89,20 @@ describe("KeyValueTable", () => {
       { key: "y", value: "2", enabled: false },
     ]);
   });
+
+  it("keeps each repeated key's own details through a bulk edit", async () => {
+    render(
+      <Harness
+        initial={[
+          { key: "tag", value: "a", enabled: true, description: "first" },
+          { key: "tag", value: "b", enabled: true, description: "second" },
+        ]}
+      />,
+    );
+    await userEvent.click(screen.getByText("Bulk edit"));
+    await userEvent.type(screen.getByLabelText("Bulk edit"), "!");
+    expect(JSON.parse(screen.getByTestId("rows").textContent!).map((r: { description?: string }) => r.description)).toEqual(["first", "second"]);
+  });
 });
 
 describe("labels", () => {

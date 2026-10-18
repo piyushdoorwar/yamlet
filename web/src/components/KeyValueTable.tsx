@@ -247,6 +247,8 @@ function BulkEditor<T extends Row>({ rows, blank, onChange, noToggle }: { rows: 
   const apply = (t: string) => {
     setText(t);
     const next: T[] = [];
+    // The n-th line with a key keeps the n-th row with that key (its description, file flag, ...).
+    const seen = new Map<string, number>();
     for (const line of t.split("\n")) {
       if (!line.trim()) continue;
       const disabled = /^\s*\/\//.test(line);
@@ -254,7 +256,9 @@ function BulkEditor<T extends Row>({ rows, blank, onChange, noToggle }: { rows: 
       const idx = body.indexOf(":");
       const key = (idx >= 0 ? body.slice(0, idx) : body).trim();
       const value = idx >= 0 ? body.slice(idx + 1).trim() : "";
-      const prev = rows.find((r) => r.key === key);
+      const nth = seen.get(key) ?? 0;
+      seen.set(key, nth + 1);
+      const prev = rows.filter((r) => r.key === key)[nth];
       next.push({ ...blank(), ...prev, key, value, enabled: !disabled });
     }
     onChange(next);
