@@ -7,9 +7,11 @@ import { OpenWorkspaceModal } from "../modals/OpenWorkspaceModal";
 import { QuickOpen } from "../modals/QuickOpen";
 import { ShortcutsModal } from "../modals/ShortcutsModal";
 import { SnippetModal } from "../modals/SnippetModal";
+import { useConsole } from "../lib/consoleLog";
 import { tabKey, useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
 import { Sidebar } from "../sidebar/Sidebar";
+import { ConsolePanel } from "./ConsolePanel";
 import { StatusBar } from "./StatusBar";
 import { TabContent } from "./TabContent";
 import { TopBar } from "./TopBar";
@@ -27,7 +29,8 @@ function useShortcuts() {
         e.preventDefault();
         if (activeTab?.kind === "request") void s.saveNow(activeTab.id);
       } else if (mod && e.key === "Enter") {
-        if (activeTab?.kind === "request") {
+        // The URL bar's editor already sent it.
+        if (activeTab?.kind === "request" && !e.defaultPrevented) {
           e.preventDefault();
           void s.send(activeTab.id);
         }
@@ -39,6 +42,10 @@ function useShortcuts() {
         const i = s.tabs.findIndex((t) => tabKey(t) === s.active);
         const n = (i + (e.key === "ArrowRight" ? 1 : -1) + s.tabs.length) % s.tabs.length;
         s.setActive(tabKey(s.tabs[n]));
+      } else if (mod && e.altKey && e.code === "KeyC") {
+        e.preventDefault();
+        const c = useConsole.getState();
+        c.setOpen(!c.open);
       } else if (mod && e.key === "/") {
         e.preventDefault();
         useUi.getState().setModal({ kind: "shortcuts" });
@@ -72,6 +79,31 @@ function Modals() {
   }
 }
 
+/** Tabs above, the console below it when open. */
+function MainArea() {
+  const consoleOpen = useConsole((s) => s.open);
+  const layout = useDefaultLayout({ id: "yamlet-main", storage: localStorage });
+  const tabs = (
+    <main className="h-full bg-canvas">
+      <TabContent />
+    </main>
+  );
+  if (!consoleOpen) return <div className="min-h-0 flex-1">{tabs}</div>;
+  return (
+    <div className="min-h-0 flex-1">
+      <Group orientation="vertical" defaultLayout={layout.defaultLayout} onLayoutChanged={layout.onLayoutChanged}>
+        <Panel id="tabs" minSize={160}>
+          {tabs}
+        </Panel>
+        <Separator className="h-px" />
+        <Panel id="console" defaultSize={240} minSize={100}>
+          <ConsolePanel />
+        </Panel>
+      </Group>
+    </div>
+  );
+}
+
 export function Workbench() {
   useShortcuts();
   const layout = useDefaultLayout({ id: "yamlet-shell", storage: localStorage });
@@ -86,9 +118,7 @@ export function Workbench() {
           <Panel id="main" minSize={420}>
             <div className="flex h-full min-w-0 flex-col">
               <TopBar />
-              <main className="min-h-0 flex-1 bg-canvas">
-                <TabContent />
-              </main>
+              <MainArea />
             </div>
           </Panel>
         </Group>

@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { ArrowUpCircle, Cookie, Info, Keyboard, PanelBottom, PanelRight } from "lucide-react";
+import { ArrowUpCircle, Cookie, Info, Keyboard, PanelBottom, PanelRight, SquareTerminal } from "lucide-react";
 import { useEffect } from "react";
+import { useConsole } from "../lib/consoleLog";
 import { refreshInterceptorStatus, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
 import { useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
@@ -35,6 +36,9 @@ export function StatusBar() {
   useInterceptorStatusPolling(rootPath);
   useUpdatePolling();
   const update = useUpdates((s) => (s.info?.available ? s.info : null));
+  const consoleOpen = useConsole((s) => s.open);
+  const setConsoleOpen = useConsole((s) => s.setOpen);
+  const consoleErrors = useConsole((s) => s.entries.filter((e) => e.error || e.logs.some((l) => l.level === "error")).length);
 
   // Only worth a mention once the extension is around or has been paired.
   const interceptor = paired ? "Interceptor connected" : extension ? "Interceptor not paired" : null;
@@ -42,6 +46,16 @@ export function StatusBar() {
   return (
     <footer className="flex h-7 shrink-0 items-center justify-between gap-2 border-t border-line bg-surface px-2 text-11">
       <div className="flex min-w-0 items-center gap-1">
+        <button
+          type="button"
+          className={clsx(item, consoleOpen && "bg-primary-soft text-primary")}
+          aria-pressed={consoleOpen}
+          title="Console (Ctrl Alt C)"
+          onClick={() => setConsoleOpen(!consoleOpen)}
+        >
+          <SquareTerminal size={13} aria-hidden /> Console
+          {consoleErrors > 0 && <span className="rounded-full bg-danger-soft px-1.5 text-11 leading-4 font-medium text-danger">{consoleErrors}</span>}
+        </button>
         <button type="button" className={item} onClick={() => setModal({ kind: "cookies" })}>
           <Cookie size={13} aria-hidden /> Cookies
         </button>

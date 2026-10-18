@@ -3,6 +3,7 @@ import type { KeyValue, YamletRequest, YamletResponse, YamletWorkspace } from "@
 import { isEventStream, SseParser, type SseEvent } from "@core/sse";
 import { create } from "zustand";
 import { api, errorMessage, setApiWorkspace } from "./api";
+import { entryFromResponse, useConsole } from "./consoleLog";
 import { keys, readJson, writeJson } from "./storage";
 import { findFolder, findRequest } from "./tree";
 
@@ -394,14 +395,21 @@ export const useStore = create<State>((set, get) => ({
       recordHistory(id, request, result.response);
     } catch (err) {
       const aborted = controller.signal.aborted;
-      if (aborted && live) {
+      if (aborted && live && inflight.get(id) === controller) {
         // Stopped while the body was arriving (e.g. an endless stream): keep what came in.
         const response = stoppedResponse(request, live, Date.now() - startedAt);
         if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
         patch({ loading: false, response, events });
         recordHistory(id, request, response);
-      } else {
-        patch({ loading: false, error: aborted ? "Request cancelled" : errorMessage(err) });
+      } else if (inflight.get(id) === controller) {
+        // (A send replaced by a newer one of the same request is not worth reporting.)
+        const error = aborted ? "Request cancelled" : errorMessage(err);
+        patch({ loading: false, error });
+        useConsole.getState().add({
+          ...entryFromResponse(request.name, { ...stoppedResponse(request, { statusCode: 0, reasonPhrase: "", headers: [], contentType: "", firstByteMs: 0, bytes: 0 }, Date.now() - startedAt), scriptLogs: [] }),
+          error,
+          incomplete: undefined,
+        });
       }
     } finally {
       if (inflight.get(id) === controller) inflight.delete(id);
@@ -420,6 +428,7 @@ export const useStore = create<State>((set, get) => ({
 }));
 
 function recordHistory(requestId: string, request: YamletRequest, r: YamletResponse): void {
+  useConsole.getState().add(entryFromResponse(request.name, r));
   const entry: HistoryEntry = {
     id: crypto.randomUUID(),
     at: Date.now(),
