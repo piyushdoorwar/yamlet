@@ -293,7 +293,7 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
                             </span>
                           </td>
                           <td className="px-4 py-2">{r.error && !r.status ? <span className="text-12 text-danger">Error</span> : <StatusPill status={r.status} />}</td>
-                          <td className="px-4 py-2 text-right text-12 text-grey">{formatMs(r.durationMs)}</td>
+                          <td className="px-4 py-2 text-right text-12 whitespace-nowrap text-grey">{formatMs(r.durationMs)}</td>
                           <td className={clsx("px-4 py-2 text-right text-12", tp === r.tests.length ? "text-grey" : "font-medium text-danger")}>{r.tests.length ? `${tp}/${r.tests.length}` : "–"}</td>
                         </tr>
                         {open && (

@@ -22,7 +22,14 @@ export function FileChooser({ value, onChange, compact }: { value: string; onCha
       {shown ? (
         <span className="flex min-w-0 items-center gap-1.5 rounded-md bg-primary-tint px-2 py-1 font-mono text-12 text-primary" title={shown}>
           <Paperclip size={12} className="shrink-0" aria-hidden />
-          <span className="truncate">{shown}</span>
+          {compact ? (
+            // In a table cell the name itself changes the file; there's no room for a separate button.
+            <button type="button" className="truncate hover:underline" title={`${shown} (click to change)`} onClick={() => setOpen(true)}>
+              {shown}
+            </button>
+          ) : (
+            <span className="truncate">{shown}</span>
+          )}
           <button type="button" aria-label="Remove file" className="shrink-0 text-primary/70 hover:text-danger" onClick={() => onChange("")}>
             <X size={12} aria-hidden />
           </button>
@@ -30,9 +37,11 @@ export function FileChooser({ value, onChange, compact }: { value: string; onCha
       ) : (
         !compact && <span className="text-12 text-muted">No file selected</span>
       )}
-      <button type="button" className="shrink-0 text-12 font-medium text-primary hover:underline" onClick={() => setOpen(true)}>
-        {shown ? "Change" : "Select file"}
-      </button>
+      {!(compact && shown) && (
+        <button type="button" className="shrink-0 text-12 font-medium text-primary hover:underline" onClick={() => setOpen(true)}>
+          {shown ? "Change" : "Select file"}
+        </button>
+      )}
       {open && (
         <FilePickerModal
           onClose={() => setOpen(false)}

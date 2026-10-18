@@ -87,11 +87,11 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
         <thead>
           <tr>
             {!noToggle && <th className="w-9" aria-label="Enabled" />}
-            <th className={props.renderAfterValue ? "w-[24%]" : "w-[32%]"}>Key</th>
-            {renderExtra && <th className="w-24">Type</th>}
+            <th className={props.renderAfterValue ? "w-[20%]" : "w-[32%]"}>Key</th>
+            {renderExtra && <th className="w-[5.5rem]">Type</th>}
             <th>Value</th>
-            {props.renderAfterValue && <th className="w-32 whitespace-nowrap">{props.afterValueLabel}</th>}
-            {showDescription && <th className={props.renderAfterValue ? "w-[16%]" : "w-[24%]"}>Description</th>}
+            {props.renderAfterValue && <th className="w-28 truncate">{props.afterValueLabel}</th>}
+            {showDescription && <th className={props.renderAfterValue ? "w-[14%]" : "w-[24%]"}>Description</th>}
             <th className="w-10" aria-label="Actions" />
           </tr>
         </thead>

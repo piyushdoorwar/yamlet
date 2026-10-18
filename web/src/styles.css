@@ -280,6 +280,8 @@ button:disabled {
   /* --- Key/value grid --- */
   .kv-table {
     width: 100%;
+    /* Column widths hold; a long value scrolls in its cell instead of squeezing the rest. */
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     border: 1px solid var(--color-line);

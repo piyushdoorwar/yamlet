@@ -118,10 +118,10 @@ export function RequestPanes({ request, collection, folders, update, variables }
             locked={[
               ...(request.headers.some((h) => h.enabled !== false && h.key.trim().toLowerCase() === "user-agent")
                 ? []
-                : [{ key: "User-Agent", value: yamletUserAgent(), note: "Sent by default; add your own header with this name to replace it" }]),
+                : [{ key: "User-Agent", value: yamletUserAgent(), note: "Default; add your own to replace it" }]),
               ...DEFAULT_REQUEST_HEADERS.filter((d) => !request.headers.some((h) => h.enabled !== false && h.key.trim().toLowerCase() === d.key.toLowerCase())).map((d) => ({
                 ...d,
-                note: "Sent by default; add your own header with this name to replace it",
+                note: "Default; add your own to replace it",
               })),
             ]}
           />

@@ -59,7 +59,7 @@ export function Sidebar() {
       </div>
 
       <div className="mt-4 px-4">
-        <div className="[&>div]:flex [&>div]:w-full [&_button]:flex-1 [&_button]:px-2">
+        <div className="[&>div]:flex [&>div]:w-full [&_button]:min-w-0 [&_button]:flex-1 [&_button]:truncate [&_button]:px-1.5">
           <TabButton tabs={SECTIONS} active={section} onChange={setSection} size="sm" />
         </div>
       </div>
