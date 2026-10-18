@@ -185,7 +185,7 @@ samples/  a ready-to-run workspace
 | `YAMLET_BROWSE_ROOT` | `/workspace` in the container, else your home folder | The folder browser can't leave this directory |
 | `YAMLET_PUBLIC_URL` | `http://localhost:$PORT` | Base URL for the OAuth 2.0 redirect |
 | `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
-| `YAMLET_TIMEOUT_MS` | `30000` | Default request timeout |
+| `YAMLET_TIMEOUT_MS` | `0` (none) | Default timeout in ms for requests whose own timeout is 0 |
 | `YAMLET_UPDATE_CHECK` | `1` | Set to `0` to stop the hourly check for a newer release on GitHub (only made while the app is open; never in dev builds) |
 | `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`) and extension pairing; mount a persistent volume so they survive container recreation |
 | `YAMLET_INTERCEPTOR_DATA_DIR` | `YAMLET_DATA_DIR` | Private pairing state, if it should live elsewhere |

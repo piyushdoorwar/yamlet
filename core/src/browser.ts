@@ -7,3 +7,4 @@ export * from "./codegen.js";
 export * from "./curl.js";
 export * from "./importers.js";
 export * from "./cookieJar.js";
+export * from "./sse.js";

@@ -7,15 +7,18 @@ import { Agent } from "undici";
 // with ETIMEDOUT / ENETUNREACH. Give each address a realistic window instead;
 // the request's own timeout still bounds the whole exchange.
 const ATTEMPT_TIMEOUT_MS = 2500;
+// undici gives up after 300 s without headers or body data. A request's own
+// timeout (or none) decides instead, so slow reports and idle streams survive.
+const base = { autoSelectFamily: true, autoSelectFamilyAttemptTimeout: ATTEMPT_TIMEOUT_MS, headersTimeout: 0, bodyTimeout: 0 };
 
 let standard: Agent | undefined;
 let insecure: Agent | undefined;
 
 export function defaultAgent(): Agent {
-  return (standard ??= new Agent({ autoSelectFamily: true, autoSelectFamilyAttemptTimeout: ATTEMPT_TIMEOUT_MS }));
+  return (standard ??= new Agent(base));
 }
 
 /** For requests with "skip SSL verification" on. */
 export function insecureAgent(): Agent {
-  return (insecure ??= new Agent({ autoSelectFamily: true, autoSelectFamilyAttemptTimeout: ATTEMPT_TIMEOUT_MS, connect: { rejectUnauthorized: false } }));
+  return (insecure ??= new Agent({ ...base, connect: { rejectUnauthorized: false } }));
 }

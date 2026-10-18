@@ -31,6 +31,18 @@ export interface ExecuteInput {
   /** Runner context exposed to scripts as pm.info. */
   iteration?: number;
   iterationCount?: number;
+  /** Called when the final response's status and headers arrive (after redirects). */
+  onHead?: (head: ResponseHead) => void;
+  /** Called with each piece of the final response body as it arrives. */
+  onChunk?: (chunk: Uint8Array) => void;
+}
+
+export interface ResponseHead {
+  statusCode: number;
+  reasonPhrase: string;
+  headers: KeyValue[];
+  contentType: string;
+  firstByteMs: number;
 }
 
 export interface ExecuteResult {
@@ -120,6 +132,11 @@ function toUndiciHeaders(list: KeyValue[]): Record<string, string | string[]> {
 
 const TEXTUAL = /^text\/|json|xml|javascript|ecmascript|yaml|csv|x-www-form-urlencoded|graphql|html/i;
 
+/** Whether a body of this type is text; with no type, decided from the bytes once complete. */
+export function isTextualType(contentType: string): boolean | undefined {
+  return contentType ? TEXTUAL.test(contentType) : undefined;
+}
+
 function isTextual(contentType: string, bytes: Buffer): boolean {
   if (contentType) return TEXTUAL.test(contentType);
   if (bytes.includes(0)) return false;
@@ -128,6 +145,16 @@ function isTextual(contentType: string, bytes: Buffer): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/** The charset a text body declares, if TextDecoder knows it. */
+export function textDecoderFor(contentType: string): TextDecoder {
+  const charset = /charset\s*=\s*"?([^";\s]+)/i.exec(contentType)?.[1];
+  try {
+    return new TextDecoder(charset || "utf-8");
+  } catch {
+    return new TextDecoder("utf-8");
   }
 }
 
@@ -198,6 +225,16 @@ interface HttpExchange {
   redirects: { statusCode: number; url: string }[];
 }
 
+/** The body broke off after the headers arrived; `partial` holds what was received. */
+class BodyInterrupted extends Error {
+  constructor(
+    readonly partial: HttpExchange,
+    readonly reason: unknown,
+  ) {
+    super("Response body interrupted");
+  }
+}
+
 /** One HTTP exchange including redirects (cookies are stored and re-sent on every hop). */
 async function exchange(opts: {
   url: string;
@@ -208,6 +245,8 @@ async function exchange(opts: {
   signal?: AbortSignal;
   followRedirects: boolean;
   jar?: CookieJar;
+  onHead?: (status: number, headers: Record<string, string | string[] | undefined>, firstByteMs: number) => void;
+  onChunk?: (chunk: Uint8Array) => void;
 }): Promise<HttpExchange> {
   let { url, method, body } = opts;
   let headers = opts.headers.filter((h) => !(body instanceof FormData && h.key.toLowerCase() === "content-type" && !/boundary=/i.test(h.value)));
@@ -248,8 +287,26 @@ async function exchange(opts: {
       url = next.toString();
       continue;
     }
-    const bytes = Buffer.from(await res.body.arrayBuffer());
-    return { status: res.statusCode, headers: res.headers, bytes, sentHeaders: sent, firstByteMs, totalMs: performance.now() - start, redirects };
+    opts.onHead?.(res.statusCode, res.headers, firstByteMs);
+    const chunks: Buffer[] = [];
+    const result = (): HttpExchange => ({
+      status: res.statusCode,
+      headers: res.headers,
+      bytes: Buffer.concat(chunks),
+      sentHeaders: sent,
+      firstByteMs,
+      totalMs: performance.now() - start,
+      redirects,
+    });
+    try {
+      for await (const chunk of res.body) {
+        chunks.push(chunk as Buffer);
+        opts.onChunk?.(chunk as Buffer);
+      }
+    } catch (e) {
+      throw new BodyInterrupted(result(), e);
+    }
+    return result();
   }
 }
 
@@ -276,6 +333,7 @@ function consoleText(r: YamletResponse): string {
     for (const hop of r.redirects ?? []) lines.push(`${`HTTP ${hop.statusCode} ${STATUS_CODES[hop.statusCode] ?? ""}`.trim()} from ${hop.url} (followed)`);
     lines.push(`HTTP ${r.statusCode} ${r.reasonPhrase}`, "Response Headers", formatHeaders(r.headers), "", "Response Body");
     lines.push(r.bodyEncoding === "base64" ? `[binary body, ${r.sizeBytes} bytes]` : r.body || "[empty]");
+    if (r.incomplete) lines.push("", `[incomplete] ${r.incomplete}`);
   }
   return lines.join("\n");
 }
@@ -412,16 +470,30 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   try {
     const prepared = await prepareBody(built, input.workspaceRoot, req.sourceFilePath);
     response.requestBody = prepared.display;
-    const ex = await exchange({
-      url: built.url,
-      method: built.method,
-      headers: built.headers,
-      body: prepared.body,
-      dispatcher,
-      signal,
-      followRedirects: settings.followRedirects !== false,
-      jar: input.cookieJar,
-    });
+    let ex: HttpExchange;
+    let incomplete: string | undefined;
+    try {
+      ex = await exchange({
+        url: built.url,
+        method: built.method,
+        headers: built.headers,
+        body: prepared.body,
+        dispatcher,
+        signal,
+        followRedirects: settings.followRedirects !== false,
+        jar: input.cookieJar,
+        onHead: input.onHead
+          ? (status, headers, firstByteMs) =>
+              input.onHead!({ statusCode: status, reasonPhrase: STATUS_CODES[status] ?? "", headers: toHeaderList(headers), contentType: headerValue(headers, "content-type") ?? "", firstByteMs: Math.round(firstByteMs) })
+          : undefined,
+        onChunk: input.onChunk,
+      });
+    } catch (e) {
+      // A cancelled send has nobody to report to; a timeout or dropped connection keeps what arrived.
+      if (!(e instanceof BodyInterrupted) || input.signal?.aborted) throw e instanceof BodyInterrupted ? e.reason : e;
+      ex = e.partial;
+      incomplete = timeoutSignal?.aborted ? `Timed out after ${timeoutMs} ms while receiving the body.` : `The connection closed before the body was complete: ${errMessage(e.reason)}`;
+    }
     const contentType = headerValue(ex.headers, "content-type") ?? "";
     const textual = isTextual(contentType, ex.bytes);
     response = {
@@ -438,6 +510,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       contentType,
       timings: { total: Math.round(ex.totalMs), firstByte: Math.round(ex.firstByteMs), download: Math.max(0, Math.round(ex.totalMs - ex.firstByteMs)) },
       ...(ex.redirects.length ? { redirects: ex.redirects } : {}),
+      ...(incomplete ? { incomplete } : {}),
     };
   } catch (e) {
     const message = input.signal?.aborted

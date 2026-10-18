@@ -232,6 +232,8 @@ export interface YamletResponse {
   consoleText: string;
   isError: boolean;
   errorMessage?: string;
+  /** Set when the body broke off (timeout or dropped connection) after the headers arrived. */
+  incomplete?: string;
 }
 
 // ---------------------------------------------------------------------------

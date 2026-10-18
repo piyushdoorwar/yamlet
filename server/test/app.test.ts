@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MockAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CSRF_HEADER, WORKSPACE_HEADER } from "../../shared/api.js";
+import { newRequest } from "../../core/src/models.js";
 import { buildApp } from "../src/app.js";
 
 let root: string;
@@ -147,6 +148,22 @@ describe("send", () => {
     // The script's pm.environment.set was persisted.
     const env = body.workspace.environments.find((e: { id: string }) => e.id === environmentId);
     expect(env.variables.find((v: { key: string }) => v.key === "userName").value).toBe("Ada");
+  });
+
+  it("streams the head, body pieces and the result as NDJSON when asked", async () => {
+    await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
+    agent
+      .get("https://api.test")
+      .intercept({ path: "/events", method: "GET" })
+      .reply(200, "data: hi\n\n", { headers: { "content-type": "text/event-stream" } });
+    const request = { ...newRequest({ url: "https://api.test/events" }) };
+    const res = await app.inject({ method: "POST", url: "/api/send", headers: W(), payload: { request, stream: true } });
+    expect(res.headers["content-type"]).toMatch(/application\/x-ndjson/);
+    const events = res.body.trim().split("\n").map((l) => JSON.parse(l));
+    expect(events.map((e) => e.type)).toEqual(["head", "chunk", "done"]);
+    expect(events[0]).toMatchObject({ statusCode: 200, contentType: "text/event-stream" });
+    expect(events[1]).toEqual({ type: "chunk", text: "data: hi\n\n", bytes: 10 });
+    expect(events[2].result.response.body).toBe("data: hi\n\n");
   });
 
   it("uploads attachments into the workspace files/ folder", async () => {

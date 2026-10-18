@@ -36,7 +36,7 @@ export function SettingsPane({ settings, onChange }: { settings: RequestSettings
           <label htmlFor="req-timeout" className="block text-13 font-medium text-ink">
             Timeout
           </label>
-          <span className="mt-0.5 block text-12 text-muted">Milliseconds before the request is abandoned. 0 uses the server default.</span>
+          <span className="mt-0.5 block text-12 text-muted">Milliseconds before the request is abandoned. 0 means no timeout (unless the server sets YAMLET_TIMEOUT_MS).</span>
         </span>
         <input
           id="req-timeout"

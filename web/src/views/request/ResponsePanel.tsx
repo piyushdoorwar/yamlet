@@ -1,4 +1,5 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
+import { isEventStream, parseEventStream } from "@core/sse";
 import clsx from "clsx";
 import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Loader2, MoreHorizontal, Send } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -11,9 +12,10 @@ import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
 import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml } from "../../lib/format";
 import { useStore } from "../../lib/store";
+import { EventsView, LiveText } from "./StreamViews";
 
 type View = "body" | "headers" | "cookies" | "tests" | "console";
-type BodyMode = "pretty" | "raw" | "preview";
+type BodyMode = "pretty" | "raw" | "preview" | "events";
 
 function Elapsed({ since }: { since?: number }) {
   const [now, setNow] = useState(Date.now());
@@ -67,7 +69,12 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   const { prompt } = useDialogs();
   const actionsMenu = useMenu();
   const [view, setView] = useState<View>("body");
-  const [mode, setMode] = useState<BodyMode>("pretty");
+  const [mode, setModeState] = useState<BodyMode>("pretty");
+  const [pickedMode, setPickedMode] = useState(false);
+  const setMode = (m: BodyMode) => {
+    setModeState(m);
+    setPickedMode(true);
+  };
   const r = state?.response;
 
   const ct = r?.contentType ?? "";
@@ -75,6 +82,14 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   const text = useMemo(() => (r ? bodyText(r) : ""), [r]);
   const pretty = useMemo(() => (lang === "json" ? prettyJson(text) : lang === "xml" ? prettyXml(text) : text), [text, lang]);
   const canPreview = !!r && (lang === "html" || isImage(ct));
+  const isStream = isEventStream(ct);
+  // Events with arrival times when they were received live; otherwise parsed from the body.
+  const events = useMemo(() => (isStream ? (state?.events ?? parseEventStream(text)) : undefined), [isStream, state?.events, text]);
+  const live = state?.loading ? state.live : undefined;
+  const liveStream = !!live && isEventStream(live.contentType);
+
+  // Event streams open on the event list; other bodies can't show it.
+  const bodyMode: BodyMode = mode === "preview" && !canPreview ? "pretty" : mode === "events" && !isStream ? "pretty" : isStream && mode === "pretty" && !pickedMode ? "events" : mode;
 
   const passed = r?.testResults.filter((t) => t.passed).length ?? 0;
   const total = r?.testResults.length ?? 0;
@@ -112,7 +127,23 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
     <div className="@container flex h-full min-h-0 flex-col bg-surface">
       <div className="flex h-11 shrink-0 items-center gap-3 border-b border-line-soft px-5">
         <span className="hidden text-12 font-medium tracking-wide text-muted uppercase @md:inline">Response</span>
-        {state.loading ? (
+        {live ? (
+          <span className="flex min-w-0 items-center gap-3 overflow-hidden text-12 whitespace-nowrap text-grey">
+            <StatusPill status={live.statusCode} text={live.reasonPhrase} />
+            <span className="flex items-center gap-1.5">
+              <Loader2 size={13} className="spin text-primary" aria-hidden />
+              {liveStream ? "Streaming" : "Receiving"} <Elapsed since={state.startedAt} />
+            </span>
+            <span>
+              <span className="text-muted">Size</span> <b className="font-medium text-primary">{formatBytes(live.bytes)}</b>
+            </span>
+            {liveStream && (
+              <span>
+                <span className="text-muted">Events</span> <b className="font-medium text-primary">{state.events?.length ?? 0}</b>
+              </span>
+            )}
+          </span>
+        ) : state.loading ? (
           <span className="flex items-center gap-2 text-13 text-grey">
             <Loader2 size={14} className="spin text-primary" aria-hidden /> Sending… <Elapsed since={state.startedAt} />
           </span>
@@ -185,6 +216,24 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
         </div>
       )}
 
+      {live && (
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {liveStream ? (
+            <EventsView events={state.events ?? []} live />
+          ) : live.text !== undefined ? (
+            <LiveText text={live.text} />
+          ) : (
+            <p className="p-5 text-13 text-muted">Receiving a binary body ({formatBytes(live.bytes)} so far).</p>
+          )}
+        </div>
+      )}
+
+      {r && !r.isError && !state.loading && r.incomplete && (
+        <p role="status" className="mx-5 mt-3 flex items-start gap-2 rounded-lg bg-s-client px-3 py-2 text-12 text-s-client-ink">
+          <CircleAlert size={14} className="mt-0.5 shrink-0" aria-hidden /> {r.incomplete}
+        </p>
+      )}
+
       {r && !r.isError && !state.loading && (
         <>
           <div className="px-5">
@@ -209,7 +258,8 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
               onChange={setView}
               right={
                 view === "body" && !r.isError ? (
-                  <select className="input h-7 w-28 text-12" aria-label="Body view" value={mode} onChange={(e) => setMode(e.target.value as BodyMode)}>
+                  <select className="input h-7 w-28 text-12" aria-label="Body view" value={bodyMode} onChange={(e) => setMode(e.target.value as BodyMode)}>
+                    {isStream && <option value="events">Events</option>}
                     <option value="pretty">Pretty</option>
                     <option value="raw">Raw</option>
                     {canPreview && <option value="preview">Preview</option>}
@@ -220,7 +270,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             {view === "body" && (
-              <BodyView r={r} mode={mode === "preview" && !canPreview ? "pretty" : mode} pretty={pretty} raw={text} lang={lang} />
+              bodyMode === "events" && events ? <EventsView events={events} /> : <BodyView r={r} mode={bodyMode === "events" ? "pretty" : bodyMode} pretty={pretty} raw={text} lang={lang} />
             )}
             {view === "headers" && <HeaderTable rows={r.headers.map((h) => [h.key, h.value])} empty="No headers." />}
             {view === "cookies" && (

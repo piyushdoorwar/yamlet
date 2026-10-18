@@ -1,5 +1,6 @@
 import type { ServerInfo } from "../../../shared/api";
-import type { YamletRequest, YamletResponse, YamletWorkspace } from "@core/models";
+import type { KeyValue, YamletRequest, YamletResponse, YamletWorkspace } from "@core/models";
+import { isEventStream, SseParser, type SseEvent } from "@core/sse";
 import { create } from "zustand";
 import { api, errorMessage, setApiWorkspace } from "./api";
 import { keys, readJson, writeJson } from "./storage";
@@ -17,11 +18,26 @@ export interface Tab {
 
 export const tabKey = (t: Tab) => `${t.kind}:${t.id}${t.folderId ? `:${t.folderId}` : ""}`;
 
+/** What has arrived of a response that is still being received. */
+export interface LiveResponse {
+  statusCode: number;
+  reasonPhrase: string;
+  headers: KeyValue[];
+  contentType: string;
+  firstByteMs: number;
+  /** Body text so far (absent for binary bodies). */
+  text?: string;
+  bytes: number;
+}
+
 export interface ResponseState {
   loading: boolean;
   response?: YamletResponse;
   error?: string;
   startedAt?: number;
+  live?: LiveResponse;
+  /** Server-sent events in arrival order, for text/event-stream responses. */
+  events?: SseEvent[];
 }
 
 export interface HistoryEntry {
@@ -136,6 +152,31 @@ export function recentWorkspaces(): { root: string; name: string; at: number }[]
 }
 
 const prefs = readJson<Prefs>(keys.prefs, { layout: "stacked" });
+
+/** The response as far as it got when the user stopped it mid-body. */
+function stoppedResponse(request: YamletRequest, live: LiveResponse, elapsedMs: number): YamletResponse {
+  const text = live.text ?? "";
+  return {
+    statusCode: live.statusCode,
+    reasonPhrase: live.reasonPhrase,
+    durationMs: elapsedMs,
+    sizeBytes: live.bytes,
+    resolvedUrl: request.url,
+    method: request.method,
+    requestHeaders: [],
+    headers: live.headers,
+    cookies: [],
+    body: text,
+    bodyEncoding: "utf8",
+    contentType: live.contentType,
+    timings: { total: elapsedMs, firstByte: live.firstByteMs },
+    testResults: [],
+    scriptLogs: [],
+    consoleText: `${request.method} ${request.url}\n\nStopped after ${live.bytes} bytes; post-response scripts did not run.`,
+    isError: false,
+    incomplete: live.text === undefined ? "Stopped before the binary body was complete." : "Stopped before the response finished; post-response scripts did not run.",
+  };
+}
 
 export const useStore = create<State>((set, get) => ({
   info: null,
@@ -319,31 +360,49 @@ export const useStore = create<State>((set, get) => ({
     inflight.get(id)?.abort();
     const controller = new AbortController();
     inflight.set(id, controller);
-    set({ responses: { ...get().responses, [id]: { ...get().responses[id], loading: true, error: undefined, startedAt: Date.now() } } });
+    const startedAt = Date.now();
+    const patch = (next: ResponseState) => {
+      // A newer send of the same request owns the panel now.
+      if (inflight.get(id) === controller) set({ responses: { ...get().responses, [id]: next } });
+    };
+    patch({ ...get().responses[id], loading: true, error: undefined, startedAt, live: undefined, events: undefined });
+    let live: LiveResponse | undefined;
+    let sse: SseParser | undefined;
+    let events: SseEvent[] | undefined;
     try {
-      const result = await api.send({ request, collectionId: loc?.collection.id, environmentId: s.environmentId }, controller.signal);
-      set({ responses: { ...get().responses, [id]: { loading: false, response: result.response } } });
+      const result = await api.sendStream(
+        { request, collectionId: loc?.collection.id, environmentId: s.environmentId },
+        (e) => {
+          if (e.type === "head") {
+            const { type: _, ...head } = e;
+            live = { ...head, bytes: 0, text: "" };
+            if (isEventStream(head.contentType)) {
+              sse = new SseParser();
+              events = [];
+            }
+          } else if (e.type === "chunk" && live) {
+            live = { ...live, bytes: e.bytes, text: e.text === undefined ? undefined : (live.text ?? "") + e.text };
+            if (sse && e.text) events = [...(events ?? []), ...sse.push(e.text, Date.now() - startedAt)];
+          }
+          patch({ loading: true, startedAt, live, events });
+        },
+        controller.signal,
+      );
+      if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
+      patch({ loading: false, response: result.response, events });
       if (result.workspace) get().applyWorkspace(result.workspace);
-      const r = result.response;
-      const entry: HistoryEntry = {
-        id: crypto.randomUUID(),
-        at: Date.now(),
-        requestId: id,
-        name: request.name,
-        method: r.method || request.method,
-        url: r.resolvedUrl || request.url,
-        status: r.statusCode,
-        durationMs: r.durationMs,
-        isError: r.isError,
-        snapshot: request,
-      };
-      const history = [entry, ...get().history].slice(0, HISTORY_LIMIT);
-      set({ history });
-      const root = get().workspace?.rootPath;
-      if (root) writeJson(keys.history(root), history);
+      recordHistory(id, request, result.response);
     } catch (err) {
       const aborted = controller.signal.aborted;
-      set({ responses: { ...get().responses, [id]: { loading: false, error: aborted ? "Request cancelled" : errorMessage(err) } } });
+      if (aborted && live) {
+        // Stopped while the body was arriving (e.g. an endless stream): keep what came in.
+        const response = stoppedResponse(request, live, Date.now() - startedAt);
+        if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
+        patch({ loading: false, response, events });
+        recordHistory(id, request, response);
+      } else {
+        patch({ loading: false, error: aborted ? "Request cancelled" : errorMessage(err) });
+      }
     } finally {
       if (inflight.get(id) === controller) inflight.delete(id);
     }
@@ -359,6 +418,25 @@ export const useStore = create<State>((set, get) => ({
     if (root) writeJson(keys.history(root), []);
   },
 }));
+
+function recordHistory(requestId: string, request: YamletRequest, r: YamletResponse): void {
+  const entry: HistoryEntry = {
+    id: crypto.randomUUID(),
+    at: Date.now(),
+    requestId,
+    name: request.name,
+    method: r.method || request.method,
+    url: r.resolvedUrl || request.url,
+    status: r.statusCode,
+    durationMs: r.durationMs,
+    isError: r.isError,
+    snapshot: request,
+  };
+  const history = [entry, ...useStore.getState().history].slice(0, HISTORY_LIMIT);
+  useStore.setState({ history });
+  const root = useStore.getState().workspace?.rootPath;
+  if (root) writeJson(keys.history(root), history);
+}
 
 /** The request as currently edited (draft) or as saved. */
 export function useRequest(id: string): YamletRequest | undefined {

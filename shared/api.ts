@@ -1,5 +1,6 @@
 // JSON shapes exchanged between the browser and the Yamlet server.
 import type {
+  KeyValue,
   OAuth2Config,
   ScriptTestResult,
   Variable,
@@ -83,6 +84,8 @@ export interface SendBody {
   request: YamletRequest;
   collectionId?: string;
   environmentId?: string | null;
+  /** Answer with NDJSON `SendEvent` lines so the body can be shown while it arrives. */
+  stream?: boolean;
 }
 
 export interface SendResult {
@@ -90,6 +93,14 @@ export interface SendResult {
   /** Present when scripts changed environment / collection / global variables. */
   workspace?: YamletWorkspace;
 }
+
+/** One NDJSON line of a streamed send: head, body pieces, then the full result. */
+export type SendEvent =
+  | { type: "head"; statusCode: number; reasonPhrase: string; headers: KeyValue[]; contentType: string; firstByteMs: number }
+  /** `text` is the decoded body piece for textual responses; `bytes` counts raw bytes so far. */
+  | { type: "chunk"; text?: string; bytes: number }
+  | { type: "done"; result: SendResult }
+  | { type: "error"; error: string };
 
 export interface TokenBody {
   config: OAuth2Config;

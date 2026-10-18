@@ -20,6 +20,8 @@ interface Props {
 
 export function UrlBar({ request, update, variables }: Props) {
   const loading = useStore((s) => s.responses[request.id]?.loading ?? false);
+  // Once the body is arriving, cancelling keeps what came in.
+  const receiving = useStore((s) => !!s.responses[request.id]?.live && !!s.responses[request.id]?.loading);
   const send = useStore((s) => s.send);
   const cancel = useStore((s) => s.cancel);
   const setModal = useUi((s) => s.setModal);
@@ -122,7 +124,7 @@ export function UrlBar({ request, update, variables }: Props) {
       </div>
       {loading ? (
         <button type="button" className="btn btn-cancel w-28" onClick={() => cancel(request.id)}>
-          <X size={14} aria-hidden /> Cancel
+          <X size={14} aria-hidden /> {receiving ? "Stop" : "Cancel"}
         </button>
       ) : (
         <button type="button" className="btn btn-primary w-28" onClick={() => void send(request.id)} title="Send (Ctrl+Enter)">

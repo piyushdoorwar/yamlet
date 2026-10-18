@@ -13,6 +13,7 @@ import {
   type RunBody,
   type RunEvent,
   type SendBody,
+  type SendEvent,
   type SendResult,
   type ServerInfo,
   type TokenBody,
@@ -139,34 +140,50 @@ export const api = {
   },
 
   /** Stream runner events (NDJSON) as they arrive. */
-  run: async (body: RunBody, onEvent: (e: RunEvent) => void, signal?: AbortSignal): Promise<void> => {
-    const res = await fetch("/api/runner/run", {
-      method: "POST",
-      headers: headersFor("POST", true),
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!res.ok || !res.body) {
-      await parse(res);
-      return;
-    }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (line) onEvent(JSON.parse(line) as RunEvent);
-      }
-    }
-    if (buffer.trim()) onEvent(JSON.parse(buffer) as RunEvent);
+  run: (body: RunBody, onEvent: (e: RunEvent) => void, signal?: AbortSignal): Promise<void> => ndjson("/api/runner/run", body, onEvent, signal),
+
+  /** Send with the body streamed back as it arrives; resolves with the final result. */
+  sendStream: async (body: SendBody, onEvent: (e: SendEvent) => void, signal?: AbortSignal): Promise<SendResult> => {
+    let result: SendResult | undefined;
+    let error: string | undefined;
+    await ndjson<SendEvent>("/api/send", { ...body, stream: true }, (e) => {
+      if (e.type === "done") result = e.result;
+      else if (e.type === "error") error = e.error;
+      else onEvent(e);
+    }, signal);
+    if (result) return result;
+    throw new ApiError(500, error ?? "The server closed the connection before the response was complete.");
   },
 };
+
+/** POST JSON and hand each NDJSON line of the answer to `onEvent` as it arrives. */
+async function ndjson<E>(path: string, body: unknown, onEvent: (e: E) => void, signal?: AbortSignal): Promise<void> {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: headersFor("POST", true),
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    await parse(res);
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line) onEvent(JSON.parse(line) as E);
+    }
+  }
+  if (buffer.trim()) onEvent(JSON.parse(buffer) as E);
+}
 
 export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
