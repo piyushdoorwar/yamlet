@@ -15,6 +15,7 @@ interface FileShape {
 export class CookieFile {
   private data: FileShape = { version: 1, workspaces: {} };
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private dirty = false;
   private writing: Promise<void> = Promise.resolve();
   private readonly jars = new Map<string, CookieJar>();
 
@@ -48,15 +49,18 @@ export class CookieFile {
   }
 
   private schedule(): void {
+    this.dirty = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => void this.flush(), SAVE_DELAY_MS);
     this.timer.unref?.();
   }
 
-  /** Writes now (also used before shutdown and in tests). */
+  /** Writes pending changes now (also used before shutdown and in tests). */
   async flush(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
+    if (!this.dirty) return this.writing;
+    this.dirty = false;
     const text = `${JSON.stringify(this.data, null, 2)}\n`;
     const write = async () => {
       await fs.mkdir(path.dirname(this.filePath), { recursive: true });
