@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSnippet, SNIPPET_LANGUAGES } from "../src/codegen.js";
+import { generateSnippet, SNIPPET_LANGUAGES, snippetSigns } from "../src/codegen.js";
 import { defaultAuth, newCollection, newRequest, yamletUserAgent } from "../src/models.js";
 import { applyPathVariables, buildRequest, encodeTypedQueryComponent } from "../src/requestBuilder.js";
 
@@ -160,7 +160,7 @@ describe("codegen", () => {
   ];
 
   it("generates every language for every body kind", () => {
-    expect(SNIPPET_LANGUAGES.map((l) => l.id)).toEqual(["curl", "http", "javascript-fetch", "node-axios", "python-requests", "go", "csharp-httpclient", "java-okhttp", "php-curl", "powershell", "ruby"]);
+    expect(SNIPPET_LANGUAGES.map((l) => l.id)).toEqual(["curl", "httpie", "wget", "http", "javascript-fetch", "node-axios", "python-requests", "go", "csharp-httpclient", "java-okhttp", "php-curl", "powershell", "ruby"]);
     for (const lang of SNIPPET_LANGUAGES) {
       for (const b of samples) {
         const s = generateSnippet(lang.id, b);
@@ -222,5 +222,21 @@ describe("build problems", () => {
     expect(buildRequest(r, { ctx: {} }).problems?.[0]).toMatch(/GraphQL variables aren't valid JSON/);
     r.body.graphqlVariables = '{"id": {{id}}}';
     expect(buildRequest(r, { ctx: { environment: [{ key: "id", value: "3", enabled: true }] } }).problems).toBeUndefined();
+  });
+});
+
+describe("snippets for send-time auth", () => {
+  it("adds Digest and AWS SigV4 to cURL and says when a language can't", () => {
+    const r = newRequest({ url: "https://api.test/x" });
+    r.auth = { ...defaultAuth("digest"), username: "bob", password: "pw" };
+    const digest = buildRequest(r, { ctx: {} });
+    expect(generateSnippet("curl", digest)).toContain("--digest \\\n  --user 'bob:pw'");
+    expect(generateSnippet("httpie", digest)).toContain("--auth-type=digest");
+    expect(snippetSigns("python-requests", digest)).toBe(false);
+    r.auth = { ...defaultAuth("awsv4"), aws: { accessKey: "AK", secretKey: "SK", sessionToken: "", region: "eu-west-1", service: "execute-api" } };
+    const aws = buildRequest(r, { ctx: {} });
+    expect(generateSnippet("curl", aws)).toContain("--aws-sigv4 'aws:amz:eu-west-1:execute-api'");
+    expect(snippetSigns("httpie", aws)).toBe(false);
+    expect(snippetSigns("go", buildRequest(newRequest({ url: "https://api.test" }), { ctx: {} }))).toBe(true);
   });
 });

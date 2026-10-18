@@ -4,6 +4,8 @@ import { encodeUrlEncodedBody } from "./requestBuilder.js";
 
 export const SNIPPET_LANGUAGES: { id: string; label: string }[] = [
   { id: "curl", label: "cURL" },
+  { id: "httpie", label: "HTTPie" },
+  { id: "wget", label: "wget" },
   { id: "http", label: "HTTP (raw)" },
   { id: "javascript-fetch", label: "JavaScript (fetch)" },
   { id: "node-axios", label: "Node.js (axios)" },
@@ -43,6 +45,12 @@ function textBody(b: BuiltRequest): string | undefined {
 const curl: Gen = (b) => {
   const lines: string[] = [];
   const first = `curl --location${b.method !== "GET" || b.body.kind !== "none" ? ` --request ${b.method}` : ""} ${shq(b.url)}`;
+  const s = b.signing;
+  if (s?.kind === "digest") lines.push("--digest", `--user ${shq(`${s.username}:${s.password}`)}`);
+  if (s?.kind === "awsv4") {
+    lines.push(`--aws-sigv4 ${shq(`aws:amz:${s.region}:${s.service}`)}`, `--user ${shq(`${s.accessKey}:${s.secretKey}`)}`);
+    if (s.sessionToken) lines.push(`--header ${shq(`X-Amz-Security-Token: ${s.sessionToken}`)}`);
+  }
   for (const h of sendHeaders(b)) lines.push(`--header ${shq(`${h.key}: ${h.value}`)}`);
   switch (b.body.kind) {
     case "text":
@@ -59,6 +67,40 @@ const curl: Gen = (b) => {
       break;
   }
   return [first, ...lines].join(" \\\n  ");
+};
+
+const httpie: Gen = (b) => {
+  const parts = ["http"];
+  if (b.body.kind === "form-data") parts.push("--multipart");
+  if (b.body.kind === "urlencoded") parts.push("--form");
+  if (b.signing?.kind === "digest") parts.push("--auth-type=digest", `--auth=${shq(`${b.signing.username}:${b.signing.password}`)}`);
+  parts.push(b.method, shq(b.url));
+  for (const h of sendHeaders(b)) parts.push(shq(`${h.key}:${h.value}`));
+  const lines = [parts.join(" ")];
+  switch (b.body.kind) {
+    case "text":
+      return `printf '%s' ${shq(b.body.text)} | ${lines[0]}`;
+    case "urlencoded":
+      return `${lines[0]} ${b.body.fields.map((f) => shq(`${f.key}=${f.value}`)).join(" ")}`;
+    case "form-data":
+      return `${lines[0]} ${b.body.fields.map((f) => shq(f.isFile ? `${f.key}@${f.value}${f.contentType ? `;type=${f.contentType}` : ""}` : `${f.key}=${f.value}`)).join(" ")}`;
+    case "binary":
+      return `${lines[0]} < ${shq(b.body.file)}`;
+    default:
+      return lines[0];
+  }
+};
+
+const wget: Gen = (b) => {
+  const lines = [`wget --quiet --output-document=- --method=${b.method}`];
+  if (b.signing?.kind === "digest") lines.push(`--user=${shq(b.signing.username)}`, `--password=${shq(b.signing.password)}`);
+  for (const h of sendHeaders(b)) lines.push(`--header=${shq(`${h.key}: ${h.value}`)}`);
+  const body = textBody(b);
+  if (body !== undefined) lines.push(`--body-data=${shq(body)}`);
+  else if (b.body.kind === "binary") lines.push(`--body-file=${shq(b.body.file)}`);
+  else if (b.body.kind === "form-data") lines.push("# wget can't send multipart forms; use the cURL or HTTPie snippet");
+  lines.push(shq(b.url));
+  return lines.join(" \\\n  ");
 };
 
 const http: Gen = (b) => {
@@ -420,6 +462,8 @@ const ruby: Gen = (b) => {
 
 const GENERATORS: Record<string, Gen> = {
   curl,
+  httpie,
+  wget,
   http,
   "javascript-fetch": jsFetch,
   "node-axios": nodeAxios,
@@ -431,6 +475,13 @@ const GENERATORS: Record<string, Gen> = {
   powershell,
   ruby,
 };
+
+/** Snippet languages that apply the request's send-time signing (Digest, AWS SigV4) themselves. */
+export function snippetSigns(lang: string, built: BuiltRequest): boolean {
+  if (!built.signing) return true;
+  if (lang === "curl") return true;
+  return built.signing.kind === "digest" && (lang === "httpie" || lang === "wget");
+}
 
 export function generateSnippet(lang: string, built: BuiltRequest): string {
   const gen = GENERATORS[lang];

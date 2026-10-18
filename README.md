@@ -99,8 +99,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 - **Import and export.** Import cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), HAR files
   from browser devtools, and v2.1 collection and environment JSON exports, pasted, from a
   file, or from a link; export a collection or environment back to that JSON.
-- **Code snippets.** cURL, raw HTTP, JavaScript fetch, Node axios, Python requests, Go,
-  C#, Java, PHP, PowerShell and Ruby.
+- **Code snippets.** cURL (including Digest and AWS SigV4), HTTPie, wget, raw HTTP,
+  JavaScript fetch, Node axios, Python requests, Go, C#, Java, PHP, PowerShell and Ruby.
 - **Cookies and history.** A cookie jar per workspace, kept across restarts, where you
   can add and edit cookies; a request can opt out of it. A per-workspace history of what
   you sent: open the request, restore the version you sent, or save it as a new request.

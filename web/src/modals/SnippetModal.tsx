@@ -1,4 +1,4 @@
-import { generateSnippet, SNIPPET_LANGUAGES } from "@core/codegen";
+import { generateSnippet, SNIPPET_LANGUAGES, snippetSigns } from "@core/codegen";
 import { buildRequest } from "@core/requestBuilder";
 import { Copy } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -27,13 +27,13 @@ export function SnippetModal({ requestId, onClose }: { requestId: string; onClos
   const [resolve, setResolve] = useState(true);
   const toast = useToast();
 
-  const code = useMemo(() => {
-    if (!request) return "";
+  const { code, unsigned } = useMemo(() => {
+    if (!request) return { code: "", unsigned: undefined };
     try {
       const built = buildRequest(request, { ctx: resolve ? ctx : {}, collection: loc?.collection, folders: loc?.folders });
-      return generateSnippet(lang, built);
+      return { code: generateSnippet(lang, built), unsigned: snippetSigns(lang, built) ? undefined : built.signing?.kind };
     } catch (err) {
-      return `// Could not generate this snippet: ${(err as Error).message}`;
+      return { code: `// Could not generate this snippet: ${(err as Error).message}`, unsigned: undefined };
     }
   }, [request, ctx, lang, resolve, loc]);
 
@@ -69,6 +69,11 @@ export function SnippetModal({ requestId, onClose }: { requestId: string; onClos
           <input type="checkbox" className="check" checked={resolve} onChange={(e) => setResolve(e.target.checked)} /> Resolve variables
         </label>
       </div>
+      {unsigned && (
+        <p className="mb-3 text-12 text-muted">
+          This request uses {unsigned === "digest" ? "Digest" : "AWS Signature v4"} auth, which this snippet doesn't add. Use the cURL snippet, or your client's own {unsigned === "digest" ? "Digest" : "SigV4"} support.
+        </p>
+      )}
       <div className="h-96 overflow-hidden rounded-lg border border-line">
         <CodeEditor fill readOnly value={code} language={LANG_EDITOR[lang] ?? "text"} ariaLabel="Snippet" />
       </div>

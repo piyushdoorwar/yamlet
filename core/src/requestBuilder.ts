@@ -20,6 +20,8 @@ export interface BuiltRequest {
   body: BuiltBody;
   /** Reasons the request can't be sent as written (the executor refuses; snippets ignore them). */
   problems?: string[];
+  /** Auth applied at send time (it needs the server's challenge or the final bytes); for snippets. */
+  signing?: { kind: "digest"; username: string; password: string } | { kind: "awsv4"; accessKey: string; secretKey: string; sessionToken: string; region: string; service: string };
 }
 
 export interface BuildOptions {
@@ -205,6 +207,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   };
 
   // Auth
+  let signing: BuiltRequest["signing"];
   const auth = effectiveAuth(request, opts.collection, opts.folders);
   switch (auth.type) {
     case "bearer": {
@@ -230,6 +233,12 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
       if (cookie.trim()) authHeader("Cookie", cookie);
       break;
     }
+    case "digest":
+      signing = { kind: "digest", username: r(auth.username), password: r(auth.password) };
+      break;
+    case "awsv4":
+      signing = { kind: "awsv4", accessKey: r(auth.aws.accessKey), secretKey: r(auth.aws.secretKey), sessionToken: r(auth.aws.sessionToken), region: r(auth.aws.region), service: r(auth.aws.service) };
+      break;
     case "oauth2": {
       const o = auth.oauth2;
       const token = opts.oauthToken?.trim() ? opts.oauthToken : r(o.accessToken);
@@ -321,7 +330,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     const name = unresolved[1] ?? decodeURIComponent(unresolved[2]);
     problems.push(`The URL uses {{${name}}}, which isn't defined. Select an environment that defines it, or add it as a variable.`);
   }
-  return { method, url, headers, body, ...(problems.length ? { problems } : {}) };
+  return { method, url, headers, body, ...(problems.length ? { problems } : {}), ...(signing ? { signing } : {}) };
 }
 
 /** Serializes urlencoded fields the way browsers and curl do (`+` for spaces). */
