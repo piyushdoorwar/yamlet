@@ -41,6 +41,10 @@ interface Props {
   minHeight?: number;
   lineNumbers?: boolean;
   ariaLabel?: string;
+  /** Wrap long lines (multi-line only; default on). */
+  wrap?: boolean;
+  /** Whole-value completions offered while typing (single-line cells such as header values). */
+  suggestions?: string[];
 }
 
 const PLACEHOLDER = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/g;
@@ -196,7 +200,7 @@ const singleLineExtensions: Extension = [
 ];
 
 export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
-  { value, onChange, language = "text", readOnly, singleLine, placeholder, variables, onSubmit, className, fill, minHeight, lineNumbers = true, ariaLabel },
+  { value, onChange, language = "text", readOnly, singleLine, placeholder, variables, onSubmit, className, fill, minHeight, lineNumbers = true, ariaLabel, wrap = true, suggestions },
   ref,
 ) {
   const cm = useRef<ReactCodeMirrorRef>(null);
@@ -214,9 +218,10 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
       sources.push(v.complete);
     }
     if (language === "javascript") sources.push(pmComplete);
+    if (suggestions?.length) sources.push(valueComplete(suggestions));
     if (sources.length && !readOnly) ext.push(autocompletion({ override: sources, icons: false }));
     if (singleLine) ext.push(singleLineExtensions);
-    else ext.push(EditorView.lineWrapping);
+    else if (wrap) ext.push(EditorView.lineWrapping);
     ext.push(
       Prec.highest(
         keymap.of([
@@ -229,7 +234,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
     return ext;
     // variables.version captures every lookup change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, singleLine, readOnly, variables?.version, ariaLabel]);
+  }, [language, singleLine, readOnly, variables?.version, ariaLabel, wrap, suggestions?.join("\n")]);
 
   return (
     <CodeMirror
@@ -253,6 +258,17 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
     />
   );
 });
+
+/** Suggests whole values that start with what's typed (not inside a {{variable}}). */
+function valueComplete(values: string[]) {
+  return (ctx: CompletionContext): CompletionResult | null => {
+    const before = ctx.state.sliceDoc(0, ctx.pos);
+    if (/\{\{[^}]*$/.test(before)) return null;
+    const typed = before.toLowerCase();
+    const options = values.filter((v) => v.toLowerCase().startsWith(typed) && v !== before).map((label) => ({ label, type: "text" }));
+    return options.length ? { from: 0, options, filter: false } : null;
+  };
+}
 
 function pmComplete(ctx: CompletionContext): CompletionResult | null {
   const word = ctx.matchBefore(/(pm|console|JSON)(\.[\w]*)*\.?[\w]*/);

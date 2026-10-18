@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Eye, EyeOff, FileText, HardDrive, Lock, Trash2 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { CodeEditor, type VariableSource } from "../editor/CodeEditor";
 
 export interface Row {
@@ -35,6 +35,10 @@ interface Props<T extends Row> {
   /** Keys come from the URL (path variables) and can't be edited or added. */
   fixedKeys?: boolean;
   bulk?: boolean;
+  /** Suggested keys (e.g. header names). */
+  keySuggestions?: string[];
+  /** Suggested values for a row's key. */
+  valueSuggestions?: (key: string) => string[] | undefined;
 }
 
 /** Spreadsheet-style editor with a trailing blank row and optional bulk-edit mode. */
@@ -42,6 +46,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
   const [bulk, setBulk] = useState(false);
   const { rows, onChange, blank, variables, showDescription, noToggle, locked, renderExtra, renderValue, secrets, localValues, fixedKeys } = props;
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const listId = useId();
 
   const all = fixedKeys ? rows : [...rows, blank()];
   const update = (i: number, patch: Partial<T>) => {
@@ -68,6 +73,13 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
 
   return (
     <div>
+      {props.keySuggestions && (
+        <datalist id={listId}>
+          {props.keySuggestions.map((k) => (
+            <option key={k} value={k} />
+          ))}
+        </datalist>
+      )}
       <table className="kv-table">
         <thead>
           <tr>
@@ -123,6 +135,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                     readOnly={fixedKeys}
                     placeholder={props.keyPlaceholder ?? "Key"}
                     aria-label="Key"
+                    list={props.keySuggestions ? listId : undefined}
                     onChange={(e) => update(i, { key: e.target.value } as Partial<T>)}
                   />
                 </td>
@@ -145,6 +158,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                           variables={variables}
                           placeholder={props.valuePlaceholder ?? "Value"}
                           ariaLabel="Value"
+                          suggestions={props.valueSuggestions?.(row.key)}
                           onChange={(v) => {
                             if (v !== row.value) update(i, { value: v } as Partial<T>);
                           }}

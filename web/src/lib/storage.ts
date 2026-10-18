@@ -24,4 +24,5 @@ export const keys = {
   history: (root: string) => `yamlet.history:${root}`,
   prefs: "yamlet.prefs",
   consoleOpen: "yamlet.consoleOpen",
+  responseWrap: "yamlet.responseWrap",
 };

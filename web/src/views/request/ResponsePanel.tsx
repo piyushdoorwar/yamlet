@@ -1,7 +1,7 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
 import { isEventStream, parseEventStream } from "@core/sse";
 import clsx from "clsx";
-import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Loader2, MoreHorizontal, Send } from "lucide-react";
+import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Filter, Loader2, MoreHorizontal, Send, WrapText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { IconButton } from "../../components/Button";
 import { useDialogs } from "../../components/Dialogs";
@@ -11,6 +11,8 @@ import { CountBadge, UnderlineTabs } from "../../components/Tabs";
 import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
 import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml } from "../../lib/format";
+import { queryJson, JsonPathError } from "../../lib/jsonPath";
+import { keys, readJson, writeJson } from "../../lib/storage";
 import { useStore } from "../../lib/store";
 import { NetworkBadge, SizeBreakdown, TimeBreakdown } from "./ResponseMeta";
 import { EventsView, LiveText } from "./StreamViews";
@@ -91,6 +93,25 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
 
   // Event streams open on the event list; other bodies can't show it.
   const bodyMode: BodyMode = mode === "preview" && !canPreview ? "pretty" : mode === "events" && !isStream ? "pretty" : isStream && mode === "pretty" && !pickedMode ? "events" : mode;
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [jsonPath, setJsonPath] = useState("");
+  const [wrap, setWrapState] = useState(() => readJson<boolean>(keys.responseWrap, true));
+  const setWrap = (v: boolean) => {
+    setWrapState(v);
+    writeJson(keys.responseWrap, v);
+  };
+  const showFilter = filterOpen && lang === "json" && bodyMode === "pretty";
+  // The filter shows its matches as JSON: one match on its own, several as a list.
+  const filtered = useMemo((): { text?: string; error?: string; count?: number } => {
+    if (!showFilter || !jsonPath.trim()) return {};
+    try {
+      const matches = queryJson(JSON.parse(text), jsonPath);
+      return { text: JSON.stringify(matches.length === 1 ? matches[0] : matches, null, 2) ?? "", count: matches.length };
+    } catch (e) {
+      return { error: e instanceof JsonPathError ? e.message : "The body isn't valid JSON." };
+    }
+  }, [showFilter, jsonPath, text]);
 
   const passed = r?.testResults.filter((t) => t.passed).length ?? 0;
   const total = r?.testResults.length ?? 0;
@@ -256,20 +277,50 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
               onChange={setView}
               right={
                 view === "body" && !r.isError ? (
-                  <select className="input h-7 w-28 text-12" aria-label="Body view" value={bodyMode} onChange={(e) => setMode(e.target.value as BodyMode)}>
-                    {isStream && <option value="events">Events</option>}
-                    <option value="pretty">Pretty</option>
-                    <option value="raw">Raw</option>
-                    {canPreview && <option value="preview">Preview</option>}
-                  </select>
+                  <span className="flex items-center gap-1">
+                    {lang === "json" && bodyMode === "pretty" && (
+                      <IconButton icon={Filter} size={14} label="Filter with JSONPath" active={filterOpen} onClick={() => setFilterOpen((v) => !v)} />
+                    )}
+                    {(bodyMode === "pretty" || bodyMode === "raw") && (
+                      <IconButton icon={WrapText} size={14} label={wrap ? "Don't wrap lines" : "Wrap lines"} active={wrap} onClick={() => setWrap(!wrap)} />
+                    )}
+                    <select className="input h-7 w-28 text-12" aria-label="Body view" value={bodyMode} onChange={(e) => setMode(e.target.value as BodyMode)}>
+                      {isStream && <option value="events">Events</option>}
+                      <option value="pretty">Pretty</option>
+                      <option value="raw">Raw</option>
+                      {canPreview && <option value="preview">Preview</option>}
+                    </select>
+                  </span>
                 ) : undefined
               }
             />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            {view === "body" && (
-              bodyMode === "events" && events ? <EventsView events={events} /> : <BodyView r={r} mode={bodyMode === "events" ? "pretty" : bodyMode} pretty={pretty} raw={text} lang={lang} />
-            )}
+            {view === "body" &&
+              (bodyMode === "events" && events ? (
+                <EventsView events={events} />
+              ) : (
+                <div className="flex h-full flex-col">
+                  {showFilter && (
+                    <div className="flex shrink-0 items-center gap-2 border-b border-line-soft px-5 py-1.5">
+                      <Filter size={13} className="shrink-0 text-muted" aria-hidden />
+                      <input
+                        className="input h-7 flex-1 font-mono text-12"
+                        placeholder="$.data[*].id  or  $..items[?(@.price < 10)]"
+                        aria-label="JSONPath filter"
+                        value={jsonPath}
+                        autoFocus
+                        onChange={(e) => setJsonPath(e.target.value)}
+                      />
+                      {filtered.error && <span className="max-w-[40%] truncate text-12 text-danger" title={filtered.error}>{filtered.error}</span>}
+                      {filtered.count !== undefined && <span className="shrink-0 text-12 text-muted">{filtered.count} {filtered.count === 1 ? "match" : "matches"}</span>}
+                    </div>
+                  )}
+                  <div className="min-h-0 flex-1">
+                    <BodyView r={r} mode={bodyMode === "events" ? "pretty" : bodyMode} pretty={filtered.text ?? pretty} raw={text} lang={lang} wrap={wrap} />
+                  </div>
+                </div>
+              ))}
             {view === "headers" && <HeaderTable rows={r.headers.map((h) => [h.key, h.value])} empty="No headers." />}
             {view === "cookies" && (
               <HeaderTable
@@ -291,7 +342,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   );
 }
 
-function BodyView({ r, mode, pretty, raw, lang }: { r: YamletResponse; mode: BodyMode; pretty: string; raw: string; lang: ReturnType<typeof languageFor> }) {
+function BodyView({ r, mode, pretty, raw, lang, wrap }: { r: YamletResponse; mode: BodyMode; pretty: string; raw: string; lang: ReturnType<typeof languageFor>; wrap: boolean }) {
   if (mode === "preview") {
     if (isImage(r.contentType)) {
       const src = r.bodyEncoding === "base64" ? `data:${r.contentType.split(";")[0]};base64,${r.body}` : `data:${r.contentType.split(";")[0]};utf8,${encodeURIComponent(r.body)}`;
@@ -311,7 +362,7 @@ function BodyView({ r, mode, pretty, raw, lang }: { r: YamletResponse; mode: Bod
     return <p className="p-5 text-13 text-muted">Image response. Switch the view to Preview to see it.</p>;
   }
   if (!raw) return <p className="p-5 text-13 text-muted italic">The response body is empty.</p>;
-  return <CodeEditor fill readOnly value={mode === "pretty" ? pretty : raw} language={mode === "pretty" ? lang : "text"} ariaLabel="Response body" />;
+  return <CodeEditor fill readOnly wrap={wrap} value={mode === "pretty" ? pretty : raw} language={mode === "pretty" ? lang : "text"} ariaLabel="Response body" />;
 }
 
 function HeaderTable({ rows, head = ["Key", "Value"], empty }: { rows: string[][]; head?: string[]; empty: string }) {

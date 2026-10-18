@@ -6,6 +6,7 @@ import { KeyValueTable } from "../../components/KeyValueTable";
 import { StatusPill } from "../../components/Labels";
 import { CountBadge, Dot, UnderlineTabs } from "../../components/Tabs";
 import { CodeEditor, type VariableSource } from "../../editor/CodeEditor";
+import { HEADER_NAMES, headerValues } from "../../lib/headerHints";
 import { BodyEditor } from "./BodyEditor";
 import { ScriptsEditor } from "./ScriptsEditor";
 import { SettingsPane } from "./SettingsPane";
@@ -120,6 +121,8 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
             variables={variables}
             showDescription
             keyPlaceholder="Header"
+            keySuggestions={HEADER_NAMES}
+            valueSuggestions={headerValues}
             locked={[
               { key: "User-Agent", value: yamletUserAgent(), note: "Sent with every request" },
               ...DEFAULT_REQUEST_HEADERS.filter((d) => !request.headers.some((h) => h.enabled !== false && h.key.trim().toLowerCase() === d.key.toLowerCase())).map((d) => ({
