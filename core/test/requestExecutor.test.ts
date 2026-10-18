@@ -435,6 +435,14 @@ describe("transport error messages", () => {
     expect(errMessage(Object.assign(new Error(""), { code: "UND_ERR_CONNECT_TIMEOUT" }))).toBe("UND_ERR_CONNECT_TIMEOUT: connection timed out");
     expect(errMessage({})).toMatch(/without an error message/);
   });
+
+  it("replaces OpenSSL's raw lines with what they mean", async () => {
+    const { errMessage } = await import("../src/requestExecutor.js");
+    const raw = "40DED77270760000:error:0A00010B:SSL routines:tls_validate_record_header:wrong version number:../deps/openssl/ssl/record.c:77:";
+    expect(errMessage(Object.assign(new Error(raw), { code: "ERR_SSL_WRONG_VERSION_NUMBER" }))).toBe("ERR_SSL_WRONG_VERSION_NUMBER: the TLS handshake failed; is this an http:// server?");
+    expect(errMessage(Object.assign(new Error(raw), { code: "ERR_SSL_OTHER" }))).toBe("wrong version number; ERR_SSL_OTHER");
+    expect(errMessage(Object.assign(new Error("unable to get local issuer certificate"), { code: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" }))).toContain("CA certificate in Settings");
+  });
 });
 
 describe("QUERY method", () => {

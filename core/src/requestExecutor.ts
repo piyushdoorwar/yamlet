@@ -69,7 +69,6 @@ export interface ExecuteResult {
 
 export const MAX_REDIRECTS = 10;
 
-
 const NETWORK_HINTS: Record<string, string> = {
   ENOTFOUND: "host name could not be resolved",
   EAI_AGAIN: "DNS lookup timed out",
@@ -82,6 +81,12 @@ const NETWORK_HINTS: Record<string, string> = {
   DEPTH_ZERO_SELF_SIGNED_CERT: "self-signed certificate (turn on Skip SSL verification in Settings)",
   SELF_SIGNED_CERT_IN_CHAIN: "self-signed certificate in chain (turn on Skip SSL verification in Settings)",
   UNABLE_TO_VERIFY_LEAF_SIGNATURE: "certificate could not be verified (turn on Skip SSL verification in Settings)",
+  UNABLE_TO_GET_ISSUER_CERT_LOCALLY: "the certificate's issuer isn't trusted here; behind a company proxy, add its CA certificate in Settings (Ctrl+,) or turn on Skip SSL verification",
+  UNABLE_TO_GET_ISSUER_CERT: "the certificate's issuer isn't trusted here; add the CA certificate in Settings (Ctrl+,) or turn on Skip SSL verification",
+  CERT_NOT_YET_VALID: "the server's certificate isn't valid yet (check this machine's clock)",
+  ERR_TLS_CERT_ALTNAME_INVALID: "the certificate doesn't cover this host name",
+  ERR_SSL_WRONG_VERSION_NUMBER: "the TLS handshake failed; is this an http:// server?",
+  EPROTO: "the TLS handshake failed; is this an http:// server?",
   UND_ERR_CONNECT_TIMEOUT: "connection timed out",
   UND_ERR_HEADERS_TIMEOUT: "timed out waiting for response headers",
   UND_ERR_BODY_TIMEOUT: "timed out reading the response body",
@@ -108,7 +113,10 @@ export const errMessage = (e: unknown): string => {
     }
     const err = x as ErrLike;
     const code = typeof err.code === "string" ? err.code : undefined;
-    const msg = typeof err.message === "string" ? err.message : "";
+    let msg = typeof err.message === "string" ? err.message : "";
+    // OpenSSL's "40DE...:error:0A00010B:SSL routines:fn:reason:file:line:" says little beyond its reason.
+    const ssl = /^[0-9A-F]+:error:[0-9A-F]+:[^:]*:[^:]*:([^:]+):/.exec(msg);
+    if (ssl) msg = code && NETWORK_HINTS[code] ? "" : ssl[1];
     if (msg && msg !== "fetch failed") add(msg);
     const hasInner = Array.isArray(err.errors) && err.errors.length > 0;
     if (code && !msg && hasInner) {
