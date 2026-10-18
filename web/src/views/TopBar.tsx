@@ -1,11 +1,12 @@
 import clsx from "clsx";
-import { ChevronDown, ChevronLeft, ChevronRight, Globe, Layers, Play, Folder, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Eye, Globe, Layers, Play, Folder, Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MethodLabel } from "../components/Labels";
 import { useMenu } from "../components/Menu";
 import { type Tab, tabKey, useStore } from "../lib/store";
 import { findFolder, findRequest } from "../lib/tree";
+import { QuickLook } from "./QuickLook";
 
 const NONE: never[] = [];
 
@@ -173,6 +174,8 @@ export function TopBar() {
   const listBtn = useRef<HTMLButtonElement>(null);
   const [edges, setEdges] = useState({ left: false, right: false });
   const [listOpen, setListOpen] = useState(false);
+  const lookBtn = useRef<HTMLButtonElement>(null);
+  const [lookOpen, setLookOpen] = useState(false);
 
   const updateEdges = useCallback(() => {
     const el = strip.current;
@@ -259,6 +262,17 @@ export function TopBar() {
           ))}
         </select>
         <button
+          ref={lookBtn}
+          type="button"
+          aria-label="Variables in effect"
+          title="Variables in effect"
+          aria-expanded={lookOpen}
+          className={clsx("rounded-md p-1.5", lookOpen ? "bg-primary-soft text-primary" : "text-grey hover:bg-primary-soft hover:text-primary")}
+          onClick={() => setLookOpen((o) => !o)}
+        >
+          <Eye size={15} aria-hidden />
+        </button>
+        <button
           type="button"
           aria-label="Edit active environment"
           title="Edit active environment"
@@ -271,6 +285,7 @@ export function TopBar() {
       </div>
       {menu.node}
       {listOpen && listBtn.current && <AllTabs anchor={listBtn.current} onClose={() => setListOpen(false)} />}
+      {lookOpen && lookBtn.current && <QuickLook anchor={lookBtn.current} onClose={() => setLookOpen(false)} />}
     </header>
   );
 }
