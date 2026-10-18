@@ -48,6 +48,22 @@ function isImage(ct: string) {
   return /^image\/(png|jpe?g|gif|webp|svg\+xml|bmp|x-icon|avif)/i.test(ct);
 }
 
+function isPdf(ct: string) {
+  return /^application\/pdf\b/i.test(ct);
+}
+
+/** The browser's own PDF viewer, fed from a blob URL that is released on unmount. */
+function PdfPreview({ r }: { r: YamletResponse }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const bytes = r.bodyEncoding === "base64" ? Uint8Array.from(atob(r.body), (c) => c.charCodeAt(0)) : new TextEncoder().encode(r.body);
+    const next = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [r]);
+  return url ? <iframe title="PDF preview" src={url} className="h-full w-full" /> : null;
+}
+
 function bodyText(r: YamletResponse): string {
   if (r.bodyEncoding !== "base64") return r.body;
   try {
@@ -84,7 +100,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   const lang = languageFor(ct);
   const text = useMemo(() => (r ? bodyText(r) : ""), [r]);
   const pretty = useMemo(() => (lang === "json" ? prettyJson(text) : lang === "xml" ? prettyXml(text) : text), [text, lang]);
-  const canPreview = !!r && (lang === "html" || isImage(ct));
+  const canPreview = !!r && (lang === "html" || isImage(ct) || isPdf(ct));
   const isStream = isEventStream(ct);
   // Events with arrival times when they were received live; otherwise parsed from the body.
   const events = useMemo(() => (isStream ? (state?.events ?? parseEventStream(text)) : undefined), [isStream, state?.events, text]);
@@ -344,6 +360,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
 
 function BodyView({ r, mode, pretty, raw, lang, wrap }: { r: YamletResponse; mode: BodyMode; pretty: string; raw: string; lang: ReturnType<typeof languageFor>; wrap: boolean }) {
   if (mode === "preview") {
+    if (isPdf(r.contentType)) return <PdfPreview r={r} />;
     if (isImage(r.contentType)) {
       const src = r.bodyEncoding === "base64" ? `data:${r.contentType.split(";")[0]};base64,${r.body}` : `data:${r.contentType.split(";")[0]};utf8,${encodeURIComponent(r.body)}`;
       return (
@@ -354,6 +371,9 @@ function BodyView({ r, mode, pretty, raw, lang, wrap }: { r: YamletResponse; mod
     }
     // No scripts, forms or same-origin access: the page can't reach Yamlet's API.
     return <iframe title="HTML preview" sandbox="" srcDoc={raw} className="h-full w-full bg-white" />;
+  }
+  if (r.bodyEncoding === "base64" && isPdf(r.contentType)) {
+    return <p className="p-5 text-13 text-muted">PDF response ({formatBytes(r.sizeBytes)}). Switch the view to Preview to read it, or download it.</p>;
   }
   if (r.bodyEncoding === "base64" && !isImage(r.contentType)) {
     return <p className="p-5 text-13 text-muted">Binary response ({formatBytes(r.sizeBytes)}). Use the download button to save it.</p>;
