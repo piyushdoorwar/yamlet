@@ -100,7 +100,7 @@ const NO_VALUE_FLAGS = new Set([
 ]);
 const VALUE_FLAGS_IGNORED = new Set([
   "-o", "--output", "-w", "--write-out", "--retry", "-x", "--proxy", "--cacert", "--cert", "-E", "--key", "--resolve",
-  "--connect-timeout", "-c", "--cookie-jar", "-r", "--range", "--limit-rate", "-y", "--speed-time", "-Y", "--speed-limit", "-A", "--user-agent",
+  "--connect-timeout", "-c", "--cookie-jar", "-r", "--range", "--limit-rate", "-y", "--speed-time", "-Y", "--speed-limit",
 ]);
 
 function decode(s: string): string {
@@ -170,6 +170,7 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
   const form: BodyField[] = [];
   let binaryFile = "";
   let user: string | undefined;
+  let digest = false;
   let cookie = "";
   let insecure = false;
   let getMode = false;
@@ -209,7 +210,8 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
       case "--data-ascii":
       case "--data-binary": {
         const v = value();
-        if (tok === "--data-binary" && v.startsWith("@")) binaryFile = v.slice(1);
+        // `@file` reads the body from a file (except --data-raw, which is literal).
+        if (tok !== "--data-raw" && v.startsWith("@") && v.length > 1) binaryFile = v.slice(1);
         else data.push(v);
         break;
       }
@@ -246,6 +248,16 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
       case "-b":
       case "--cookie":
         cookie = cookie ? `${cookie}; ${value()}` : value();
+        break;
+      case "-A":
+      case "--user-agent":
+        headers.push({ key: "User-Agent", value: value(), enabled: true });
+        break;
+      case "--digest":
+        digest = true;
+        break;
+      case "--oauth2-bearer":
+        headers.push({ key: "Authorization", value: `Bearer ${value()}`, enabled: true });
         break;
       case "-e":
       case "--referer":
@@ -347,7 +359,7 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
   const authIdx = headers.findIndex((h) => h.key.toLowerCase() === "authorization" && /^bearer\s+/i.test(h.value));
   if (user !== undefined) {
     const colon = user.indexOf(":");
-    req.auth = { ...defaultAuth("basic"), username: colon >= 0 ? user.slice(0, colon) : user, password: colon >= 0 ? user.slice(colon + 1) : "" };
+    req.auth = { ...defaultAuth(digest ? "digest" : "basic"), username: colon >= 0 ? user.slice(0, colon) : user, password: colon >= 0 ? user.slice(colon + 1) : "" };
   } else if (authIdx >= 0) {
     req.auth = { ...defaultAuth("bearer"), token: headers[authIdx].value.replace(/^bearer\s+/i, "").trim() };
     headers.splice(authIdx, 1);
@@ -356,6 +368,6 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
     if (req.auth.type === "inherit") req.auth = { ...defaultAuth("cookie"), cookie };
     else headers.push({ key: "Cookie", value: cookie, enabled: true });
   }
-  req.headers = headers.filter((h) => h.key.toLowerCase() !== "user-agent");
+  req.headers = headers;
   return req;
 }

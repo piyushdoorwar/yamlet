@@ -105,18 +105,31 @@ export function mergedVariables(ctx: VariableContext): Record<string, string> {
 /**
  * Replaces `{{name}}` placeholders. Unknown placeholders are left untouched so missing
  * variables stay visible. User variables win over dynamic ones; each dynamic occurrence
- * generates a fresh value. Single pass (no recursive expansion).
+ * generates a fresh value. A value that itself holds placeholders (`baseUrl` =
+ * `https://{{host}}`) is expanded too, up to MAX_NESTING levels; a variable that refers
+ * back to itself is left as written.
  */
 export function resolveVariables(text: string | undefined | null, ctx: VariableContext): string {
   if (!text) return text ?? "";
   if (!text.includes("{{")) return text;
   const ls = layers(ctx);
-  return text.replace(PLACEHOLDER, (match, name: string) => {
-    const found = lookupIn(ls, name);
-    if (found) return found.value;
-    return tryGenerate(name) ?? match;
-  });
+  const expanding = new Set<string>();
+  const expand = (s: string): string =>
+    s.replace(PLACEHOLDER, (match, name: string) => {
+      const found = lookupIn(ls, name);
+      if (!found) return tryGenerate(name) ?? match;
+      const key = name.toLowerCase();
+      if (expanding.has(key)) return match; // a cycle: leave the reference visible
+      if (!found.value.includes("{{") || expanding.size >= MAX_NESTING) return found.value;
+      expanding.add(key);
+      const value = expand(found.value);
+      expanding.delete(key);
+      return value;
+    });
+  return expand(text);
 }
+
+const MAX_NESTING = 10;
 
 export function findPlaceholders(text: string | undefined | null): Placeholder[] {
   if (!text) return [];

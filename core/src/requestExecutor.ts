@@ -13,7 +13,7 @@ import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletFolder, type YamletRequest, type YamletResponse } from "./models.js";
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
-import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
+import { buildRequest, effectiveAuth, encodeUrlEncodedBody, mimeForFile, type BuiltRequest } from "./requestBuilder.js";
 import { type ExecutionControl, runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
 import { resolveVariables } from "./variableResolver.js";
 
@@ -196,23 +196,6 @@ interface PreparedBody {
   display?: string;
   /** Set for multipart bodies: the Content-Type with its boundary. */
   contentType?: string;
-}
-
-const MIME_BY_EXTENSION: Record<string, string> = {
-  json: "application/json", xml: "application/xml", csv: "text/csv", txt: "text/plain", html: "text/html", htm: "text/html",
-  md: "text/markdown", yaml: "application/yaml", yml: "application/yaml", js: "text/javascript", pdf: "application/pdf",
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
-  ico: "image/x-icon", bmp: "image/bmp", avif: "image/avif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
-  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", zip: "application/zip", gz: "application/gzip",
-  tar: "application/x-tar", "7z": "application/x-7z-compressed",
-  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-};
-
-/** A file's MIME type from its extension, or application/octet-stream. */
-export function mimeForFile(file: string): string {
-  return MIME_BY_EXTENSION[path.extname(file).slice(1).toLowerCase()] ?? "application/octet-stream";
 }
 
 /** Quotes a multipart parameter (RFC 7578: escape quotes and line breaks). */

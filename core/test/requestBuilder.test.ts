@@ -29,7 +29,7 @@ describe("buildRequest", () => {
     expect(applyPathVariables("http://h/a/:identity", [{ key: "id", value: "1" }])).toBe("http://h/a/:identity");
   });
 
-  it("always sends the Yamlet user agent and skips disabled headers", () => {
+  it("sends the Yamlet user agent unless the request sets one, and skips disabled headers", () => {
     const r = newRequest({
       url: "https://x.test",
       headers: [
@@ -39,9 +39,27 @@ describe("buildRequest", () => {
       ],
     });
     const b = buildRequest(r, { ctx: {} });
-    expect(b.headers.filter((h) => h.key.toLowerCase() === "user-agent")).toEqual([{ key: "User-Agent", value: yamletUserAgent(), enabled: true }]);
+    expect(b.headers.filter((h) => h.key.toLowerCase() === "user-agent")).toEqual([{ key: "User-Agent", value: "Other/2.0", enabled: true }]);
     expect(header(b, "X-On")).toBe("1");
     expect(header(b, "X-Off")).toBeUndefined();
+    expect(header(buildRequest(newRequest({ url: "https://x.test" }), { ctx: {} }), "User-Agent")).toBe(yamletUserAgent());
+  });
+
+  it("lets the request's own auth header win and combines cookies", () => {
+    const r = newRequest({ url: "https://x.test", headers: [{ key: "authorization", value: "Token mine", enabled: true }, { key: "Cookie", value: "a=1", enabled: true }] });
+    r.auth = { ...defaultAuth("bearer"), token: "inherited" };
+    const b = buildRequest(r, { ctx: {} });
+    expect(b.headers.filter((h) => h.key.toLowerCase() === "authorization").map((h) => h.value)).toEqual(["Token mine"]);
+    r.auth = { ...defaultAuth("cookie"), cookie: "session=xyz" };
+    expect(buildRequest(r, { ctx: {} }).headers.filter((h) => h.key === "Cookie").map((h) => h.value)).toEqual(["a=1; session=xyz"]);
+  });
+
+  it("escapes path variable values and types binary bodies by extension", () => {
+    expect(applyPathVariables("http://h/files/:name", [{ key: "name", value: "a b/c?d#e%zz%20" }])).toBe("http://h/files/a%20b%2Fc%3Fd%23e%25zz%20");
+    const r = newRequest({ url: "https://x.test", method: "POST" });
+    r.body.type = "binary";
+    r.body.binaryFile = "files/photo.PNG";
+    expect(buildRequest(r, { ctx: {} }).body).toMatchObject({ kind: "binary", contentType: "image/png" });
   });
 
   it("applies auth types and inheritance", () => {

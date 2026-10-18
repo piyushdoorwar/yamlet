@@ -131,17 +131,19 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   The UI's File / Local switch (`components/ValueStorage.tsx`) sets every row; new rows and
   script-created variables are local when the whole scope is (`inheritLocal`).
 - **Variable precedence** (highest first): request, runner data row, collection,
-  environment, globals. Unknown `{{placeholders}}` are left untouched so missing
-  variables stay visible. `{{$name}}` falls back to dynamic variables (user variables
+  environment, globals. Values may contain placeholders, expanded up to 10 levels (cycles
+  stay as written). Unknown `{{placeholders}}` are left untouched so missing
+  variables stay visible; one left in the URL's host stops the send with its name. `{{$name}}` falls back to dynamic variables (user variables
   win; each occurrence is fresh).
 - **Requests are built once, in the engine.** `requestBuilder.ts` turns a request and
   its scopes into a `BuiltRequest`. The executor sends it; the UI's code snippets
   render it. Auth inheritance lives there: `inherit` uses the nearest enclosing folder
   whose auth isn't `inherit`, else the collection's (`effectiveAuth(request, collection,
   folders)`). Digest and AWS SigV4 are applied at send time (`authSigning.ts`).
-- **Every request sends `User-Agent: Yamlet/<version>`** (the running build's version, set
-  at startup with `setYamletVersion`; `dev` in development). Shown as a locked row in the
-  Headers tab; not persisted.
+- **Requests send `User-Agent: Yamlet/<version>`** (the running build's version, set
+  at startup with `setYamletVersion`; `dev` in development) unless they set their own.
+  Shown as a locked row in the Headers tab; not persisted. A header the request sets
+  itself also beats the one its auth would add (cookies are combined).
 - **Scripts** run in `node:vm` with a timeout: collection pre, folder pres (outer first),
   request pre, send, request post, folder posts (inner first), collection post. Request-script errors abort the send;
   collection-script errors are logged and swallowed. `pm.test` results are always

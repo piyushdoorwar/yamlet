@@ -45,10 +45,17 @@ describe("resolveVariables", () => {
     expect(resolveVariables("{{BASEURL}}", { environment: vars(["baseUrl", "x"]) })).toBe("x");
   });
 
-  it("handles multiple placeholders and is single-pass", () => {
-    const ctx = { collection: vars(["host", "localhost"], ["port", "8080"], ["a", "{{b}}"], ["b", "B"]) };
+  it("handles multiple placeholders and expands nested ones", () => {
+    const ctx = { collection: vars(["host", "localhost"], ["port", "8080"], ["a", "{{b}}"], ["b", "B"]), environment: vars(["base", "http://{{host}}:{{port}}/v1"]) };
     expect(resolveVariables("http://{{host}}:{{port}}", ctx)).toBe("http://localhost:8080");
-    expect(resolveVariables("{{a}}", ctx)).toBe("{{b}}");
+    expect(resolveVariables("{{a}}", ctx)).toBe("B");
+    expect(resolveVariables("{{base}}/users", ctx)).toBe("http://localhost:8080/v1/users");
+  });
+
+  it("stops at variables that refer back to themselves", () => {
+    const ctx = { collection: vars(["x", "<{{y}}>"], ["y", "[{{x}}]"], ["self", "{{self}}!"]) };
+    expect(resolveVariables("{{x}}", ctx)).toBe("<[{{x}}]>");
+    expect(resolveVariables("{{self}}", ctx)).toBe("{{self}}!");
   });
 
   it("finds placeholders with offsets", () => {

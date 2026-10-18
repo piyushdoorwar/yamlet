@@ -58,8 +58,17 @@ describe("parseCurl", () => {
     expect(bearer.auth).toMatchObject({ type: "bearer", token: "abc123" });
     expect(bearer.headers).toContainEqual({ key: "Cookie", value: "sid=1; x=2", enabled: true });
     expect(bearer.headers.some((h) => h.key.toLowerCase() === "authorization")).toBe(false);
+    expect(bearer.headers).toContainEqual({ key: "User-Agent", value: "curl/8", enabled: true });
     const cookieOnly = parseCurl(`curl https://api.test --cookie 'sid=1'`);
     expect(cookieOnly.auth).toMatchObject({ type: "cookie", cookie: "sid=1" });
+  });
+
+  it("reads digest auth, an OAuth bearer and bodies from files", () => {
+    expect(parseCurl(`curl --digest -u bob:pw https://api.test`).auth).toMatchObject({ type: "digest", username: "bob", password: "pw" });
+    expect(parseCurl(`curl --oauth2-bearer tok https://api.test`).auth).toMatchObject({ type: "bearer", token: "tok" });
+    const file = parseCurl(`curl -X POST https://api.test -d @body.json`);
+    expect(file.body).toMatchObject({ type: "binary", binaryFile: "body.json" });
+    expect(parseCurl(`curl https://api.test --data-raw '@literal'`).body).toMatchObject({ raw: "@literal" });
   });
 
   it("handles -G, -I, --max-time, attached options and long=value options", () => {

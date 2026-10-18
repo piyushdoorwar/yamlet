@@ -130,6 +130,28 @@ export function utf8ToBase64(s: string): string {
   return btoa(bin);
 }
 
+const MIME_BY_EXTENSION: Record<string, string> = {
+  json: "application/json", xml: "application/xml", csv: "text/csv", txt: "text/plain", html: "text/html", htm: "text/html",
+  md: "text/markdown", yaml: "application/yaml", yml: "application/yaml", js: "text/javascript", pdf: "application/pdf",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+  ico: "image/x-icon", bmp: "image/bmp", avif: "image/avif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
+  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", zip: "application/zip", gz: "application/gzip",
+  tar: "application/x-tar", "7z": "application/x-7z-compressed",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+
+/** A file's MIME type from its extension, or application/octet-stream. */
+export function mimeForFile(file: string): string {
+  return MIME_BY_EXTENSION[/\.([^./\\]+)$/.exec(file)?.[1].toLowerCase() ?? ""] ?? "application/octet-stream";
+}
+
+/** Escapes what would end or split a path segment (`/ ? #`, spaces, stray `%`); escapes already present stay. */
+export function encodePathValue(value: string): string {
+  return value.replace(/%(?![0-9a-f]{2})/gi, "%25").replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/g, (c) => encodeURIComponent(c));
+}
+
 /** Replaces `:name` path segments with values. Only touches the path, never the host or port. */
 export function applyPathVariables(url: string, vars: { key: string; value: string }[]): string {
   if (!vars.length) return url;
@@ -142,7 +164,7 @@ export function applyPathVariables(url: string, vars: { key: string; value: stri
   for (const v of vars) {
     if (!v.key) continue;
     const key = v.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    path = path.replace(new RegExp(`(?<=/):${key}(?=[/.;]|$)`, "g"), () => v.value);
+    path = path.replace(new RegExp(`(?<=/):${key}(?=[/.;]|$)`, "g"), () => encodePathValue(v.value));
   }
   return url.slice(0, pathStart) + path + url.slice(pathEnd);
 }
@@ -165,26 +187,34 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     .map((p) => ({ key: encodeParamText(p.key, r, true), value: encodeParamText(p.value, r) }));
   url = appendQuery(url, query, "encoded");
 
-  const headers: KeyValue[] = [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }];
+  const headers: KeyValue[] = [];
   for (const h of request.headers ?? []) {
     if (h.enabled === false || !h.key?.trim()) continue;
-    const key = r(h.key).trim();
-    if (key.toLowerCase() === "user-agent") continue; // the Yamlet agent is locked
-    headers.push({ key, value: r(h.value), enabled: true });
+    headers.push({ key: r(h.key).trim(), value: r(h.value), enabled: true });
   }
   const hasHeader = (name: string) => headers.some((h) => h.key.toLowerCase() === name.toLowerCase());
+  // Yamlet's agent goes first unless the request sets its own.
+  if (!hasHeader("user-agent")) headers.unshift({ key: "User-Agent", value: yamletUserAgent(), enabled: true });
+  /** Auth headers yield to one the request sets itself; cookies are combined instead. */
+  const authHeader = (key: string, value: string) => {
+    if (key.toLowerCase() === "cookie") {
+      const own = headers.find((h) => h.key.toLowerCase() === "cookie");
+      if (own) own.value = own.value.trim() ? `${own.value.replace(/;\s*$/, "")}; ${value}` : value;
+      else headers.push({ key, value, enabled: true });
+    } else if (!hasHeader(key)) headers.push({ key, value, enabled: true });
+  };
 
   // Auth
   const auth = effectiveAuth(request, opts.collection, opts.folders);
   switch (auth.type) {
     case "bearer": {
       const token = r(auth.token);
-      if (token.trim()) headers.push({ key: "Authorization", value: `Bearer ${token}`, enabled: true });
+      if (token.trim()) authHeader("Authorization", `Bearer ${token}`);
       break;
     }
     case "basic": {
       const encoded = utf8ToBase64(`${r(auth.username)}:${r(auth.password)}`);
-      headers.push({ key: "Authorization", value: `Basic ${encoded}`, enabled: true });
+      authHeader("Authorization", `Basic ${encoded}`);
       break;
     }
     case "apikey": {
@@ -192,12 +222,12 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
       if (!name) break;
       const value = r(auth.apiKeyValue);
       if (auth.apiKeyIn === "query") url = appendQuery(url, [{ key: name, value }]);
-      else headers.push({ key: name, value, enabled: true });
+      else authHeader(name, value);
       break;
     }
     case "cookie": {
       const cookie = r(auth.cookie);
-      if (cookie.trim()) headers.push({ key: "Cookie", value: cookie, enabled: true });
+      if (cookie.trim()) authHeader("Cookie", cookie);
       break;
     }
     case "oauth2": {
@@ -207,7 +237,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
       if (o.addTokenTo === "query") url = appendQuery(url, [{ key: "access_token", value: token }]);
       else {
         const prefix = o.headerPrefix?.trim() ? r(o.headerPrefix).trim() : "Bearer";
-        headers.push({ key: "Authorization", value: prefix ? `${prefix} ${token}` : token, enabled: true });
+        authHeader("Authorization", prefix ? `${prefix} ${token}` : token);
       }
       break;
     }
@@ -268,7 +298,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     }
     case "binary": {
       const file = r(b.binaryFile).trim();
-      if (file) body = { kind: "binary", file: file.startsWith("@") ? file.slice(1) : file, contentType: "application/octet-stream" };
+      if (file) body = { kind: "binary", file: file.startsWith("@") ? file.slice(1) : file, contentType: mimeForFile(file) };
       break;
     }
     default:

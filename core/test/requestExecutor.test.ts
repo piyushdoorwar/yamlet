@@ -160,7 +160,7 @@ describe("execute", () => {
     }
   });
 
-  it("sends the locked user agent and skips disabled headers", async () => {
+  it("sends the request's own user agent and skips disabled headers", async () => {
     route("https://api.test");
     await send({
       request: newRequest({
@@ -172,7 +172,7 @@ describe("execute", () => {
         ],
       }),
     });
-    expect(h(seen[0], "user-agent")).toBe("Yamlet/dev");
+    expect(h(seen[0], "user-agent")).toBe("Other/2.0");
     expect(h(seen[0], "x-on")).toBe("1");
     expect(h(seen[0], "x-off")).toBeUndefined();
   });
