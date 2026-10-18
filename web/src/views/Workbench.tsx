@@ -24,8 +24,10 @@ function useShortcuts() {
   // The keydown handler is installed once; it reads the latest actions through refs.
   const newRequestRef = useRef(actions.newRequest);
   const newCollectionRef = useRef(actions.newCollection);
+  const duplicateRef = useRef(actions.duplicateRequest);
   newRequestRef.current = actions.newRequest;
   newCollectionRef.current = actions.newCollection;
+  duplicateRef.current = actions.duplicateRequest;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
@@ -43,6 +45,15 @@ function useShortcuts() {
           e.preventDefault();
           void s.send(activeTab.id);
         }
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === "l" && activeTab?.kind === "request") {
+        e.preventDefault();
+        const url = document.querySelector<HTMLElement>('[aria-label="Request URL"]');
+        url?.focus();
+        // Select it all, as an address bar does.
+        if (url) getSelection()?.selectAllChildren(url);
+      } else if (mod && !e.shiftKey && e.key.toLowerCase() === "d" && activeTab?.kind === "request") {
+        e.preventDefault();
+        void duplicateRef.current?.(activeTab.id);
       } else if (e.altKey && e.shiftKey && e.code === "KeyT") {
         e.preventDefault();
         s.reopenClosedTab();

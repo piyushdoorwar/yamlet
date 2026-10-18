@@ -4,6 +4,8 @@ const SHORTCUTS: [string, string][] = [
   ["Send request", "Ctrl Enter"],
   ["Save now (edits also save automatically)", "Ctrl S"],
   ["Find a request", "Ctrl K"],
+  ["Focus the URL", "Ctrl L"],
+  ["Duplicate the request", "Ctrl D"],
   ["Close tab", "Alt W"],
   ["Next / previous tab", "Alt Right / Alt Left"],
   ["Search inside an editor", "Ctrl F"],
