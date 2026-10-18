@@ -9,6 +9,7 @@ describe("prettyJson", () => {
 
   it("keeps numbers and escapes exactly as sent", () => {
     expect(prettyJson('{"id":12345678901234567890,"p":1.50,"s":"\\u00e9"}')).toBe('{\n  "id": 12345678901234567890,\n  "p": 1.50,\n  "s": "\\u00e9"\n}');
+    expect(prettyJson('{"a":123456789012345.6789}')).toBe('{\n  "a": 123456789012345.6789\n}');
   });
 
   it("leaves text that isn't JSON alone", () => {

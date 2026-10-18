@@ -9,12 +9,13 @@ import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
 
 const MAX_LINK_BYTES = 20 * 1024 * 1024;
+const LINK_TIMEOUT_MS = 30_000;
 
 /** Fetches an import from a link, with the app's network settings (proxy, certificates). */
 async function fetchLink(url: string, dispatcher: Dispatcher | undefined): Promise<{ text: string; fileName: string }> {
   let res: Response;
   try {
-    res = (await fetch(url, { headers: { accept: "application/json, application/yaml, text/yaml, */*", "user-agent": yamletUserAgent() }, dispatcher })) as unknown as Response;
+    res = (await fetch(url, { headers: { accept: "application/json, application/yaml, text/yaml, */*", "user-agent": yamletUserAgent() }, dispatcher, signal: AbortSignal.timeout(LINK_TIMEOUT_MS) })) as unknown as Response;
   } catch (err) {
     throw new HttpError(502, `Could not fetch ${url}: ${errMessage(err)}`);
   }
@@ -33,8 +34,14 @@ async function fetchLink(url: string, dispatcher: Dispatcher | undefined): Promi
     }
     chunks.push(part.value);
   }
-  const name = decodeURIComponent(new URL(res.url || url).pathname.split("/").pop() || "") || "import";
-  return { text: Buffer.concat(chunks).toString("utf8"), fileName: name };
+  const last = new URL(res.url || url).pathname.split("/").pop() || "";
+  let name = last;
+  try {
+    name = decodeURIComponent(last);
+  } catch {
+    // Keep the raw name.
+  }
+  return { text: Buffer.concat(chunks).toString("utf8"), fileName: name || "import" };
 }
 
 export function importRoutes(app: FastifyInstance, { workspaces, dispatcher }: Deps): void {

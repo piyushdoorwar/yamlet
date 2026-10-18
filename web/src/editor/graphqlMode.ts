@@ -16,7 +16,7 @@ export const cachedSchema = (requestId: string) => schemas.get(requestId);
 
 /**
  * Runs the introspection query against the request's URL with its headers and auth.
- * The request's own scripts are left out so fetching a schema changes nothing.
+ * The request's own scripts are left out; collection and folder scripts still run, as for any send.
  */
 export async function fetchSchema(request: YamletRequest, collectionId: string | undefined, environmentId: string | null): Promise<GraphQLSchema> {
   const probe: YamletRequest = {

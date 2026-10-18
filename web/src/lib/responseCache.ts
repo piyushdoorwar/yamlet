@@ -49,32 +49,43 @@ function done(tx: IDBTransaction): Promise<void> {
   });
 }
 
-/** What is kept of a response: everything, minus a body too large to store. */
+/** Request headers that carry credentials; they aren't written to disk. */
+const SECRET_HEADERS = /^(authorization|proxy-authorization|cookie|x-api-key|x-amz-security-token)$/i;
+
+/** What is kept of a response: everything, minus credentials it sent and a body too large to store. */
 export function keepable(response: YamletResponse): YamletResponse {
-  if (response.body.length <= MAX_KEPT_BODY) return response;
-  return { ...response, body: "", bodyEncoding: "utf8", incomplete: "The body was too large to keep after a reload. Send the request again to see it." };
+  const requestHeaders = response.requestHeaders.map((h) => (SECRET_HEADERS.test(h.key) ? { ...h, value: "(not kept after reload)" } : h));
+  const kept = { ...response, requestHeaders, consoleText: "" };
+  if (response.body.length <= MAX_KEPT_BODY) return kept;
+  return { ...kept, body: "", bodyEncoding: "utf8", incomplete: "The body was too large to keep after a reload. Send the request again to see it." };
+}
+
+/** Deletes the oldest rows past the limit, in its own transaction so a full store can still shrink. */
+async function trim(d: IDBDatabase): Promise<void> {
+  const tx = d.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+  const count = store.count();
+  count.onsuccess = () => {
+    let extra = count.result - (MAX_ENTRIES - 1);
+    if (extra <= 0) return;
+    store.index("savedAt").openCursor().onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result;
+      if (!cursor || extra-- <= 0) return;
+      cursor.delete();
+      cursor.continue();
+    };
+  };
+  await done(tx);
 }
 
 export async function saveResponse(root: string, requestId: string, response: YamletResponse, events?: SseEvent[]): Promise<void> {
   try {
     const d = await db();
     if (!d) return;
+    await trim(d);
     const tx = d.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
     const row: Row = { key: keyOf(root, requestId), response: keepable(response), ...(events?.length ? { events: events.slice(-2000) } : {}), savedAt: Date.now() };
-    store.put(row);
-    // Trim the oldest once over the limit.
-    const count = store.count();
-    count.onsuccess = () => {
-      let extra = count.result - MAX_ENTRIES;
-      if (extra <= 0) return;
-      store.index("savedAt").openCursor().onsuccess = (e) => {
-        const cursor = (e.target as IDBRequest<IDBCursorWithValue | null>).result;
-        if (!cursor || extra-- <= 0) return;
-        cursor.delete();
-        cursor.continue();
-      };
-    };
+    tx.objectStore(STORE).put(row);
     await done(tx);
   } catch {
     // Not kept; the response is still on screen.

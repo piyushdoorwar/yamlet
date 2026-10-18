@@ -56,6 +56,7 @@ describe("buildRequest", () => {
 
   it("escapes path variable values and types binary bodies by extension", () => {
     expect(applyPathVariables("http://h/files/:name", [{ key: "name", value: "a b/c?d#e%zz%20" }])).toBe("http://h/files/a%20b%2Fc%3Fd%23e%25zz%20");
+    expect(applyPathVariables("http://h/u/:name", [{ key: "name", value: "café \u{1F600}" }])).toBe("http://h/u/caf%C3%A9%20%F0%9F%98%80");
     const r = newRequest({ url: "https://x.test", method: "POST" });
     r.body.type = "binary";
     r.body.binaryFile = "files/photo.PNG";

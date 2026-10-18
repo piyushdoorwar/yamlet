@@ -58,6 +58,15 @@ describe("resolveVariables", () => {
     expect(resolveVariables("{{self}}", ctx)).toBe("{{self}}!");
   });
 
+  it("stops expanding before values that repeat each other blow up", () => {
+    const names = "abcdefghijk".split("");
+    const ctx = { collection: vars(...names.map((n, i): [string, string] => [n, i < names.length - 1 ? `{{${names[i + 1]}}}`.repeat(8) : "x"])) };
+    const started = Date.now();
+    const out = resolveVariables("{{a}}", ctx);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(out.length).toBeGreaterThan(0);
+  });
+
   it("finds placeholders with offsets", () => {
     expect(findPlaceholders("a {{x}} b {{ $guid }}")).toEqual([
       { name: "x", start: 2, end: 7 },

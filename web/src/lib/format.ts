@@ -22,7 +22,7 @@ export function prettyJson(text: string): string {
   }
   // Fast path when printing can't change anything: no long numbers, exponents,
   // trailing zeros, -0 or escapes that JSON.stringify would rewrite.
-  if (!/\d{16}|[eE][+-]?\d|\.\d*0(?!\d)|-0(?![.\d])|\\[u/]/.test(text)) return JSON.stringify(parsed, null, 2);
+  if (!/\d{16}|\d[\d.]{16}|[eE][+-]?\d|\.\d*0(?!\d)|-0(?![.\d])|\\[u/]/.test(text)) return JSON.stringify(parsed, null, 2);
   const out: string[] = [];
   const indents: string[] = [];
   const newline = (depth: number) => (indents[depth] ??= `\n${"  ".repeat(depth)}`);

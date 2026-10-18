@@ -118,13 +118,15 @@ export function resolveVariables(text: string | undefined | null, ctx: VariableC
   if (!text.includes("{{")) return text;
   const ls = layers(ctx);
   const expanding = new Set<string>();
+  // Depth alone doesn't bound the work: values that each repeat another many times grow exponentially.
+  let budget = MAX_EXPANSIONS;
   const expand = (s: string): string =>
     s.replace(PLACEHOLDER, (match, name: string) => {
       const found = lookupIn(ls, name);
       if (!found) return tryGenerate(name) ?? match;
       const key = name.toLowerCase();
       if (expanding.has(key)) return match; // a cycle: leave the reference visible
-      if (!found.value.includes("{{") || expanding.size >= MAX_NESTING) return found.value;
+      if (!found.value.includes("{{") || expanding.size >= MAX_NESTING || --budget < 0) return found.value;
       expanding.add(key);
       const value = expand(found.value);
       expanding.delete(key);
@@ -134,6 +136,7 @@ export function resolveVariables(text: string | undefined | null, ctx: VariableC
 }
 
 const MAX_NESTING = 10;
+const MAX_EXPANSIONS = 10_000;
 
 export function findPlaceholders(text: string | undefined | null): Placeholder[] {
   if (!text) return [];

@@ -614,7 +614,12 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   } else if (auth.type === "oauth2") {
     oauthToken = refreshedTokenFor(auth.oauth2, resolve)?.accessToken;
   }
-  let built = buildRequest(req, { ctx, collection, folders, oauthToken });
+  let built: BuiltRequest;
+  try {
+    built = buildRequest(req, { ctx, collection, folders, oauthToken });
+  } catch (e) {
+    return finish(errorResponse(emptyResponse(req.method, resolve(req.url)), `Could not build the request: ${errMessage(e)}`));
+  }
   let response = emptyResponse(built.method, built.url);
   response.requestHeaders = built.headers;
   if (built.problems?.length) return finish(errorResponse(response, built.problems.join(" ")));

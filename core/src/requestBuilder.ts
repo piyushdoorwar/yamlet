@@ -151,7 +151,7 @@ export function mimeForFile(file: string): string {
 
 /** Escapes what would end or split a path segment (`/ ? #`, spaces, stray `%`); escapes already present stay. */
 export function encodePathValue(value: string): string {
-  return value.replace(/%(?![0-9a-f]{2})/gi, "%25").replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/g, (c) => encodeURIComponent(c));
+  return value.replace(/%(?![0-9a-f]{2})/gi, "%25").replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/gu, (c) => encodeURIComponent(c));
 }
 
 /** Replaces `:name` path segments with values. Only touches the path, never the host or port. */
