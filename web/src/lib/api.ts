@@ -153,6 +153,8 @@ export const api = {
     let error: string | undefined;
     let text = "";
     await ndjson<SendEvent>("/api/send", { ...body, stream: true }, (e) => {
+      // A retried request (e.g. after a token refresh) starts its body over.
+      if (e.type === "head") text = "";
       if (e.type === "chunk" && e.text) text += e.text;
       if (e.type === "done") result = e.bodyStreamed ? { ...e.result, response: { ...e.result.response, body: text } } : e.result;
       else if (e.type === "error") error = e.error;

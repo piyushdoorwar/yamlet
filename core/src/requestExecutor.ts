@@ -11,7 +11,7 @@ import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
-import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
+import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
 import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
 import { resolveVariables } from "./variableResolver.js";
@@ -56,6 +56,8 @@ export interface ResponseHead {
 
 export interface ExecuteResult {
   response: YamletResponse;
+  /** A new OAuth 2.0 token got with the stored refresh token, to save where the auth lives. */
+  oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "collection" };
   /** Full new variable lists for scopes that scripts changed. */
   changes: { environment?: Variable[]; collectionVariables?: Variable[]; globals?: Variable[] };
 }
@@ -511,10 +513,11 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     },
     sendRequest: (spec: SendRequestSpec) => scriptSend(spec, input, dispatcher),
   };
+  let oauthRefreshed: ExecuteResult["oauthRefreshed"];
   const finish = (response: YamletResponse): ExecuteResult => {
     const r = { ...response, testResults: tests, scriptLogs: logs };
     r.consoleText = consoleText(r);
-    return { response: r, changes: vars.changes() };
+    return { response: r, changes: vars.changes(), ...(oauthRefreshed ? { oauthRefreshed } : {}) };
   };
 
   // 1. Pre-request scripts: collection first (errors logged, never fatal), then the request's.
@@ -544,8 +547,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     } catch (e) {
       return finish(errorResponse(emptyResponse(req.method, resolve(req.url)), `OAuth 2.0 token request failed: ${errMessage(e)}`));
     }
+  } else if (auth.type === "oauth2") {
+    oauthToken = refreshedTokenFor(auth.oauth2, resolve)?.accessToken;
   }
-  const built = buildRequest(req, { ctx, collection, oauthToken });
+  let built = buildRequest(req, { ctx, collection, oauthToken });
   let response = emptyResponse(built.method, built.url);
   response.requestHeaders = built.headers;
 
@@ -606,6 +611,19 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
           ex = await send([{ key: "Authorization", value: authorization, enabled: true }]);
         } else ex = probe;
       } else ex = await send();
+      // An expired token with a refresh token stored: refresh once and try again.
+      if (ex.status === 401 && auth.type === "oauth2" && !canFetchAutomatically(auth.oauth2, resolve) && resolve(auth.oauth2.refreshToken).trim()) {
+        try {
+          const token = await refreshAndRemember(auth.oauth2, resolve, { dispatcher, signal });
+          built = buildRequest(req, { ctx, collection, oauthToken: token.accessToken });
+          headers = built.headers;
+          oauthRefreshed = { accessToken: token.accessToken, refreshToken: token.refreshToken, source: req.auth.type === "inherit" ? "collection" : "request" };
+          logs.push("OAuth 2.0: the access token was rejected; got a new one with the refresh token and sent again.");
+          ex = await send();
+        } catch (e) {
+          logs.push(`[warn] OAuth 2.0: refreshing the token failed: ${errMessage(e)}`);
+        }
+      }
       if (ex.truncated) {
         const mb = Math.round(((input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES) / 1024 / 1024) * 10) / 10;
         incomplete = `The body is larger than ${mb} MB; only the first ${mb} MB were kept.`;

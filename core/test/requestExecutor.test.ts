@@ -282,6 +282,28 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(api.map((s) => h(s, "authorization"))).toEqual(["Bearer tok-123", "Bearer tok-123"]);
   });
 
+  it("refreshes an expired OAuth2 token once, retries, and reports the new token", async () => {
+    route("https://api.test", (s) => (h(s, "authorization") === "Bearer new" ? json({ ok: true }) : { status: 401, body: "expired" }));
+    route("https://idp.test", (s) => {
+      const form = new URLSearchParams(String(s.body));
+      return form.get("grant_type") === "refresh_token" && form.get("refresh_token") === "r1" ? json({ access_token: "new", refresh_token: "r2", expires_in: 60 }) : { status: 400, body: "bad" };
+    });
+    const auth = defaultAuth("oauth2");
+    auth.oauth2 = { ...auth.oauth2, grantType: "authorization_code", accessToken: "old", refreshToken: "r1", accessTokenUrl: "https://idp.test/token", clientId: "app" };
+    const request = newRequest({ url: "https://api.test/me", auth });
+
+    const first = await send({ request });
+    expect(first.response.statusCode).toBe(200);
+    expect(first.oauthRefreshed).toEqual({ accessToken: "new", refreshToken: "r2", source: "request" });
+    expect(first.response.scriptLogs.join("\n")).toMatch(/got a new one with the refresh token/);
+
+    // The same saved (old) token now goes straight out as the refreshed one.
+    seen = [];
+    const second = await send({ request });
+    expect(second.response.statusCode).toBe(200);
+    expect(seen.map((x) => x.origin)).toEqual(["https://api.test"]);
+  });
+
   it("reports OAuth2 token failures as error responses", async () => {
     route("https://issuer.test", () => json({ error: "invalid_client" }, 401));
     const auth = defaultAuth("oauth2");

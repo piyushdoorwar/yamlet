@@ -62,6 +62,8 @@ export interface RunOptions {
   maxResponseBytes?: number;
   network?: NetworkSettings;
   onResult?: (r: RunRequestResult) => void;
+  /** A collection's OAuth 2.0 token was refreshed during the run (to save it). */
+  onOAuthRefreshed?: (collectionId: string, token: { accessToken: string; refreshToken?: string }) => void | Promise<void>;
 }
 
 interface PlannedRequest {
@@ -150,7 +152,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         break outer;
       }
       const collection = collectionFor(item.collection);
-      const { response, changes } = await execute({
+      const { response, changes, oauthRefreshed } = await execute({
         request: item.request,
         collection,
         environment,
@@ -166,6 +168,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         iteration,
         iterationCount: iterations,
       });
+      if (oauthRefreshed?.source === "collection") await opts.onOAuthRefreshed?.(item.collection.id, oauthRefreshed);
       if (changes.environment && environment) environment = { ...environment, variables: changes.environment };
       if (changes.globals) globals = changes.globals;
       if (changes.collectionVariables) collectionVars.set(item.collection.id, changes.collectionVariables);

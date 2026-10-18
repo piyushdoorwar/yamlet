@@ -392,6 +392,13 @@ export const useStore = create<State>((set, get) => ({
       if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
       patch({ loading: false, response: result.response, events });
       if (result.workspace) get().applyWorkspace(result.workspace);
+      const t = result.oauthRefreshed;
+      if (t) {
+        // The request's token was refreshed by the server; keep it with the request.
+        get().updateDraft(id, (r) =>
+          r.auth.type === "oauth2" ? { ...r, auth: { ...r.auth, oauth2: { ...r.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || r.auth.oauth2.refreshToken } } } : r,
+        );
+      }
       recordHistory(id, request, result.response);
     } catch (err) {
       const aborted = controller.signal.aborted;

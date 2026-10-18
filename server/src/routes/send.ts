@@ -53,6 +53,13 @@ export async function persistChanges(
   return changed;
 }
 
+/** Stores a refreshed OAuth 2.0 token in the collection's auth (the refresh token too, if it rotated). */
+export async function saveCollectionToken(store: WorkspaceStore, collectionId: string, t: { accessToken: string; refreshToken?: string }): Promise<void> {
+  const c = store.findCollection(collectionId);
+  if (!c || c.auth.type !== "oauth2") return;
+  await store.updateCollection(c.id, { auth: { ...c.auth, oauth2: { ...c.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || c.auth.oauth2.refreshToken } } });
+}
+
 /** Gap between streamed body pieces; small pieces arriving faster are merged. */
 const CHUNK_FLUSH_MS = 50;
 
@@ -67,7 +74,7 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
     const signal = abortOnDisconnect(reply);
 
     const run = async (stream?: Pick<ExecuteInput, "onHead" | "onChunk">): Promise<SendResult> => {
-      const { response, changes } = await execute({
+      const { response, changes, oauthRefreshed } = await execute({
         request,
         collection,
         environment,
@@ -78,8 +85,13 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
         signal,
         ...stream,
       });
-      const changed = await persistChanges(store, changes, environmentId, collection?.id);
-      return changed ? { response, workspace: store.workspace } : { response };
+      let changed = await persistChanges(store, changes, environmentId, collection?.id);
+      if (oauthRefreshed?.source === "collection" && collection) {
+        await saveCollectionToken(store, collection.id, oauthRefreshed);
+        changed = true;
+      }
+      const token = oauthRefreshed?.source === "request" ? { oauthRefreshed: { accessToken: oauthRefreshed.accessToken, refreshToken: oauthRefreshed.refreshToken } } : {};
+      return changed ? { response, workspace: store.workspace, ...token } : { response, ...token };
     };
     if (!req.body.stream) return run();
 
@@ -103,6 +115,11 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
     try {
       const result = await run({
         onHead: (head) => {
+          // A retried request starts over.
+          if (timer) clearTimeout(timer);
+          timer = undefined;
+          pending = "";
+          bytes = 0;
           // Untyped bodies are shown as text while they arrive; the final result decides.
           decoder = isTextualType(head.contentType) === false ? undefined : textDecoderFor(head.contentType);
           emit({ type: "head", ...head });

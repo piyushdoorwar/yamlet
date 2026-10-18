@@ -101,6 +101,8 @@ export interface SendResult {
   response: YamletResponse;
   /** Present when scripts changed environment / collection / global variables. */
   workspace?: YamletWorkspace;
+  /** The request's own OAuth 2.0 token was refreshed; the UI writes it into the request. */
+  oauthRefreshed?: { accessToken: string; refreshToken?: string };
 }
 
 /** One NDJSON line of a streamed send: head, body pieces, then the full result. */

@@ -261,6 +261,28 @@ export async function getCachedToken(cfg: OAuth2Config, resolve: Resolve, opts?:
   return token;
 }
 
+// Tokens obtained with a stored refresh token, so later sends (and runs) use them
+// until the request's saved token catches up.
+const refreshed = new Map<string, TokenResponse>();
+const refreshKey = (cfg: OAuth2Config, resolve: Resolve, refreshToken: string) => [resolve(cfg.accessTokenUrl), resolve(cfg.clientId), refreshToken].join("|");
+
+/** The newer token got with this config's refresh token, if any. */
+export function refreshedTokenFor(cfg: OAuth2Config, resolve: Resolve): TokenResponse | undefined {
+  const rt = resolve(cfg.refreshToken).trim();
+  return rt ? refreshed.get(refreshKey(cfg, resolve, rt)) : undefined;
+}
+
+/** Refreshes with the stored refresh token and remembers the result. */
+export async function refreshAndRemember(cfg: OAuth2Config, resolve: Resolve, opts?: OAuth2RequestOptions): Promise<TokenResponse> {
+  const rt = resolve(cfg.refreshToken).trim();
+  // A rotated refresh token is refreshed from its newest value.
+  const latest = refreshed.get(refreshKey(cfg, resolve, rt));
+  const token = await refreshAccessToken(latest?.refreshToken ? { ...cfg, refreshToken: latest.refreshToken } : cfg, resolve, opts);
+  refreshed.set(refreshKey(cfg, resolve, rt), token);
+  return token;
+}
+
 export function clearTokenCache(): void {
   cache.clear();
+  refreshed.clear();
 }
