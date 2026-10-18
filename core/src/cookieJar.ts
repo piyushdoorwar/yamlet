@@ -178,23 +178,24 @@ export class CookieJar {
   }
 
   clearBrowserSites(): void {
-    this.cookies = this.cookies.filter((cookie) => !cookie.browserSite);
-    this.changed();
+    this.drop((cookie) => !!cookie.browserSite);
+  }
+
+  /** Removes matching cookies, reporting a change only if there were any. */
+  private drop(match: (c: StoredCookie) => boolean): void {
+    const before = this.cookies.length;
+    this.cookies = this.cookies.filter((c) => !match(c));
+    if (this.cookies.length !== before) this.changed();
   }
 
   remove(domain: string, name: string, path?: string): void {
     const d = domain.replace(/^\./, "").toLowerCase();
-    this.cookies = this.cookies.filter((c) => !(c.domain === d && c.name === name && (path === undefined || c.path === path)));
-    this.changed();
+    this.drop((c) => c.domain === d && c.name === name && (path === undefined || c.path === path));
   }
 
   clear(domain?: string): void {
-    if (domain === undefined) this.cookies = [];
-    else {
-      const d = domain.replace(/^\./, "").toLowerCase();
-      this.cookies = this.cookies.filter((c) => c.domain !== d);
-    }
-    this.changed();
+    const d = domain?.replace(/^\./, "").toLowerCase();
+    this.drop((c) => d === undefined || c.domain === d);
   }
 
   toJSON(): { cookies: StoredCookie[] } {
