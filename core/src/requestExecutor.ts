@@ -7,9 +7,9 @@ import { performance } from "node:perf_hooks";
 import type { Transform } from "node:stream";
 import zlib from "node:zlib";
 import { FormData, request, type Dispatcher } from "undici";
-import { defaultAgent, insecureAgent, withTrace, type ExchangeTrace } from "./agents.js";
+import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
-import { DEFAULT_REQUEST_HEADERS, defaultSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
+import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
 import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
@@ -39,6 +39,8 @@ export interface ExecuteInput {
   onChunk?: (chunk: Uint8Array) => void;
   /** Bodies beyond this many bytes are cut off (default 50 MB; 0 keeps everything). */
   maxResponseBytes?: number;
+  /** Proxy, certificates and SSL defaults; the built-in defaults when absent. */
+  network?: NetworkSettings;
 }
 
 export const DEFAULT_MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
@@ -483,7 +485,12 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   const tests: ScriptTestResult[] = [];
   const logs: string[] = [];
   const settings = { ...defaultSettings(), ...req.settings };
-  const dispatcher = input.dispatcher ?? (settings.skipSslVerification ? insecureAgent() : defaultAgent());
+  let dispatcher: Dispatcher;
+  try {
+    dispatcher = input.dispatcher ?? dispatcherFor(input.network, settings.skipSslVerification);
+  } catch (e) {
+    return { response: errorResponse(emptyResponse(req.method, req.url), errMessage(e)), changes: {} };
+  }
   const scriptBase = {
     request: req,
     variables: vars,

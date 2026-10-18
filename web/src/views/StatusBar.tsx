@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ArrowUpCircle, Cookie, Info, Keyboard, PanelBottom, PanelRight, SquareTerminal } from "lucide-react";
+import { ArrowUpCircle, Cookie, Info, Keyboard, PanelBottom, PanelRight, Settings, SquareTerminal } from "lucide-react";
 import { useEffect } from "react";
 import { useConsole } from "../lib/consoleLog";
 import { refreshInterceptorStatus, useInterceptorExtension, useInterceptorPaired } from "../lib/interceptor";
@@ -85,6 +85,10 @@ export function StatusBar() {
           onClick={() => setLayout(layout === "stacked" ? "side" : "stacked")}
         >
           {layout === "stacked" ? <PanelBottom size={13} aria-hidden /> : <PanelRight size={13} aria-hidden />}
+        </button>
+        <button type="button" className={item} title="Settings (Ctrl ,)" onClick={() => setModal({ kind: "settings" })}>
+          <Settings size={13} aria-hidden />
+          <span className="sr-only">Settings</span>
         </button>
         <button type="button" className={item} title="Keyboard shortcuts (Ctrl /)" onClick={() => setModal({ kind: "shortcuts" })}>
           <Keyboard size={13} aria-hidden />

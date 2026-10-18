@@ -59,6 +59,9 @@ core/src/     UI-free engine (TypeScript, NodeNext: relative imports end in .js)
   workspaceStore.ts    WorkspaceStore: load a workspace, id-based mutations written to disk
   pathNaming.ts        file-safe display names, unique file and folder names
   localValues.ts       local variable values in <dataDir>/local-values.json
+  appSettings.ts       machine settings (timeout, size cap, proxy, certificates) in <dataDir>/settings.json
+  agents.ts            undici dispatchers per network settings; per-request DNS/TCP/TLS timing and socket info
+  sse.ts               server-sent events parser                          (isomorphic)
   variableResolver.ts  {{var}} resolution, lookup, placeholder scan        (isomorphic)
   dynamicVariables.ts  {{$guid}}, {{$timestamp}}, {{$random*}} catalog    (isomorphic)
   requestBuilder.ts    request + scopes -> BuiltRequest (url, headers, auth, body) (isomorphic)
@@ -162,6 +165,12 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   `x-yamlet: 1` header, strict CSP, no framing. The folder browser and file paths are
   confined to `YAMLET_BROWSE_ROOT` (`/workspace` in the container). The documented
   `docker run` publishes on `127.0.0.1` only.
+- **Responses stream.** `/api/send` with `stream: true` answers NDJSON (`SendEvent`: head,
+  body pieces, then the result without the body when it already went out as text). The UI
+  always streams: live body tail, server-sent events as a table, Stop keeps what arrived.
+  No timeout unless Settings or the request sets one; bodies stop at the Settings size cap.
+- **Settings** (`/api/settings`, Ctrl+,) live in `<dataDir>/settings.json`, not the workspace;
+  env vars only seed the defaults. The server passes them to every send (`sendOptions`).
 - **Container `localhost`.** Inside Docker, `localhost` is the container. The response
   panel suggests `host.docker.internal` / `--network host` when such a request fails.
 

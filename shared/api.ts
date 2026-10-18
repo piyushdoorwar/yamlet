@@ -1,5 +1,6 @@
 // JSON shapes exchanged between the browser and the Yamlet server.
 import type {
+  AppSettings,
   KeyValue,
   OAuth2Config,
   ScriptTestResult,
@@ -11,6 +12,14 @@ import type {
   YamletResponse,
   YamletWorkspace,
 } from "../core/src/models.js";
+
+export interface SettingsResult {
+  settings: AppSettings;
+  /** What "use the system proxy" picks up: the server's proxy environment variables. */
+  systemProxy: { httpProxy?: string; httpsProxy?: string; noProxy?: string };
+  /** Where settings are kept, or null when they last only until the server stops. */
+  filePath: string | null;
+}
 
 /** Every non-GET request must carry this header (CSRF guard). */
 export const CSRF_HEADER = "x-yamlet";

@@ -1,9 +1,13 @@
 import fastifyMultipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyInstance } from "fastify";
+import type { Dispatcher } from "undici";
+import type { ExecuteInput } from "../../core/src/requestExecutor.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { setYamletVersion } from "../../core/src/models.js";
+import { dispatcherFor } from "../../core/src/agents.js";
+import { SettingsFile } from "../../core/src/appSettings.js";
+import { defaultNetworkSettings, setYamletVersion } from "../../core/src/models.js";
 import { type ServerConfig, Workspaces } from "./context.js";
 import { toHttpError } from "./errors.js";
 import { cookieRoutes } from "./routes/cookies.js";
@@ -44,7 +48,23 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   setYamletVersion(opts.config.version);
   const workspaces = new Workspaces(opts.config);
-  const deps = { config: opts.config, workspaces };
+  const config = opts.config;
+  // Env vars give the defaults; the Settings screen overrides them.
+  const settings = await SettingsFile.open(config.dataDir, {
+    timeoutMs: config.defaultTimeoutMs,
+    maxResponseMb: config.maxResponseBytes === undefined ? 50 : config.maxResponseBytes / 1024 / 1024,
+    network: defaultNetworkSettings(),
+  });
+  const deps: Deps = {
+    config,
+    workspaces,
+    settings,
+    sendOptions: () => {
+      const s = settings.get();
+      return { defaultTimeoutMs: s.timeoutMs, maxResponseBytes: s.maxResponseMb * 1024 * 1024, network: s.network, dispatcher: config.dispatcher };
+    },
+    dispatcher: () => config.dispatcher ?? dispatcherFor(settings.get().network),
+  };
 
   systemRoutes(app, deps);
   workspaceRoutes(app, deps);
@@ -70,4 +90,12 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   return app;
 }
 
-export type Deps = { config: ServerConfig; workspaces: Workspaces };
+export type Deps = {
+  config: ServerConfig;
+  workspaces: Workspaces;
+  settings: SettingsFile;
+  /** Options every request send takes from the current settings. */
+  sendOptions: () => Pick<ExecuteInput, "defaultTimeoutMs" | "maxResponseBytes" | "network" | "dispatcher">;
+  /** For Yamlet's own calls (OAuth token endpoints): the same proxy and certificates. */
+  dispatcher: () => Dispatcher;
+};

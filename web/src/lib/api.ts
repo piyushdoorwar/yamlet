@@ -1,4 +1,4 @@
-import type { Variable, YamletCollection, YamletEnvironment, YamletFolder, YamletRequest } from "@core/models";
+import type { AppSettings, Variable, YamletCollection, YamletEnvironment, YamletFolder, YamletRequest } from "@core/models";
 import {
   type AuthorizeResult,
   type AuthorizeStatus,
@@ -16,6 +16,7 @@ import {
   type SendEvent,
   type SendResult,
   type ServerInfo,
+  type SettingsResult,
   type TokenBody,
   type TokenResult,
   type UpdateInfo,
@@ -115,6 +116,9 @@ export const api = {
   deleteEnvironment: (id: string) => request<MutationResult<{ id: string }>>("DELETE", `/api/environments/${enc(id)}`),
   duplicateEnvironment: (id: string) => request<MutationResult<YamletEnvironment>>("POST", `/api/environments/${enc(id)}/duplicate`),
   saveGlobals: (variables: Variable[]) => request<MutationResult<Variable[]>>("PUT", "/api/globals", { variables }),
+
+  settings: () => request<SettingsResult>("GET", "/api/settings"),
+  saveSettings: (settings: AppSettings) => request<SettingsResult>("PUT", "/api/settings", { settings }),
 
   send: (body: SendBody, signal?: AbortSignal) => request<SendResult>("POST", "/api/send", body, signal),
 

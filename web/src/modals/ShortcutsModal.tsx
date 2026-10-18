@@ -11,6 +11,7 @@ const SHORTCUTS: [string, string][] = [
   ["Insert a variable", "Type {{"],
   ["Insert a dynamic variable", "Type {{$"],
   ["Show or hide the console", "Ctrl Alt C"],
+  ["Settings", "Ctrl ,"],
   ["Keyboard shortcuts", "Ctrl /"],
 ];
 

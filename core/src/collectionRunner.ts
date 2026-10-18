@@ -3,7 +3,7 @@
 // made by scripts carry forward to later requests in the same run (not written to disk).
 import type { Dispatcher } from "undici";
 import type { CookieJar } from "./cookieJar.js";
-import type { ScriptTestResult, Variable, YamletCollection, YamletEnvironment, YamletFolder, YamletRequest, YamletWorkspace } from "./models.js";
+import type { NetworkSettings, ScriptTestResult, Variable, YamletCollection, YamletEnvironment, YamletFolder, YamletRequest, YamletWorkspace } from "./models.js";
 import { execute } from "./requestExecutor.js";
 import type { WorkspaceStore } from "./workspaceStore.js";
 
@@ -59,6 +59,8 @@ export interface RunOptions {
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
   defaultTimeoutMs?: number;
+  maxResponseBytes?: number;
+  network?: NetworkSettings;
   onResult?: (r: RunRequestResult) => void;
 }
 
@@ -159,6 +161,8 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         dispatcher: opts.dispatcher,
         signal: opts.signal,
         defaultTimeoutMs: opts.defaultTimeoutMs,
+        maxResponseBytes: opts.maxResponseBytes,
+        network: opts.network,
         iteration,
         iterationCount: iterations,
       });

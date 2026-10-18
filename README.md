@@ -79,8 +79,16 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
   `pm.response.json()` and more), with built-in snippets.
-- **Responses.** Pretty, raw and preview (HTML or images), headers, cookies, test
-  results, a console, timings and size. Save a response as an example.
+- **Responses.** Pretty, raw and preview (HTML or images), headers, cookies and test
+  results. Bodies stream in as they arrive, server-sent events show as a live list, and
+  Stop keeps what came in. gzip, deflate and br bodies are decoded. Hover the time for
+  DNS, TCP, TLS, waiting and download phases, and the lock for the address, TLS version
+  and certificate. Save a response as an example.
+- **Console.** Every request you send, with the headers and bodies that went out and came
+  back, and the `console.log` output of its scripts (Ctrl+Alt+C).
+- **Settings (Ctrl+,).** Default timeout (none unless you set one), maximum response size,
+  SSL verification, the system proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) or a custom
+  one, extra CA certificates and client certificates per host. Kept in Yamlet's data folder.
 - **Collection runner.** Run a collection or folder with iterations, a delay, and a
   CSV or JSON data file. Results stream in live.
 - **Import.** cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), and v2.1 collection and
@@ -185,10 +193,11 @@ samples/  a ready-to-run workspace
 | `YAMLET_BROWSE_ROOT` | `/workspace` in the container, else your home folder | The folder browser can't leave this directory |
 | `YAMLET_PUBLIC_URL` | `http://localhost:$PORT` | Base URL for the OAuth 2.0 redirect |
 | `YAMLET_ALLOWED_HOSTS` | | Extra host names the server answers to (comma-separated) |
-| `YAMLET_TIMEOUT_MS` | `0` (none) | Default timeout in ms for requests whose own timeout is 0 |
-| `YAMLET_MAX_RESPONSE_MB` | `50` | Response bodies are cut off past this size (`0` keeps everything) |
+| `YAMLET_TIMEOUT_MS` | `0` (none) | Initial default request timeout in ms, until changed in Settings |
+| `YAMLET_MAX_RESPONSE_MB` | `50` | Initial maximum response size, until changed in Settings (`0` keeps everything) |
+| `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | | Used while Settings is on "Use the system proxy" (the default) |
 | `YAMLET_UPDATE_CHECK` | `1` | Set to `0` to stop the hourly check for a newer release on GitHub (only made while the app is open; never in dev builds) |
-| `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`) and extension pairing; mount a persistent volume so they survive container recreation |
+| `YAMLET_DATA_DIR` | `/data` in the container, else `~/.config/yamlet` | Local variable values (`local-values.json`), Settings (`settings.json`) and extension pairing; mount a persistent volume so they survive container recreation |
 | `YAMLET_INTERCEPTOR_DATA_DIR` | `YAMLET_DATA_DIR` | Private pairing state, if it should live elsewhere |
 
 ## Releases

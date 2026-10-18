@@ -7,6 +7,7 @@ export type ModalState =
   | { kind: "quickOpen" }
   | { kind: "openWorkspace" }
   | { kind: "shortcuts" }
+  | { kind: "settings" }
   | { kind: "snippet"; requestId: string }
   | null;
 

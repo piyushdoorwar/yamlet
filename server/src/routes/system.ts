@@ -2,16 +2,36 @@ import type { FastifyInstance } from "fastify";
 import { readdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { WorkspaceStore } from "../../../core/src/workspaceStore.js";
-import type { FsEntry, FsListing, ServerInfo, UpdateInfo } from "../../../shared/api.js";
+import type { FsEntry, FsListing, ServerInfo, SettingsResult, UpdateInfo } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
 import { confine, isInside } from "../paths.js";
 import { UpdateChecker } from "../updates.js";
 
-export function systemRoutes(app: FastifyInstance, { config }: Deps): void {
+export function systemRoutes(app: FastifyInstance, { config, settings }: Deps): void {
   const updates = new UpdateChecker(config.version, !!config.updateCheck, config.dispatcher);
 
   app.get("/api/health", async () => ({ ok: true }));
+
+  const settingsResult = (): SettingsResult => {
+    const env = process.env;
+    // Credentials in a proxy URL stay on the server.
+    const hide = (u?: string) => u?.replace(/\/\/[^/@]*@/, "//***@");
+    return {
+      settings: settings.get(),
+      systemProxy: { httpProxy: hide(env.HTTP_PROXY ?? env.http_proxy), httpsProxy: hide(env.HTTPS_PROXY ?? env.https_proxy), noProxy: env.NO_PROXY ?? env.no_proxy },
+      filePath: settings.filePath ?? null,
+    };
+  };
+  app.get("/api/settings", async (): Promise<SettingsResult> => settingsResult());
+  app.put<{ Body: { settings?: unknown } }>("/api/settings", async (req): Promise<SettingsResult> => {
+    try {
+      await settings.save(req.body?.settings);
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+    return settingsResult();
+  });
 
   // ?refresh=1 checks now instead of reusing a result from the last hour.
   app.get<{ Querystring: { refresh?: string } }>("/api/update", async (req): Promise<UpdateInfo> => updates.get(req.query.refresh === "1"));

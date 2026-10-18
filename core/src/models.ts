@@ -374,6 +374,50 @@ export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "QUERY", "
 
 let yamletVersion = "dev";
 
+/** A client certificate (mTLS) used for one host, or `*.domain` hosts. */
+export interface ClientCertificate {
+  /** `api.example.com`, `api.example.com:8443` or `*.example.com`. */
+  host: string;
+  /** PEM certificate and key files, or a PKCS#12 (.pfx/.p12) file instead. */
+  certPath: string;
+  keyPath: string;
+  pfxPath: string;
+  passphrase: string;
+}
+
+export type ProxyMode = "none" | "system" | "custom";
+
+/** How Yamlet reaches servers; kept in the data folder, not in the workspace. */
+export interface NetworkSettings {
+  /** Verify server certificates unless a request turns it off. */
+  verifySsl: boolean;
+  /** Extra trusted CA certificates (PEM files) on top of the built-in ones. */
+  caCertificatePaths: string[];
+  clientCertificates: ClientCertificate[];
+  /**
+   * `system` uses HTTP_PROXY / HTTPS_PROXY / NO_PROXY from the environment; `custom` uses
+   * `url` (credentials may be in it) for both, skipping hosts in `bypass` (comma-separated).
+   */
+  proxy: { mode: ProxyMode; url: string; bypass: string };
+}
+
+/** Machine-wide preferences, edited in Settings. */
+export interface AppSettings {
+  /** Default request timeout in ms; 0 means none. A request's own timeout wins. */
+  timeoutMs: number;
+  /** Response bodies are cut off past this many MB; 0 keeps everything. */
+  maxResponseMb: number;
+  network: NetworkSettings;
+}
+
+export function defaultNetworkSettings(): NetworkSettings {
+  return { verifySsl: true, caCertificatePaths: [], clientCertificates: [], proxy: { mode: "system", url: "", bypass: "" } };
+}
+
+export function defaultAppSettings(): AppSettings {
+  return { timeoutMs: 0, maxResponseMb: 50, network: defaultNetworkSettings() };
+}
+
 /** Sent with every request unless the request sets its own; compressed bodies are decoded. */
 export const DEFAULT_REQUEST_HEADERS: readonly { key: string; value: string }[] = [
   { key: "Accept", value: "*/*" },

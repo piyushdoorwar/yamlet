@@ -6,8 +6,10 @@ import dns from "node:dns";
 import type { Socket } from "node:net";
 import { performance } from "node:perf_hooks";
 import type { TLSSocket } from "node:tls";
-import { Agent, buildConnector } from "undici";
-import type { NetworkInfo } from "./models.js";
+import { readFileSync } from "node:fs";
+import { rootCertificates } from "node:tls";
+import { Agent, buildConnector, type Dispatcher, EnvHttpProxyAgent } from "undici";
+import { defaultNetworkSettings, type NetworkInfo, type NetworkSettings } from "./models.js";
 
 // When a host resolves to several addresses, Node tries them in turn and gives
 // each only 250 ms by default. Over Docker networking or a slow link a healthy
@@ -65,7 +67,16 @@ diagnostics.channel("undici:client:sendHeaders").subscribe((message) => {
   if (trace && socket) trace.network = { httpVersion: "1.1", ...networkOf(socket) };
 });
 
-function timedConnector(tlsOptions: { rejectUnauthorized?: boolean }): buildConnector.connector {
+interface TlsOptions {
+  rejectUnauthorized?: boolean;
+  ca?: (string | Buffer)[];
+  cert?: Buffer;
+  key?: Buffer;
+  pfx?: Buffer;
+  passphrase?: string;
+}
+
+function timedConnector(tlsOptions: TlsOptions): buildConnector.connector {
   const base = buildConnector({
     ...tlsOptions,
     autoSelectFamily: true,
@@ -99,18 +110,84 @@ function timedConnector(tlsOptions: { rejectUnauthorized?: boolean }): buildConn
   };
 }
 
+/** Whether a client-certificate host pattern covers this host (and port, when it names one). */
+export function hostMatches(pattern: string, hostname: string, port: string): boolean {
+  const p = pattern.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const [host, wantPort] = p.split(":");
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (wantPort && wantPort !== (port || "443")) return false;
+  return host.startsWith("*.") ? h.endsWith(host.slice(1)) && h.length > host.length - 1 : h === host;
+}
+
+/** Picks the client certificate (if any) by target host, then connects with timing. */
+function connectorFor(net: NetworkSettings, tls: TlsOptions): buildConnector.connector {
+  const plain = timedConnector(tls);
+  const withCert = new Map<number, buildConnector.connector>();
+  return (options, callback) => {
+    const i = options.protocol === "https:" ? net.clientCertificates.findIndex((c) => hostMatches(c.host, options.hostname, options.port)) : -1;
+    if (i < 0) return plain(options, callback);
+    let connector = withCert.get(i);
+    if (!connector) {
+      const c = net.clientCertificates[i];
+      try {
+        connector = timedConnector({
+          ...tls,
+          ...(c.pfxPath ? { pfx: readFileSync(c.pfxPath) } : { cert: readFileSync(c.certPath), key: readFileSync(c.keyPath) }),
+          ...(c.passphrase ? { passphrase: c.passphrase } : {}),
+        });
+      } catch (e) {
+        callback(new Error(`Could not read the client certificate for ${c.host}: ${(e as Error).message}`), null);
+        return null as never;
+      }
+      withCert.set(i, connector);
+    }
+    return connector(options, callback);
+  };
+}
+
 // undici gives up after 300 s without headers or body data. A request's own
 // timeout (or none) decides instead, so slow reports and idle streams survive.
 const base = { headersTimeout: 0, bodyTimeout: 0 };
 
-let standard: Agent | undefined;
-let insecure: Agent | undefined;
+const dispatchers = new Map<string, Dispatcher>();
 
-export function defaultAgent(): Agent {
-  return (standard ??= new Agent({ ...base, connect: timedConnector({}) }));
+/** A connection pool for these network settings, reused while they stay the same. */
+export function dispatcherFor(net: NetworkSettings = defaultNetworkSettings(), skipVerify = false): Dispatcher {
+  const key = JSON.stringify([net, skipVerify]);
+  const hit = dispatchers.get(key);
+  if (hit) return hit;
+  const ca = net.caCertificatePaths.length ? [...rootCertificates, ...net.caCertificatePaths.map((p) => readCa(p))] : undefined;
+  const tls: TlsOptions = { ...(skipVerify || !net.verifySsl ? { rejectUnauthorized: false } : {}), ...(ca ? { ca } : {}) };
+  const connect = connectorFor(net, tls);
+  let dispatcher: Dispatcher;
+  const p = net.proxy;
+  if (p.mode === "custom" && p.url) {
+    dispatcher = new EnvHttpProxyAgent({ ...base, connect, httpProxy: p.url, httpsProxy: p.url, noProxy: p.bypass, requestTls: tls, proxyTls: tls });
+  } else if (p.mode === "system" && hasEnvProxy()) {
+    dispatcher = new EnvHttpProxyAgent({ ...base, connect, requestTls: tls, proxyTls: tls });
+  } else {
+    dispatcher = new Agent({ ...base, connect });
+  }
+  // Settings rarely change; keep the pools of the latest few.
+  if (dispatchers.size >= 4) {
+    const [oldest, old] = dispatchers.entries().next().value!;
+    dispatchers.delete(oldest);
+    void old.close().catch(() => undefined);
+  }
+  dispatchers.set(key, dispatcher);
+  return dispatcher;
 }
 
-/** For requests with "skip SSL verification" on. */
-export function insecureAgent(): Agent {
-  return (insecure ??= new Agent({ ...base, connect: timedConnector({ rejectUnauthorized: false }) }));
+function readCa(file: string): string {
+  try {
+    return readFileSync(file, "utf8");
+  } catch (e) {
+    throw new Error(`Could not read the CA certificate ${file}: ${(e as Error).message}`);
+  }
+}
+
+const hasEnvProxy = () => ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"].some((k) => !!process.env[k]);
+
+export function defaultAgent(): Dispatcher {
+  return dispatcherFor();
 }

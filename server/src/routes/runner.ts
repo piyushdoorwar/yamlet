@@ -7,7 +7,7 @@ import { abortOnDisconnect, persistChanges } from "./send.js";
 
 // Streams one NDJSON line per finished request, then a summary line, so the
 // runner tab fills in live.
-export function runnerRoutes(app: FastifyInstance, { workspaces, config }: Deps): void {
+export function runnerRoutes(app: FastifyInstance, { workspaces, sendOptions }: Deps): void {
   app.post<{ Body: RunBody }>("/api/runner/run", async (req, reply) => {
     const { store, cookies } = await workspaces.fromHeaders(req.headers);
     const body = req.body ?? ({} as RunBody);
@@ -43,7 +43,7 @@ export function runnerRoutes(app: FastifyInstance, { workspaces, config }: Deps)
         delayMs: Math.min(Math.max(body.delayMs ?? 0, 0), 60_000),
         bail: body.bail,
         cookieJar: cookies,
-        dispatcher: config.dispatcher,
+        ...sendOptions(),
         signal,
         onResult: (r) => emit({ type: "result", ...r }),
       });

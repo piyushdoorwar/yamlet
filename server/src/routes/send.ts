@@ -56,7 +56,7 @@ export async function persistChanges(
 /** Gap between streamed body pieces; small pieces arriving faster are merged. */
 const CHUNK_FLUSH_MS = 50;
 
-export function sendRoutes(app: FastifyInstance, { workspaces, config }: Deps): void {
+export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: Deps): void {
   app.post<{ Body: SendBody }>("/api/send", async (req, reply): Promise<SendResult | void> => {
     const { store, cookies } = await workspaces.fromHeaders(req.headers);
     const { request, environmentId } = req.body ?? ({} as SendBody);
@@ -74,9 +74,7 @@ export function sendRoutes(app: FastifyInstance, { workspaces, config }: Deps): 
         globals: store.workspace.globals,
         workspaceRoot: store.workspace.rootPath,
         cookieJar: cookies,
-        defaultTimeoutMs: config.defaultTimeoutMs,
-        maxResponseBytes: config.maxResponseBytes,
-        dispatcher: config.dispatcher,
+        ...sendOptions(),
         signal,
         ...stream,
       });

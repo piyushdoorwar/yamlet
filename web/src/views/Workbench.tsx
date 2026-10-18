@@ -5,6 +5,7 @@ import { CookiesModal } from "../modals/CookiesModal";
 import { ImportModal } from "../modals/ImportModal";
 import { OpenWorkspaceModal } from "../modals/OpenWorkspaceModal";
 import { QuickOpen } from "../modals/QuickOpen";
+import { SettingsModal } from "../modals/SettingsModal";
 import { ShortcutsModal } from "../modals/ShortcutsModal";
 import { SnippetModal } from "../modals/SnippetModal";
 import { useConsole } from "../lib/consoleLog";
@@ -46,6 +47,9 @@ function useShortcuts() {
         e.preventDefault();
         const c = useConsole.getState();
         c.setOpen(!c.open);
+      } else if (mod && e.key === ",") {
+        e.preventDefault();
+        useUi.getState().setModal({ kind: "settings" });
       } else if (mod && e.key === "/") {
         e.preventDefault();
         useUi.getState().setModal({ kind: "shortcuts" });
@@ -72,6 +76,8 @@ function Modals() {
       return <OpenWorkspaceModal onClose={close} />;
     case "shortcuts":
       return <ShortcutsModal onClose={close} />;
+    case "settings":
+      return <SettingsModal onClose={close} />;
     case "snippet":
       return <SnippetModal requestId={modal.requestId} onClose={close} />;
     default:

@@ -52,7 +52,7 @@ main{background:#fff;border:1px solid #dde5e0;border-radius:8px;padding:32px 40p
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps): void {
+export function oauthRoutes(app: FastifyInstance, { workspaces, config, dispatcher }: Deps): void {
   const pending = new Map<string, PendingAuth>();
   const callbackUrl = `${config.publicUrl}/api/oauth2/callback`;
 
@@ -66,7 +66,7 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps):
     const { store } = await workspaces.fromHeaders(req.headers);
     if (!req.body?.config) throw new HttpError(400, "Missing OAuth 2.0 settings");
     const ctx = contextFor(store, req.body);
-    const token = await asHttp(() => fetchToken(req.body.config, (s) => resolveVariables(s, ctx), { dispatcher: config.dispatcher }));
+    const token = await asHttp(() => fetchToken(req.body.config, (s) => resolveVariables(s, ctx), { dispatcher: dispatcher() }));
     return toResult(token);
   });
 
@@ -113,7 +113,7 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config }: Deps):
           code: req.query.code,
           verifier: p.verifier,
           redirectUri: p.redirectUri,
-        }, { dispatcher: config.dispatcher });
+        }, { dispatcher: dispatcher() });
         p.status = { status: "done", token: toResult(token) };
         return page("Signed in", "Yamlet has the access token. You can close this window.");
       } catch (err) {
