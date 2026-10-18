@@ -347,6 +347,8 @@ export function readOAuth2(o: unknown): OAuth2Config {
     addTokenTo: addTo === "queryparams" || addTo === "query" ? "query" : "header",
     clientAuthentication: clientAuth === "body" ? "body" : "basic",
     challengeAlgorithm: challenge?.trim().toLowerCase() === "plain" ? "plain" : "S256",
+    audience: get("audience") ?? "",
+    resource: get("resource") ?? "",
   };
 }
 
@@ -359,6 +361,8 @@ export function readAuth(raw: unknown, fallback: AuthType = "none"): Auth {
   if (!isObj(raw)) return defaultAuth(fallback);
   const type = raw.type === undefined ? fallback : authType(raw.type);
   const a = defaultAuth(type);
+  const named = str(raw.type).trim();
+  if (type === "none" && named && !/^(none|noauth|no-auth)$/i.test(named)) a.unsupported = named;
   const cred = (block: string, key: string) => credential(raw[block], key) ?? credential(raw.credentials, key) ?? str(raw[key]);
   a.token = cred("bearer", "token");
   // Digest shares the username and password fields with basic.
@@ -403,6 +407,8 @@ function writeOAuth2(o: OAuth2Config): Obj {
   out.addTokenTo = o.addTokenTo === "query" ? "queryParams" : "header";
   out.client_authentication = o.clientAuthentication === "body" ? "body" : "header";
   if (o.challengeAlgorithm === "plain") out.challengeAlgorithm = "plain";
+  put("audience", o.audience);
+  put("resource", o.resource);
   return out;
 }
 
@@ -413,7 +419,7 @@ const MODELED_CREDENTIALS = new Set(
     "grant_type", "grantType", "accessToken", "access_token", "refreshToken", "refresh_token", "headerPrefix", "tokenType",
     "accessTokenUrl", "tokenUrl", "access_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
     "clientSecret", "client_secret", "scope", "redirect_uri", "redirectUri", "redirect_url", "callbackUrl", "addTokenTo",
-    "client_authentication", "clientAuthentication", "challengeAlgorithm",
+    "client_authentication", "clientAuthentication", "challengeAlgorithm", "audience", "resource",
     "accessKey", "secretKey", "sessionToken", "region", "service",
   ].map((k) => k.toLowerCase()),
 );
@@ -431,7 +437,8 @@ function mergeAuth(ours: Obj, original: unknown): Obj {
 
 /** `type` plus a `credentials` map holding the active scheme's fields. */
 export function writeAuth(a: Auth): Obj {
-  const out: Obj = { type: a.type === "none" ? "noauth" : a.type };
+  // An unsupported scheme keeps its name so the warning survives an import.
+  const out: Obj = { type: a.type === "none" ? (a.unsupported ?? "noauth") : a.type };
   const creds: Obj = {};
   const put = (k: string, v: string | undefined) => {
     if (v) creds[k] = v;

@@ -73,3 +73,19 @@ describe("buildAuthorizationUrl", () => {
     expect(() => buildAuthorizationUrl(cfg({ authUrl: "" }), same, { state: "s", redirectUri: "http://localhost/cb" })).toThrow(OAuth2Error);
   });
 });
+
+describe("audience and resource", () => {
+  it("are sent with token requests and sign-in URLs when set", async () => {
+    let sent = "";
+    agent
+      .get("https://auth.test")
+      .intercept({ path: "/token", method: "POST", body: (b) => ((sent = String(b)), true) })
+      .reply(200, JSON.stringify({ access_token: "tok" }), { headers: { "content-type": "application/json" } });
+    await fetchToken(cfg({ audience: "https://api.test", resource: "urn:r" }), same, { dispatcher: agent });
+    expect(new URLSearchParams(sent).get("audience")).toBe("https://api.test");
+    expect(new URLSearchParams(sent).get("resource")).toBe("urn:r");
+    const url = new URL(buildAuthorizationUrl(cfg({ authUrl: "https://auth.test/authorize", audience: "aud" }), same, { state: "s", redirectUri: "http://localhost/cb" }));
+    expect(url.searchParams.get("audience")).toBe("aud");
+    expect(url.searchParams.has("resource")).toBe(false);
+  });
+});

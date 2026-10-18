@@ -527,3 +527,12 @@ describe("collections, folders, environments, globals", () => {
     expect(globalsFromYaml(globalsToYaml([{ key: "appName", value: "Yamlet", enabled: true }]))).toEqual([{ key: "appName", value: "Yamlet", enabled: true }]);
   });
 });
+
+describe("auth schemes Yamlet can't send", () => {
+  it("are read as no auth but keep their name for a warning and on save", () => {
+    const a = readAuth({ type: "oauth1", credentials: { consumerKey: "k" } });
+    expect(a).toMatchObject({ type: "none", unsupported: "oauth1" });
+    expect(writeAuth(a).type).toBe("oauth1");
+    expect(readAuth({ type: "noauth" }).unsupported).toBeUndefined();
+  });
+});

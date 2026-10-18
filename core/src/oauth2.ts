@@ -113,6 +113,16 @@ export function createPkce(method: "S256" | "plain" = "S256"): { verifier: strin
   return { verifier, challenge };
 }
 
+/** `audience` and `resource`, when set. */
+function extraParams(cfg: OAuth2Config, resolve: Resolve): [string, string][] {
+  const out: [string, string][] = [];
+  const audience = resolve(cfg.audience ?? "").trim();
+  const resource = resolve(cfg.resource ?? "").trim();
+  if (audience) out.push(["audience", audience]);
+  if (resource) out.push(["resource", resource]);
+  return out;
+}
+
 export function buildAuthorizationUrl(
   cfg: OAuth2Config,
   resolve: Resolve,
@@ -123,6 +133,7 @@ export function buildAuthorizationUrl(
   const scope = resolve(cfg.scope).trim();
   if (scope) params.set("scope", scope);
   params.set("state", opts.state);
+  for (const [k, v] of extraParams(cfg, resolve)) params.set(k, v);
   if (opts.codeChallenge && cfg.grantType !== "implicit") {
     params.set("code_challenge", opts.codeChallenge);
     params.set("code_challenge_method", cfg.challengeAlgorithm === "plain" ? "plain" : "S256");
@@ -169,6 +180,7 @@ async function requestToken(
     accept: "application/json",
   };
   const body = new URLSearchParams(form);
+  for (const [k, v] of extraParams(cfg, resolve)) body.set(k, v);
   if (cfg.clientAuthentication === "body") {
     if (clientId) body.set("client_id", clientId);
     if (clientSecret) body.set("client_secret", clientSecret);
@@ -241,7 +253,7 @@ const EXPIRY_MARGIN_MS = 30_000;
 const DEFAULT_LIFETIME_S = 3600;
 
 function cacheKey(cfg: OAuth2Config, resolve: Resolve): string {
-  return [cfg.grantType, resolve(cfg.accessTokenUrl), resolve(cfg.clientId), resolve(cfg.scope), resolve(cfg.username), cfg.clientAuthentication].join("|");
+  return [cfg.grantType, resolve(cfg.accessTokenUrl), resolve(cfg.clientId), resolve(cfg.scope), resolve(cfg.username), cfg.clientAuthentication, resolve(cfg.audience ?? ""), resolve(cfg.resource ?? "")].join("|");
 }
 
 /** True when the grant can be fetched without user interaction. */

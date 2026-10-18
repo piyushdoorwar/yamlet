@@ -63,6 +63,9 @@ export interface OAuth2Config {
   clientAuthentication: OAuth2ClientAuthentication;
   /** PKCE challenge method for the authorization-code grant: "S256" or "plain". */
   challengeAlgorithm: "S256" | "plain";
+  /** Optional `audience` / `resource` parameters some providers need on token and sign-in requests. */
+  audience: string;
+  resource: string;
 }
 
 /**
@@ -78,6 +81,8 @@ export interface Auth {
   apiKeyValue: string;
   apiKeyIn: ApiKeyLocation;
   cookie: string;
+  /** A scheme read from the file that Yamlet can't send (e.g. "oauth1", "ntlm"); `type` is then "none". */
+  unsupported?: string;
   oauth2: OAuth2Config;
   aws: AwsSigV4Config;
 }
@@ -315,6 +320,8 @@ export function defaultOAuth2(): OAuth2Config {
     addTokenTo: "header",
     clientAuthentication: "basic",
     challengeAlgorithm: "S256",
+    audience: "",
+    resource: "",
   };
 }
 

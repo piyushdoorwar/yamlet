@@ -124,7 +124,8 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
   const latest = useRef(auth);
   latest.current = auth;
   const set = (patch: Partial<Auth>) => {
-    latest.current = { ...latest.current, ...patch };
+    const { unsupported: _, ...rest } = latest.current;
+    latest.current = { ...rest, ...patch };
     onChange(latest.current);
   };
   const setO = (patch: Partial<OAuth2Config>) => set({ oauth2: { ...latest.current.oauth2, ...patch } });
@@ -144,7 +145,15 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
       </Field>
 
       {auth.type === "inherit" && <p className="text-13 text-muted">Uses the auth of the enclosing folder or collection{inheritedLabel ? `: ${inheritedLabel}` : ""}.</p>}
-      {auth.type === "none" && <p className="text-13 text-muted">No authorization is sent.</p>}
+      {auth.type === "none" && !auth.unsupported && <p className="text-13 text-muted">No authorization is sent.</p>}
+      {auth.type === "none" && auth.unsupported && (
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-danger-line bg-danger-soft px-4 py-3">
+          <CircleAlert size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden />
+          <p className="text-13 text-danger-ink">
+            This uses <span className="font-mono">{auth.unsupported}</span> auth, which Yamlet can't send, so requests go out without it. The settings stay in the file until you pick another type here.
+          </p>
+        </div>
+      )}
 
       {auth.type === "bearer" && (
         <Field label="Token" hint="Sent as Authorization: Bearer <token>.">
@@ -367,6 +376,10 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
           </Field>
         </>
       )}
+      <div className="grid gap-4 md:grid-cols-2">
+        {text("audience", "Audience", { placeholder: "Optional", hint: "Sent as audience on token and sign-in requests" })}
+        {text("resource", "Resource", { placeholder: "Optional", hint: "Sent as resource on token and sign-in requests" })}
+      </div>
       {!implicit && (
         <Field label="Client authentication">
           <select className="input max-w-xs" value={cfg.clientAuthentication} aria-label="Client authentication" onChange={(e) => set({ clientAuthentication: e.target.value as OAuth2Config["clientAuthentication"] })}>
