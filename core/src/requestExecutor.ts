@@ -25,7 +25,7 @@ export interface ExecuteInput {
   /** Relative file paths in form-data / binary bodies resolve against this. */
   workspaceRoot: string;
   cookieJar?: CookieJar;
-  iterationData?: Record<string, string>;
+  iterationData?: Record<string, unknown>;
   /** Used when the request's own timeout is 0. 0 or absent means no timeout. */
   defaultTimeoutMs?: number;
   signal?: AbortSignal;

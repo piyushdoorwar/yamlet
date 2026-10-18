@@ -52,7 +52,7 @@ export interface RunOptions {
   globals: Variable[];
   iterations?: number;
   /** One row per iteration; when given, the iteration count is the row count. */
-  data?: Record<string, string>[];
+  data?: Record<string, unknown>[];
   delayMs?: number;
   bail?: boolean;
   cookieJar?: CookieJar;
@@ -307,10 +307,8 @@ function parseCsv(text: string): string[][] {
   return rows.filter((r) => !(r.length === 1 && r[0].trim() === ""));
 }
 
-const cell = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
-
-/** Iteration rows from a CSV (header row + rows) or JSON (array of objects) data file. */
-export function parseDataFile(text: string, filename: string): Record<string, string>[] {
+/** Iteration rows from a CSV (header row + rows, all text) or JSON (array of objects, types kept) data file. */
+export function parseDataFile(text: string, filename: string): Record<string, unknown>[] {
   const body = text.replace(/^﻿/, "");
   const isJson = /\.json$/i.test(filename) || (!/\.csv$/i.test(filename) && /^\s*[[{]/.test(body));
   if (isJson) {
@@ -318,7 +316,7 @@ export function parseDataFile(text: string, filename: string): Record<string, st
     const list = Array.isArray(parsed) ? parsed : [parsed];
     return list.map((item, i) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`Row ${i + 1} is not an object`);
-      return Object.fromEntries(Object.entries(item as Record<string, unknown>).map(([k, v]) => [k, cell(v)]));
+      return { ...(item as Record<string, unknown>) };
     });
   }
   const rows = parseCsv(body);

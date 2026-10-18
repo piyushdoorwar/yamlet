@@ -11,7 +11,8 @@ export interface VariableContext {
   collection?: Variable[];
   environment?: Variable[];
   globals?: Variable[];
-  iterationData?: Record<string, string>;
+  /** The runner's current data row; JSON data files keep their value types. */
+  iterationData?: Record<string, unknown>;
 }
 
 export type VariableScope = "request" | "data" | "collection" | "environment" | "globals" | "dynamic";
@@ -44,11 +45,14 @@ function layerFromVariables(scope: Layer["scope"], vars: Variable[] | undefined)
   return { scope, values };
 }
 
+/** A data-row value as placeholder text: objects and arrays as JSON. */
+const dataText = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+
 function layers(ctx: VariableContext): Layer[] {
   const data = ctx.iterationData
     ? {
         scope: "data" as const,
-        values: new Map(Object.entries(ctx.iterationData).map(([k, v]) => [k.toLowerCase(), v == null ? "" : String(v)])),
+        values: new Map(Object.entries(ctx.iterationData).map(([k, v]) => [k.toLowerCase(), dataText(v)])),
       }
     : undefined;
   return [
@@ -95,7 +99,7 @@ export function mergedVariables(ctx: VariableContext): Record<string, string> {
     }
   };
   addVars(ctx.request);
-  if (ctx.iterationData) for (const [k, v] of Object.entries(ctx.iterationData)) add(k, v == null ? "" : String(v));
+  if (ctx.iterationData) for (const [k, v] of Object.entries(ctx.iterationData)) add(k, dataText(v));
   addVars(ctx.collection);
   addVars(ctx.environment);
   addVars(ctx.globals);

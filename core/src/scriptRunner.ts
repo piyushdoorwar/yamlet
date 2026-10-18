@@ -18,7 +18,7 @@ export type ScriptScope = "local" | "environment" | "collection" | "globals";
 
 export interface ScriptVariablesInit {
   request?: Variable[];
-  iterationData?: Record<string, string>;
+  iterationData?: Record<string, unknown>;
   /** Live lists: scripts mutate them in place. Pass copies if the caller's must not change. */
   collection?: Variable[];
   environment?: Variable[];
@@ -28,7 +28,7 @@ export interface ScriptVariablesInit {
 /** Variable scopes visible to scripts during one send, with mutation tracking. */
 export class ScriptVariables {
   readonly request: Variable[];
-  readonly iterationData?: Record<string, string>;
+  readonly iterationData?: Record<string, unknown>;
   readonly collection?: Variable[];
   readonly environment?: Variable[];
   readonly globals?: Variable[];
@@ -230,7 +230,8 @@ function installResponsePlugin(): void {
         return;
       }
       if (typeof pathOrValue === "string") {
-        const got = pathOrValue.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), parsed);
+        // Dots and [index] steps, as in "items[0].id".
+        const got = _.get(parsed, pathOrValue.replace(/^\$\.?/, ""));
         if (value === undefined) this.assert(got !== undefined, `expected response JSON to have path ${pathOrValue}`, `expected response JSON to not have path ${pathOrValue}`, undefined, undefined);
         else this.assert(utils.eql(got, value), `expected response JSON at ${pathOrValue} to deeply equal #{exp} but got #{act}`, `expected response JSON at ${pathOrValue} to not deeply equal #{exp}`, value, got);
         return;
@@ -254,9 +255,19 @@ function installResponsePlugin(): void {
       const valid = validate(data);
       this.assert(!!valid, `expected data to match the JSON schema: ${ajv.errorsText(validate.errors)}`, "expected data to not match the JSON schema", undefined, undefined);
     });
-    A.addMethod("responseTime", function (this: Chai.AssertionStatic) {
-      need(this);
-    });
+    // pm.response.to.have.responseTime(ms) checks the exact time; .responseTime.below(ms) and
+    // friends compare against it.
+    A.addChainableMethod(
+      "responseTime",
+      function (this: Chai.AssertionStatic, ms?: number) {
+        if (ms === undefined) return;
+        const took = utils.flag(this, "object") as number;
+        this.assert(took === ms, "expected response time to be #{exp}ms but got #{act}ms", "expected response time to not be #{exp}ms", ms, took);
+      },
+      function (this: Chai.AssertionStatic) {
+        utils.flag(this, "object", Math.round(need(this).durationMs));
+      },
+    );
     A.overwriteProperty("ok", (_super: () => void) =>
       function (this: Chai.AssertionStatic) {
         const r = resp(this);

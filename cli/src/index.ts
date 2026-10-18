@@ -339,7 +339,7 @@ export async function run(args: RunArgs): Promise<number> {
     folderId = hit.id;
   }
 
-  let data: Record<string, string>[] | undefined;
+  let data: Record<string, unknown>[] | undefined;
   if (args.data) {
     const path = resolve(args.data);
     if (!existsSync(path)) throw new CliError(`Data file not found: ${path}`);

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseDataFile, planRun, runCollection, type RunOptions } from "../src/collectionRunner.js";
 import { newCollection, newEnvironment, newFolder, newRequest, type YamletCollection, type YamletWorkspace } from "../src/models.js";
 import { WorkspaceStore } from "../src/workspaceStore.js";
+import { resolveVariables } from "../src/variableResolver.js";
 
 let agent: MockAgent;
 let urls: string[];
@@ -207,8 +208,10 @@ describe("parseDataFile", () => {
     ]);
   });
 
-  it("parses JSON arrays and stringifies values", () => {
-    expect(parseDataFile('[{"a":1,"b":{"c":true}},{"a":null}]', "rows.json")).toEqual([{ a: "1", b: '{"c":true}' }, { a: "" }]);
+  it("parses JSON arrays and keeps value types", () => {
+    expect(parseDataFile('[{"a":1,"b":{"c":true}},{"a":null}]', "rows.json")).toEqual([{ a: 1, b: { c: true } }, { a: null }]);
+    const ctx = { iterationData: { a: 1, b: { c: true }, n: null } };
+    expect(resolveVariables("{{a}} {{b}} [{{n}}]", ctx)).toBe('1 {"c":true} []');
     expect(() => parseDataFile("[1]", "rows.json")).toThrow();
   });
 });

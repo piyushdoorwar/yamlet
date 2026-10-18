@@ -14,7 +14,7 @@ export function runnerRoutes(app: FastifyInstance, { workspaces, sendOptions }: 
     const collection = store.findCollection(body.collectionId);
     if (!collection) throw new HttpError(404, "Collection not found");
     const environment = body.environmentId ? store.findEnvironment(body.environmentId) : undefined;
-    let data: Record<string, string>[] | undefined;
+    let data: Record<string, unknown>[] | undefined;
     if (body.dataText?.trim()) {
       try {
         data = parseDataFile(body.dataText, body.dataFileName ?? "data.csv");

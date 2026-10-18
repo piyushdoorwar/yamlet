@@ -98,6 +98,17 @@ pm.test('plain ok still works', () => pm.expect(0).to.be.ok);`);
     expect(tests.map((t) => t.passed)).toEqual([false, false, false]);
   });
 
+  it("checks response time and bracketed JSON paths", async () => {
+    const { tests } = await run(`
+pm.test('time below', () => pm.response.to.have.responseTime.below(100));
+pm.test('time above fails', () => pm.response.to.have.responseTime.above(100));
+pm.test('time exact', () => pm.response.to.have.responseTime(12));
+pm.test('time exact fails', () => pm.response.to.have.responseTime(13));
+pm.test('bracket path', () => pm.response.to.have.jsonBody('items[1]', 2));
+pm.test('missing path fails', () => pm.response.to.have.jsonBody('items[5]'));`);
+    expect(tests.map((t) => t.passed)).toEqual([true, false, true, false, true, false]);
+  });
+
   it("awaits async tests, done callbacks and timers", async () => {
     const { tests, variables } = await run(`
 pm.test('async', async () => { await new Promise((r) => setTimeout(r, 10)); pm.expect(1).to.equal(2); });
