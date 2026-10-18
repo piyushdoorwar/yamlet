@@ -20,6 +20,7 @@ export function normalizeSettings(raw: unknown, defaults: AppSettings = defaultA
     maxResponseMb: num(r.maxResponseMb, defaults.maxResponseMb),
     network: {
       verifySsl: typeof n.verifySsl === "boolean" ? n.verifySsl : d.verifySsl,
+      http2: n.http2 !== false,
       caCertificatePaths: Array.isArray(n.caCertificatePaths) ? n.caCertificatePaths.map(str).filter(Boolean) : [],
       clientCertificates: Array.isArray(n.clientCertificates)
         ? n.clientCertificates

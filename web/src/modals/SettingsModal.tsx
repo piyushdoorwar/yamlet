@@ -119,6 +119,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               <Field label="Maximum response size" hint="Bodies past this size are cut off, with a notice. 0 keeps everything." htmlFor="set-max">
                 <NumberInput id="set-max" value={draft.maxResponseMb} step={10} unit="MB" onChange={(maxResponseMb) => setDraft({ ...draft, maxResponseMb })} />
               </Field>
+              <Field label="Use HTTP/2 when the server offers it" hint="Turn off to always use HTTP/1.1. The network details on a response show which was used." htmlFor="set-h2">
+                <input id="set-h2" type="checkbox" className="check" checked={net.http2 !== false} onChange={(e) => setNet({ http2: e.target.checked })} />
+              </Field>
               <Field label="Verify SSL certificates" hint="Turn off to accept self-signed and expired certificates everywhere. Requests can also turn it off one by one." htmlFor="set-ssl">
                 <input id="set-ssl" type="checkbox" className="check" checked={net.verifySsl} onChange={(e) => setNet({ verifySsl: e.target.checked })} />
               </Field>

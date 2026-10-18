@@ -46,6 +46,7 @@ function networkOf(socket: Socket): NetworkInfo {
     localPort: socket.localPort,
   };
   const tls = socket as TLSSocket;
+  info.httpVersion = tls.alpnProtocol === "h2" ? "2" : "1.1";
   if (typeof tls.getProtocol === "function") {
     const cert = tls.getPeerCertificate?.();
     info.tls = {
@@ -64,10 +65,12 @@ function networkOf(socket: Socket): NetworkInfo {
 diagnostics.channel("undici:client:sendHeaders").subscribe((message) => {
   const trace = traces.getStore();
   const socket = (message as { socket?: Socket }).socket;
-  if (trace && socket) trace.network = { httpVersion: "1.1", ...networkOf(socket) };
+  if (trace && socket) trace.network = networkOf(socket);
 });
 
 interface TlsOptions {
+  /** Offer h2 in ALPN (undici's default); false keeps connections on HTTP/1.1. */
+  allowH2?: boolean;
   rejectUnauthorized?: boolean;
   ca?: (string | Buffer)[];
   cert?: Buffer;
@@ -158,15 +161,16 @@ export function dispatcherFor(net: NetworkSettings = defaultNetworkSettings(), s
   if (hit) return hit;
   const ca = net.caCertificatePaths.length ? [...rootCertificates, ...net.caCertificatePaths.map((p) => readCa(p))] : undefined;
   const tls: TlsOptions = { ...(skipVerify || !net.verifySsl ? { rejectUnauthorized: false } : {}), ...(ca ? { ca } : {}) };
-  const connect = connectorFor(net, tls);
+  const h2 = { allowH2: net.http2 !== false };
+  const connect = connectorFor(net, { ...tls, ...h2 });
   let dispatcher: Dispatcher;
   const p = net.proxy;
   if (p.mode === "custom" && p.url) {
-    dispatcher = new EnvHttpProxyAgent({ ...base, connect, httpProxy: p.url, httpsProxy: p.url, noProxy: p.bypass, requestTls: tls, proxyTls: tls });
+    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, httpProxy: p.url, httpsProxy: p.url, noProxy: p.bypass, requestTls: tls, proxyTls: tls });
   } else if (p.mode === "system" && hasEnvProxy()) {
-    dispatcher = new EnvHttpProxyAgent({ ...base, connect, requestTls: tls, proxyTls: tls });
+    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, requestTls: tls, proxyTls: tls });
   } else {
-    dispatcher = new Agent({ ...base, connect });
+    dispatcher = new Agent({ ...base, ...h2, connect });
   }
   // Settings rarely change; keep the pools of the latest few.
   if (dispatchers.size >= 4) {

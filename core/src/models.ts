@@ -420,6 +420,8 @@ export type ProxyMode = "none" | "system" | "custom";
 export interface NetworkSettings {
   /** Verify server certificates unless a request turns it off. */
   verifySsl: boolean;
+  /** Offer HTTP/2 to HTTPS servers (negotiated with ALPN; on unless false). Off forces HTTP/1.1. */
+  http2?: boolean;
   /** Extra trusted CA certificates (PEM files) on top of the built-in ones. */
   caCertificatePaths: string[];
   clientCertificates: ClientCertificate[];
@@ -440,7 +442,7 @@ export interface AppSettings {
 }
 
 export function defaultNetworkSettings(): NetworkSettings {
-  return { verifySsl: true, caCertificatePaths: [], clientCertificates: [], proxy: { mode: "system", url: "", bypass: "" } };
+  return { verifySsl: true, http2: true, caCertificatePaths: [], clientCertificates: [], proxy: { mode: "system", url: "", bypass: "" } };
 }
 
 export function defaultAppSettings(): AppSettings {
