@@ -2,7 +2,7 @@ import type { SseEvent } from "@core/sse";
 import clsx from "clsx";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { formatMs, prettyJson } from "../../lib/format";
+import { formatBytes, formatMs, prettyJson } from "../../lib/format";
 
 /** Keeps a scroll container pinned to the bottom while content grows, unless the user scrolled up. */
 function useStickToBottom<T extends HTMLElement>(dep: unknown) {
@@ -24,13 +24,18 @@ function useStickToBottom<T extends HTMLElement>(dep: unknown) {
   return ref;
 }
 
+/** While a body arrives only its end is drawn; the whole body shows once it is complete. */
+const LIVE_TAIL_CHARS = 64 * 1024;
+
 /** Body text as it arrives. */
 export function LiveText({ text }: { text: string }) {
   const ref = useStickToBottom<HTMLPreElement>(text.length);
   if (!text) return <p className="p-5 text-13 text-muted italic">Waiting for the body…</p>;
+  const clipped = text.length > LIVE_TAIL_CHARS;
   return (
     <pre ref={ref} aria-label="Response body so far" className="h-full overflow-auto px-5 py-3 font-mono text-12 break-all whitespace-pre-wrap text-body">
-      {text}
+      {clipped && <span className="mb-2 block font-sans text-muted italic">Showing the latest {formatBytes(LIVE_TAIL_CHARS)}; the full body appears when it is complete.</span>}
+      {clipped ? text.slice(-LIVE_TAIL_CHARS) : text}
     </pre>
   );
 }

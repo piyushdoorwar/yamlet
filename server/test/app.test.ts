@@ -163,7 +163,8 @@ describe("send", () => {
     expect(events.map((e) => e.type)).toEqual(["head", "chunk", "done"]);
     expect(events[0]).toMatchObject({ statusCode: 200, contentType: "text/event-stream" });
     expect(events[1]).toEqual({ type: "chunk", text: "data: hi\n\n", bytes: 10 });
-    expect(events[2].result.response.body).toBe("data: hi\n\n");
+    // The body already went out in pieces.
+    expect(events[2]).toMatchObject({ bodyStreamed: true, result: { response: { body: "", sizeBytes: 10 } } });
   });
 
   it("uploads attachments into the workspace files/ folder", async () => {

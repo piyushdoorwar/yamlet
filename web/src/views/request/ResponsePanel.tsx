@@ -163,7 +163,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
             <span title={r.timings.firstByte !== undefined ? `Waiting ${formatMs(r.timings.firstByte)} · Download ${formatMs(r.timings.download ?? 0)}` : undefined}>
               <span className="text-muted">Time</span> <b className="font-medium text-primary">{formatMs(r.durationMs)}</b>
             </span>
-            <span>
+            <span title={r.encodedSizeBytes !== undefined ? `${formatBytes(r.encodedSizeBytes)} transferred (compressed), ${formatBytes(r.sizeBytes)} decoded` : undefined}>
               <span className="text-muted">Size</span> <b className="font-medium text-primary">{formatBytes(r.sizeBytes)}</b>
             </span>
           </span>

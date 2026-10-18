@@ -1,4 +1,4 @@
-import { type KeyValue, type PathVariable, type Variable, yamletUserAgent, type YamletCollection, type YamletRequest } from "@core/models";
+import { DEFAULT_REQUEST_HEADERS, type KeyValue, type PathVariable, type Variable, yamletUserAgent, type YamletCollection, type YamletRequest } from "@core/models";
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AuthEditor } from "../../components/AuthEditor";
@@ -118,7 +118,13 @@ export function RequestPanes({ request, collection, update, variables }: Props) 
             variables={variables}
             showDescription
             keyPlaceholder="Header"
-            locked={[{ key: "User-Agent", value: yamletUserAgent(), note: "Sent with every request" }]}
+            locked={[
+              { key: "User-Agent", value: yamletUserAgent(), note: "Sent with every request" },
+              ...DEFAULT_REQUEST_HEADERS.filter((d) => !request.headers.some((h) => h.enabled !== false && h.key.trim().toLowerCase() === d.key.toLowerCase())).map((d) => ({
+                ...d,
+                note: "Sent by default; add your own header with this name to replace it",
+              })),
+            ]}
           />
         )}
 

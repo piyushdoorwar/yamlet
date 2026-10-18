@@ -99,7 +99,8 @@ export type SendEvent =
   | { type: "head"; statusCode: number; reasonPhrase: string; headers: KeyValue[]; contentType: string; firstByteMs: number }
   /** `text` is the decoded body piece for textual responses; `bytes` counts raw bytes so far. */
   | { type: "chunk"; text?: string; bytes: number }
-  | { type: "done"; result: SendResult }
+  /** With `bodyStreamed` the body is left out: it is the concatenated chunk texts. */
+  | { type: "done"; result: SendResult; bodyStreamed?: boolean }
   | { type: "error"; error: string };
 
 export interface TokenBody {

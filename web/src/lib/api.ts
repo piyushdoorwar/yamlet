@@ -146,8 +146,10 @@ export const api = {
   sendStream: async (body: SendBody, onEvent: (e: SendEvent) => void, signal?: AbortSignal): Promise<SendResult> => {
     let result: SendResult | undefined;
     let error: string | undefined;
+    let text = "";
     await ndjson<SendEvent>("/api/send", { ...body, stream: true }, (e) => {
-      if (e.type === "done") result = e.result;
+      if (e.type === "chunk" && e.text) text += e.text;
+      if (e.type === "done") result = e.bodyStreamed ? { ...e.result, response: { ...e.result.response, body: text } } : e.result;
       else if (e.type === "error") error = e.error;
       else onEvent(e);
     }, signal);

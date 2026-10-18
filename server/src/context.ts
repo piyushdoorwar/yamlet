@@ -15,6 +15,8 @@ export interface ServerConfig {
   /** Injected in tests so no real network is used. */
   dispatcher?: Dispatcher;
   defaultTimeoutMs: number;
+  /** Response bodies are cut off past this size; 0 keeps everything. Defaults to 50 MB. */
+  maxResponseBytes?: number;
   /**
    * Yamlet's own data folder (the /data volume in the container): local variable values.
    * Without it, local values are kept in memory only (tests).

@@ -4,10 +4,12 @@ import { existsSync, promises as fs } from "node:fs";
 import { STATUS_CODES } from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import type { Transform } from "node:stream";
+import zlib from "node:zlib";
 import { FormData, request, type Dispatcher } from "undici";
 import { defaultAgent, insecureAgent } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
-import { defaultSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
+import { DEFAULT_REQUEST_HEADERS, defaultSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
 import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
@@ -35,7 +37,11 @@ export interface ExecuteInput {
   onHead?: (head: ResponseHead) => void;
   /** Called with each piece of the final response body as it arrives. */
   onChunk?: (chunk: Uint8Array) => void;
+  /** Bodies beyond this many bytes are cut off (default 50 MB; 0 keeps everything). */
+  maxResponseBytes?: number;
 }
+
+export const DEFAULT_MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
 
 export interface ResponseHead {
   statusCode: number;
@@ -218,7 +224,12 @@ async function prepareBody(built: BuiltRequest, workspaceRoot: string, requestFi
 interface HttpExchange {
   status: number;
   headers: Record<string, string | string[] | undefined>;
+  /** The body after undoing Content-Encoding. */
   bytes: Buffer;
+  /** Bytes on the wire when the body was compressed. */
+  encodedBytes?: number;
+  /** The body went past the size limit and was cut off there. */
+  truncated?: boolean;
   sentHeaders: KeyValue[];
   firstByteMs: number;
   totalMs: number;
@@ -235,6 +246,23 @@ class BodyInterrupted extends Error {
   }
 }
 
+/** A stream undoing a single gzip / deflate / br Content-Encoding; others are left as they are. */
+function decompressorFor(encoding: string | undefined): Transform | undefined {
+  // Flush partial blocks so streamed compressed bodies (e.g. events) show up as they arrive.
+  const flush = { flush: zlib.constants.Z_SYNC_FLUSH, finishFlush: zlib.constants.Z_SYNC_FLUSH };
+  switch (encoding?.trim().toLowerCase()) {
+    case "gzip":
+    case "x-gzip":
+      return zlib.createGunzip(flush);
+    case "deflate":
+      return zlib.createInflate(flush);
+    case "br":
+      return zlib.createBrotliDecompress({ flush: zlib.constants.BROTLI_OPERATION_FLUSH, finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH });
+    default:
+      return undefined;
+  }
+}
+
 /** One HTTP exchange including redirects (cookies are stored and re-sent on every hop). */
 async function exchange(opts: {
   url: string;
@@ -247,9 +275,13 @@ async function exchange(opts: {
   jar?: CookieJar;
   onHead?: (status: number, headers: Record<string, string | string[] | undefined>, firstByteMs: number) => void;
   onChunk?: (chunk: Uint8Array) => void;
+  maxBytes?: number;
 }): Promise<HttpExchange> {
   let { url, method, body } = opts;
   let headers = opts.headers.filter((h) => !(body instanceof FormData && h.key.toLowerCase() === "content-type" && !/boundary=/i.test(h.value)));
+  for (const d of DEFAULT_REQUEST_HEADERS) {
+    if (!headers.some((h) => h.key.toLowerCase() === d.key.toLowerCase())) headers.push({ ...d, enabled: true });
+  }
   let explicitCookie = headers.find((h) => h.key.toLowerCase() === "cookie")?.value;
   const start = performance.now();
   const redirects: HttpExchange["redirects"] = [];
@@ -289,20 +321,40 @@ async function exchange(opts: {
     }
     opts.onHead?.(res.statusCode, res.headers, firstByteMs);
     const chunks: Buffer[] = [];
+    const decoder = decompressorFor(headerValue(res.headers, "content-encoding"));
+    let encodedBytes = 0;
+    let size = 0;
+    let truncated = false;
+    if (decoder) {
+      res.body.on("data", (c: Buffer) => (encodedBytes += c.length));
+      // pipe() doesn't forward errors; a cancelled or broken body must end the loop below.
+      res.body.on("error", (e) => decoder.destroy(e));
+    }
     const result = (): HttpExchange => ({
       status: res.statusCode,
       headers: res.headers,
       bytes: Buffer.concat(chunks),
+      ...(decoder ? { encodedBytes } : {}),
+      ...(truncated ? { truncated } : {}),
       sentHeaders: sent,
       firstByteMs,
       totalMs: performance.now() - start,
       redirects,
     });
     try {
-      for await (const chunk of res.body) {
-        chunks.push(chunk as Buffer);
-        opts.onChunk?.(chunk as Buffer);
+      for await (const data of decoder ? res.body.pipe(decoder) : res.body) {
+        let chunk = data as Buffer;
+        if (opts.maxBytes && size + chunk.length > opts.maxBytes) {
+          chunk = chunk.subarray(0, opts.maxBytes - size);
+          truncated = true;
+        }
+        size += chunk.length;
+        chunks.push(chunk);
+        opts.onChunk?.(chunk);
+        if (truncated) break;
       }
+      // Leaving the loop early stops reading; let the connection go.
+      if (truncated) res.body.destroy();
     } catch (e) {
       throw new BodyInterrupted(result(), e);
     }
@@ -326,13 +378,18 @@ function formatHeaders(list: KeyValue[]): string {
   return list.length ? list.map((h) => `  ${h.key}: ${h.value}`).join("\n") : "  [none]";
 }
 
+/** Bodies in the console snapshot stop here; the full body is in the response itself. */
+const CONSOLE_BODY_CHARS = 64 * 1024;
+const clip = (text: string | undefined) =>
+  text && text.length > CONSOLE_BODY_CHARS ? `${text.slice(0, CONSOLE_BODY_CHARS)}\n[... ${text.length - CONSOLE_BODY_CHARS} more characters]` : text;
+
 function consoleText(r: YamletResponse): string {
-  const lines = [`${r.method} ${r.resolvedUrl}`, "", "Request Headers", formatHeaders(r.requestHeaders), "", "Request Body", r.requestBody || "[empty]", "", "Response"];
+  const lines = [`${r.method} ${r.resolvedUrl}`, "", "Request Headers", formatHeaders(r.requestHeaders), "", "Request Body", clip(r.requestBody) || "[empty]", "", "Response"];
   if (r.isError) lines.push(`Error: ${r.errorMessage ?? "Request failed."}`);
   else {
     for (const hop of r.redirects ?? []) lines.push(`${`HTTP ${hop.statusCode} ${STATUS_CODES[hop.statusCode] ?? ""}`.trim()} from ${hop.url} (followed)`);
     lines.push(`HTTP ${r.statusCode} ${r.reasonPhrase}`, "Response Headers", formatHeaders(r.headers), "", "Response Body");
-    lines.push(r.bodyEncoding === "base64" ? `[binary body, ${r.sizeBytes} bytes]` : r.body || "[empty]");
+    lines.push(r.bodyEncoding === "base64" ? `[binary body, ${r.sizeBytes} bytes]` : clip(r.body) || "[empty]");
     if (r.incomplete) lines.push("", `[incomplete] ${r.incomplete}`);
   }
   return lines.join("\n");
@@ -487,7 +544,12 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
               input.onHead!({ statusCode: status, reasonPhrase: STATUS_CODES[status] ?? "", headers: toHeaderList(headers), contentType: headerValue(headers, "content-type") ?? "", firstByteMs: Math.round(firstByteMs) })
           : undefined,
         onChunk: input.onChunk,
+        maxBytes: input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
       });
+      if (ex.truncated) {
+        const mb = Math.round(((input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES) / 1024 / 1024) * 10) / 10;
+        incomplete = `The body is larger than ${mb} MB; only the first ${mb} MB were kept.`;
+      }
     } catch (e) {
       // A cancelled send has nobody to report to; a timeout or dropped connection keeps what arrived.
       if (!(e instanceof BodyInterrupted) || input.signal?.aborted) throw e instanceof BodyInterrupted ? e.reason : e;
@@ -502,6 +564,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       reasonPhrase: STATUS_CODES[ex.status] ?? "",
       durationMs: Math.round(ex.totalMs),
       sizeBytes: ex.bytes.length,
+      ...(ex.encodedBytes !== undefined ? { encodedSizeBytes: ex.encodedBytes } : {}),
       requestHeaders: ex.sentHeaders,
       headers: toHeaderList(ex.headers),
       cookies: cookiesOf(built.url, ex.headers),

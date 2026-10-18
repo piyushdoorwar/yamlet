@@ -1,6 +1,7 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
+import zlib from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { newRequest } from "../src/models.js";
 import { execute, type ResponseHead } from "../src/requestExecutor.js";
@@ -79,5 +80,43 @@ describe("streamed responses", () => {
     handler = (res) => setTimeout(() => res.end("late"), 200);
     const { response } = await execute({ request: newRequest({ url: `${base}/late` }), globals: [], workspaceRoot: os.tmpdir() });
     expect(response.body).toBe("late");
+  });
+
+  it("sends default Accept headers the request can override, and decodes compressed bodies", async () => {
+    const body = JSON.stringify({ text: "compressed ".repeat(50) });
+    let seen: Record<string, string | string[] | undefined> = {};
+    server.removeAllListeners("request");
+    server.on("request", (req, res) => {
+      seen = req.headers;
+      const enc = req.url === "/br" ? "br" : "gzip";
+      res.writeHead(200, { "content-type": "application/json", "content-encoding": enc });
+      res.end(enc === "br" ? zlib.brotliCompressSync(body) : zlib.gzipSync(body));
+    });
+    const gz = await execute({ request: newRequest({ url: `${base}/gz` }), globals: [], workspaceRoot: os.tmpdir() });
+    expect(seen.accept).toBe("*/*");
+    expect(seen["accept-encoding"]).toBe("gzip, deflate, br");
+    expect(gz.response.body).toBe(body);
+    expect(gz.response.sizeBytes).toBe(body.length);
+    expect(gz.response.encodedSizeBytes).toBeLessThan(body.length);
+
+    const br = await execute({
+      request: newRequest({ url: `${base}/br`, headers: [{ key: "accept", value: "application/json", enabled: true }] }),
+      globals: [],
+      workspaceRoot: os.tmpdir(),
+    });
+    expect(seen.accept).toBe("application/json");
+    expect(br.response.body).toBe(body);
+  });
+
+  it("cuts bodies off at the size limit and says so", async () => {
+    handler = (res) => {
+      res.writeHead(200, { "content-type": "text/plain" });
+      res.write("a".repeat(600));
+      res.end("b".repeat(600));
+    };
+    const { response } = await execute({ request: newRequest({ url: `${base}/big` }), globals: [], workspaceRoot: os.tmpdir(), maxResponseBytes: 1000 });
+    expect(response.sizeBytes).toBe(1000);
+    expect(response.body).toBe("a".repeat(600) + "b".repeat(400));
+    expect(response.incomplete).toMatch(/larger than/);
   });
 });

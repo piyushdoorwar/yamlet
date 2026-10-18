@@ -75,6 +75,7 @@ export function sendRoutes(app: FastifyInstance, { workspaces, config }: Deps): 
         workspaceRoot: store.workspace.rootPath,
         cookieJar: cookies,
         defaultTimeoutMs: config.defaultTimeoutMs,
+        maxResponseBytes: config.maxResponseBytes,
         dispatcher: config.dispatcher,
         signal,
         ...stream,
@@ -115,7 +116,9 @@ export function sendRoutes(app: FastifyInstance, { workspaces, config }: Deps): 
         },
       });
       if (timer) flush();
-      emit({ type: "done", result });
+      // The browser already has a text body from the pieces; don't send it twice.
+      const streamed = !!decoder && result.response.bodyEncoding === "utf8" && bytes > 0;
+      emit(streamed ? { type: "done", result: { ...result, response: { ...result.response, body: "" } }, bodyStreamed: true } : { type: "done", result });
     } catch (err) {
       emit({ type: "error", error: err instanceof Error ? err.message : String(err) });
     } finally {

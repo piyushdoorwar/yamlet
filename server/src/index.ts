@@ -26,6 +26,7 @@ const app = await buildApp({
     publicUrl: process.env.YAMLET_PUBLIC_URL ?? `http://localhost:${port}`,
     // No timeout unless set: long polls, streams and slow reports must be able to finish.
     defaultTimeoutMs: Number(process.env.YAMLET_TIMEOUT_MS ?? 0) || 0,
+    maxResponseBytes: Math.max(0, Number(process.env.YAMLET_MAX_RESPONSE_MB ?? 50) || 0) * 1024 * 1024,
     dataDir,
     interceptorDataDir: process.env.YAMLET_INTERCEPTOR_DATA_DIR ?? dataDir,
     updateCheck: process.env.YAMLET_UPDATE_CHECK !== "0" && (process.env.APP_VERSION ?? "dev") !== "dev",

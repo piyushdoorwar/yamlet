@@ -209,7 +209,10 @@ export interface YamletResponse {
   statusCode: number;
   reasonPhrase: string;
   durationMs: number;
+  /** Body size after decompression. */
   sizeBytes: number;
+  /** Body size on the wire, when it was compressed. */
+  encodedSizeBytes?: number;
   /** URL actually sent: variables expanded, params applied, scripts applied. */
   resolvedUrl: string;
   method: string;
@@ -346,6 +349,12 @@ export function inheritLocal(previous: readonly Variable[], next: Variable[]): V
 export const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "QUERY", "HEAD", "OPTIONS"] as const;
 
 let yamletVersion = "dev";
+
+/** Sent with every request unless the request sets its own; compressed bodies are decoded. */
+export const DEFAULT_REQUEST_HEADERS: readonly { key: string; value: string }[] = [
+  { key: "Accept", value: "*/*" },
+  { key: "Accept-Encoding", value: "gzip, deflate, br" },
+];
 
 /** Sets the version in the User-Agent; the server, CLI and UI call this at startup. */
 export function setYamletVersion(version: string): void {
