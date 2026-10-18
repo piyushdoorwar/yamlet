@@ -7,6 +7,8 @@ export interface ConfirmOptions {
   message: ReactNode;
   action: string;
   danger?: boolean;
+  /** With `choose`: the label of the second choice (instead of Cancel). */
+  cancel?: string;
 }
 
 export interface PromptOptions {
@@ -19,12 +21,14 @@ export interface PromptOptions {
 
 interface Dialogs {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  /** Two choices: true for `action`, false for `cancel`, null when dismissed. */
+  choose: (opts: ConfirmOptions & { cancel: string }) => Promise<boolean | null>;
   prompt: (opts: PromptOptions) => Promise<string | null>;
 }
 
 const DialogContext = createContext<Dialogs | null>(null);
 
-type Open = { kind: "confirm"; opts: ConfirmOptions } | { kind: "prompt"; opts: PromptOptions };
+type Open = { kind: "confirm"; opts: ConfirmOptions; choice?: boolean } | { kind: "prompt"; opts: PromptOptions };
 
 /** `await confirm({...})` and `await prompt({...})`, one modal for the whole app. */
 export function DialogProvider({ children }: { children: ReactNode }) {
@@ -35,6 +39,13 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const confirm = useCallback((opts: ConfirmOptions) => {
     setOpen({ kind: "confirm", opts });
     return new Promise<boolean>((resolve) => {
+      resolver.current = resolve as (v: unknown) => void;
+    });
+  }, []);
+
+  const choose = useCallback((opts: ConfirmOptions & { cancel: string }) => {
+    setOpen({ kind: "confirm", opts, choice: true });
+    return new Promise<boolean | null>((resolve) => {
       resolver.current = resolve as (v: unknown) => void;
     });
   }, []);
@@ -53,7 +64,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
     setOpen(null);
   };
 
-  const dialogs = useRef<Dialogs>({ confirm, prompt });
+  const dialogs = useRef<Dialogs>({ confirm, choose, prompt });
 
   return (
     <DialogContext.Provider value={dialogs.current}>
@@ -61,11 +72,11 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       {open?.kind === "confirm" && (
         <Modal
           title={open.opts.title}
-          onClose={() => close(false)}
+          onClose={() => close(open.choice ? null : false)}
           footer={
             <>
               <Button variant="cancel" onClick={() => close(false)}>
-                Cancel
+                {open.opts.cancel ?? "Cancel"}
               </Button>
               <Button variant={open.opts.danger ? "delete" : "primary"} onClick={() => close(true)}>
                 {open.opts.action}

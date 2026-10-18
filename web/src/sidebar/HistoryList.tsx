@@ -1,8 +1,10 @@
-import { History } from "lucide-react";
+import { CopyPlus, ExternalLink, History, RotateCcw } from "lucide-react";
 import { MethodLabel, StatusPill } from "../components/Labels";
 import { useDialogs } from "../components/Dialogs";
 import { type HistoryEntry, useStore } from "../lib/store";
 import { findRequest } from "../lib/tree";
+import { useMenu } from "../components/Menu";
+import { useActions } from "../lib/useActions";
 
 function dayLabel(ts: number): string {
   const d = new Date(ts);
@@ -17,6 +19,8 @@ export function HistoryList({ filter }: { filter: string }) {
   const history = useStore((s) => s.history);
   const clearHistory = useStore((s) => s.clearHistory);
   const { confirm } = useDialogs();
+  const actions = useActions();
+  const menu = useMenu();
   const q = filter.trim().toLowerCase();
   const visible = history.filter((h) => !q || h.url.toLowerCase().includes(q) || h.name.toLowerCase().includes(q));
 
@@ -35,15 +39,50 @@ export function HistoryList({ filter }: { filter: string }) {
     groups.set(k, [...(groups.get(k) ?? []), h]);
   }
 
-  const open = (h: HistoryEntry) => {
+  const where = (h: HistoryEntry) => findRequest(useStore.getState().workspace, h.requestId);
+
+  /** The request as it was sent, as a new request beside the original (or in the first collection if it's gone). */
+  const saveAsNew = (h: HistoryEntry) => {
     const s = useStore.getState();
-    if (findRequest(s.workspace, h.requestId)) {
-      s.openTab({ kind: "request", id: h.requestId });
-    }
+    const loc = where(h);
+    const collection = loc?.collection ?? s.workspace?.collections[0];
+    if (!collection) return;
+    const { id: _id, sourceFilePath: _f, order: _o, ...sent } = h.snapshot;
+    // A deleted request comes back with its old id, so its history stays linked.
+    void actions.newRequest(collection.id, loc?.folders.at(-1)?.id ?? null, loc ? { ...sent, name: `${sent.name} (sent ${new Date(h.at).toLocaleTimeString()})` } : { ...sent, id: h.requestId });
+  };
+
+  const restore = async (h: HistoryEntry) => {
+    const loc = where(h);
+    if (!loc) return;
+    if (!(await confirm({ title: "Restore sent version", message: `Replace "${loc.request.name}" with the version sent at ${new Date(h.at).toLocaleString()}?`, action: "Restore" }))) return;
+    const s = useStore.getState();
+    s.updateDraft(h.requestId, (current) => ({ ...h.snapshot, id: current.id, name: current.name, order: current.order, sourceFilePath: current.sourceFilePath }));
+    s.openTab({ kind: "request", id: h.requestId });
+  };
+
+  const open = (h: HistoryEntry) => {
+    if (where(h)) useStore.getState().openTab({ kind: "request", id: h.requestId });
+    else saveAsNew(h);
+  };
+
+  const showMenu = (e: React.MouseEvent, h: HistoryEntry) => {
+    const exists = !!where(h);
+    const hasCollection = !!useStore.getState().workspace?.collections.length;
+    menu.openAt(e, [
+      ...(exists
+        ? [
+            { label: "Open request", icon: ExternalLink, onSelect: () => open(h) },
+            { label: "Restore the sent version", icon: RotateCcw, onSelect: () => void restore(h) },
+          ]
+        : []),
+      ...(hasCollection ? [{ label: exists ? "Save as a new request" : "Restore as a request", icon: CopyPlus, onSelect: () => saveAsNew(h) }] : []),
+    ]);
   };
 
   return (
     <div className="pb-6">
+      {menu.node}
       <div className="flex justify-end px-4 pb-1">
         <button
           type="button"
@@ -61,8 +100,9 @@ export function HistoryList({ filter }: { filter: string }) {
               key={h.id}
               type="button"
               onClick={() => open(h)}
+              onContextMenu={(e) => showMenu(e, h)}
               className="mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-primary-soft"
-              title={h.url}
+              title={`${h.url}\n${where(h) ? "Click to open; right-click for more" : "Deleted since; click to restore it as a request"}`}
             >
               <MethodLabel method={h.method} short className="w-9 shrink-0 text-right" />
               <span className="min-w-0 flex-1">

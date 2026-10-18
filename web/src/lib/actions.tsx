@@ -1,4 +1,6 @@
-import type { YamletRequest } from "@core/models";
+import { exportCollectionV2, exportEnvironmentJson, exportFileName } from "@core/exporters";
+import type { Variable, YamletRequest } from "@core/models";
+import { downloadBlob } from "./format";
 import type { ConfirmOptions, PromptOptions } from "../components/Dialogs";
 import { api, errorMessage } from "./api";
 import { useStore } from "./store";
@@ -7,6 +9,7 @@ import { useUi } from "./ui";
 
 interface Ctx {
   confirm: (o: ConfirmOptions) => Promise<boolean>;
+  choose: (o: ConfirmOptions & { cancel: string }) => Promise<boolean | null>;
   prompt: (o: PromptOptions) => Promise<string | null>;
   toast: { error: (s: string, d?: string) => void; success: (s: string, d?: string) => void };
 }
@@ -95,6 +98,22 @@ export function treeActions(ctx: Ctx) {
       const res = await guard(ctx, "Could not duplicate the folder", () => api.duplicateFolder(id));
       if (res) apply(res);
     },
+    async exportCollection(id: string) {
+      const c = store().workspace?.collections.find((x) => x.id === id);
+      if (!c) return;
+      const local = await includeLocal(ctx, c.variables);
+      if (local === null) return;
+      download(exportCollectionV2(c, { includeLocal: !!local }), exportFileName(c.name, "collection"));
+    },
+
+    async exportEnvironment(id: string) {
+      const e = store().workspace?.environments.find((x) => x.id === id);
+      if (!e) return;
+      const local = await includeLocal(ctx, e.variables);
+      if (local === null) return;
+      download(exportEnvironmentJson(e, { includeLocal: !!local }), exportFileName(e.name, "environment"));
+    },
+
     async duplicateCollection(id: string) {
       const res = await guard(ctx, "Could not duplicate the collection", () => api.duplicateCollection(id));
       if (res) apply(res);
@@ -162,3 +181,18 @@ export function treeActions(ctx: Ctx) {
 }
 
 export type TreeActions = ReturnType<typeof treeActions>;
+
+/** Local values stay on this machine unless the user says the file may carry them. */
+async function includeLocal(ctx: Ctx, variables: Variable[]): Promise<boolean | null> {
+  if (!variables.some((v) => v.local && v.value)) return false;
+  return ctx.choose({
+    title: "Include local values?",
+    message: "Some variables keep their value only on this machine (Local). Include those values in the exported file, or export them blank?",
+    action: "Include values",
+    cancel: "Export blank",
+  });
+}
+
+function download(data: unknown, name: string) {
+  downloadBlob(`${JSON.stringify(data, null, 2)}\n`, name, "application/json");
+}

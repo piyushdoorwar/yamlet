@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Check, Copy, Globe, Layers, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, Download, Globe, Layers, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useRef } from "react";
 import { type MenuEntry, useMenu } from "../components/Menu";
 import type { TreeActions } from "../lib/actions";
@@ -24,6 +24,7 @@ export function EnvironmentsList({ actions, filter }: { actions: TreeActions; fi
     { label: "Set active", icon: Check, onSelect: () => setEnvironment(id) },
     { label: "Rename", icon: Pencil, onSelect: () => useUi.getState().setRenaming(id) },
     { label: "Duplicate", icon: Copy, onSelect: () => void actions.duplicateEnvironment(id) },
+    { label: "Export as JSON", icon: Download, onSelect: () => void actions.exportEnvironment(id) },
     "separator",
     { label: "Delete", icon: Trash2, danger: true, onSelect: () => void actions.deleteEnvironment(id, name) },
   ];

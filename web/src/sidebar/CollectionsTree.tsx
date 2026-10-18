@@ -1,6 +1,6 @@
 import type { YamletCollection, YamletFolder, YamletRequest } from "@core/models";
 import clsx from "clsx";
-import { ChevronRight, Copy, FilePlus, Folder, FolderOpen, FolderPlus, Layers, MoreHorizontal, Pencil, Play, Settings2, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, Download, FilePlus, Folder, FolderOpen, FolderPlus, Layers, MoreHorizontal, Pencil, Play, Settings2, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { MethodLabel } from "../components/Labels";
 import { type MenuEntry, useMenu } from "../components/Menu";
@@ -80,6 +80,7 @@ function CollectionNode({ collection, actions, forceOpen, menu }: { collection: 
     "separator",
     { label: "Rename", icon: Pencil, onSelect: () => useUi.getState().setRenaming(collection.id) },
     { label: "Duplicate", icon: Copy, onSelect: () => void actions.duplicateCollection(collection.id) },
+    { label: "Export as v2.1 JSON", icon: Download, onSelect: () => void actions.exportCollection(collection.id) },
     { label: "Delete", icon: Trash2, danger: true, onSelect: () => void actions.deleteCollection(collection.id, collection.name) },
   ];
   return (
