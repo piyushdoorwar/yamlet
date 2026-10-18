@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSnippet, SNIPPET_LANGUAGES } from "../src/codegen.js";
 import { defaultAuth, newCollection, newRequest, yamletUserAgent } from "../src/models.js";
-import { applyPathVariables, buildRequest } from "../src/requestBuilder.js";
+import { applyPathVariables, buildRequest, encodeTypedQueryComponent } from "../src/requestBuilder.js";
 
 const header = (b: ReturnType<typeof buildRequest>, name: string) => b.headers.find((h) => h.key.toLowerCase() === name.toLowerCase())?.value;
 
@@ -95,6 +95,33 @@ describe("buildRequest", () => {
     const bin = buildRequest(newRequest({ body: { ...body, type: "binary", binaryFile: "a.bin" } }), { ctx: {} });
     expect(bin.body).toMatchObject({ kind: "binary", file: "a.bin" });
     expect(buildRequest(newRequest({ body: { ...body, type: "json", raw: "" } }), { ctx: {} }).body.kind).toBe("none");
+  });
+});
+
+describe("URL encoding", () => {
+  const url = (u: string, params: [string, string][] = []) =>
+    buildRequest(newRequest({ url: u, queryParams: params.map(([key, value]) => ({ key, value, enabled: true })) }), { ctx: { scopes: [] } as never }).url;
+
+  it("sends typed params as typed, escaping only what a query can't carry", () => {
+    expect(url("https://x.test/s", [["q", "a%20b"], ["tags", "a,b"], ["t", "2024-01-01T00:00:00+05:30"]])).toBe(
+      "https://x.test/s?q=a%20b&tags=a,b&t=2024-01-01T00:00:00+05:30",
+    );
+    expect(url("https://x.test/s", [["q", "a b&c#d"], ["filter", '{"x":1}'], ["name", "Zoë"], ["eq", "a=b"]])).toBe(
+      "https://x.test/s?q=a%20b%26c%23d&filter=%7B%22x%22:1%7D&name=Zo%C3%AB&eq=a=b",
+    );
+    expect(encodeTypedQueryComponent("a=b", true)).toBe("a%3Db");
+    expect(encodeTypedQueryComponent("100%")).toBe("100%25");
+  });
+
+  it("fully escapes values it adds itself", () => {
+    const req = newRequest({ url: "https://x.test", auth: { ...defaultAuth("apikey"), apiKeyName: "key", apiKeyValue: "a+b/c", apiKeyIn: "query" } });
+    expect(buildRequest(req, { ctx: { scopes: [] } as never }).url).toBe("https://x.test?key=a%2Bb%2Fc");
+  });
+
+  it("assumes http:// when the URL has no scheme", () => {
+    expect(url("example.com/x")).toBe("http://example.com/x");
+    expect(url("localhost:3000/api")).toBe("http://localhost:3000/api");
+    expect(url("https://example.com")).toBe("https://example.com");
   });
 });
 

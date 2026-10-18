@@ -376,7 +376,7 @@ function requestFacade(req: YamletRequest) {
     all: () => req.queryParams.filter((q) => q.enabled !== false).map((q) => ({ key: q.key, value: q.value })),
     toObject: () => Object.fromEntries(req.queryParams.filter((q) => q.enabled !== false).map((q) => [q.key, q.value])),
   };
-  const full = () => appendQuery(req.url, req.queryParams.filter((q) => q.enabled !== false && q.key));
+  const full = () => appendQuery(req.url, req.queryParams.filter((q) => q.enabled !== false && q.key), "typed");
   const setUrl = (value: unknown) => {
     const { base, query } = splitUrl(String(value ?? ""));
     req.url = base;

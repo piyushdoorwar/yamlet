@@ -48,14 +48,49 @@ export function encodeQueryComponent(s: string): string {
   return encodeURIComponent(s);
 }
 
-export function appendQuery(url: string, pairs: { key: string; value: string }[]): string {
+// Characters a query may carry as they are. `&`, `#` and (in keys) `=` would change
+// the structure, so they are escaped like spaces, quotes and non-ASCII text.
+const QUERY_SAFE = /[A-Za-z0-9\-._~!$'()*+,;:@/?]/;
+
+/**
+ * Encodes a param the user typed: what's already valid stays as written, including
+ * `%XX` escapes and `+`, so a pasted URL is sent the way it was pasted.
+ */
+export function encodeTypedQueryComponent(s: string, isKey = false): string {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === "%" && /^[0-9A-Fa-f]{2}$/.test(s.slice(i + 1, i + 3))) out += ch;
+    else if (QUERY_SAFE.test(ch) || (ch === "=" && !isKey)) out += ch;
+    else {
+      // Keep surrogate pairs together so emoji and other astral characters encode as one.
+      const cp = s.codePointAt(i)!;
+      const char = String.fromCodePoint(cp);
+      out += encodeURIComponent(char);
+      i += char.length - 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Appends `key=value` pairs. Params the user typed are encoded leniently (`typed`);
+ * values Yamlet fills in itself (API keys, tokens) are fully escaped.
+ */
+export function appendQuery(url: string, pairs: { key: string; value: string }[], mode: "typed" | "strict" = "strict"): string {
   if (!pairs.length) return url;
   const hashAt = url.indexOf("#");
   const base = hashAt >= 0 ? url.slice(0, hashAt) : url;
   const hash = hashAt >= 0 ? url.slice(hashAt) : "";
-  const query = pairs.map((p) => `${encodeQueryComponent(p.key)}=${encodeQueryComponent(p.value)}`).join("&");
+  const enc = mode === "typed" ? encodeTypedQueryComponent : (v: string) => encodeQueryComponent(v);
+  const query = pairs.map((p) => `${enc(p.key, true)}=${enc(p.value)}`).join("&");
   const sep = base.includes("?") ? (base.endsWith("?") || base.endsWith("&") ? "" : "&") : "?";
   return base + sep + query + hash;
+}
+
+/** `example.com/x` and `localhost:3000` mean http://; anything with a scheme is left alone. */
+export function withScheme(url: string): string {
+  return !url || /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `http://${url}`;
 }
 
 export function utf8ToBase64(s: string): string {
@@ -90,7 +125,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   const r = (s: string | undefined) => resolveVariables(s ?? "", opts.ctx);
   const method = (request.method || "GET").trim().toUpperCase();
 
-  let url = r(request.url).trim();
+  let url = withScheme(r(request.url).trim());
   url = applyPathVariables(
     url,
     (request.pathVariables ?? []).map((p) => ({ key: p.key, value: r(p.value) })),
@@ -98,7 +133,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   const query = (request.queryParams ?? [])
     .filter((p) => p.enabled !== false && p.key?.trim())
     .map((p) => ({ key: r(p.key), value: r(p.value) }));
-  url = appendQuery(url, query);
+  url = appendQuery(url, query, "typed");
 
   const headers: KeyValue[] = [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }];
   for (const h of request.headers ?? []) {
