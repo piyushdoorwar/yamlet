@@ -12,6 +12,7 @@ import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
 import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml } from "../../lib/format";
 import { useStore } from "../../lib/store";
+import { NetworkBadge, SizeBreakdown, TimeBreakdown } from "./ResponseMeta";
 import { EventsView, LiveText } from "./StreamViews";
 
 type View = "body" | "headers" | "cookies" | "tests" | "console";
@@ -160,12 +161,9 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
                 <b className="font-medium text-primary">{r.redirects.map((h) => h.statusCode).join(" > ")}</b>
               </span>
             ) : null}
-            <span title={r.timings.firstByte !== undefined ? `Waiting ${formatMs(r.timings.firstByte)} · Download ${formatMs(r.timings.download ?? 0)}` : undefined}>
-              <span className="text-muted">Time</span> <b className="font-medium text-primary">{formatMs(r.durationMs)}</b>
-            </span>
-            <span title={r.encodedSizeBytes !== undefined ? `${formatBytes(r.encodedSizeBytes)} transferred (compressed), ${formatBytes(r.sizeBytes)} decoded` : undefined}>
-              <span className="text-muted">Size</span> <b className="font-medium text-primary">{formatBytes(r.sizeBytes)}</b>
-            </span>
+            <TimeBreakdown r={r} />
+            <SizeBreakdown r={r} />
+            <NetworkBadge r={r} />
           </span>
         ) : null}
         <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -298,7 +296,7 @@ function BodyView({ r, mode, pretty, raw, lang }: { r: YamletResponse; mode: Bod
     if (isImage(r.contentType)) {
       const src = r.bodyEncoding === "base64" ? `data:${r.contentType.split(";")[0]};base64,${r.body}` : `data:${r.contentType.split(";")[0]};utf8,${encodeURIComponent(r.body)}`;
       return (
-        <div className="flex h-full items-center justify-center overflow-auto bg-[repeating-conic-gradient(#f1f4f2_0_25%,#fff_0_50%)] bg-[length:16px_16px] p-6">
+        <div className="flex h-full items-center justify-center overflow-auto bg-[repeating-conic-gradient(var(--color-line-soft)_0_25%,var(--color-surface)_0_50%)] bg-[length:16px_16px] p-6">
           <img src={src} alt="Response preview" className="max-h-full max-w-full" />
         </div>
       );

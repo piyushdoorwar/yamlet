@@ -203,6 +203,29 @@ export interface ResponseTimings {
   firstByte?: number;
   /** Time spent reading the body. */
   download?: number;
+  /** Phases of opening a new connection; absent when a kept-alive one was reused. */
+  dns?: number;
+  tcp?: number;
+  tls?: number;
+  /** True when the final request went over an already open connection. */
+  reusedConnection?: boolean;
+}
+
+/** Where the final request actually went. */
+export interface NetworkInfo {
+  httpVersion?: string;
+  remoteAddress?: string;
+  remotePort?: number;
+  localAddress?: string;
+  localPort?: number;
+  tls?: {
+    protocol?: string;
+    cipher?: string;
+    /** The server's certificate. */
+    certificate?: { subject?: string; issuer?: string; validFrom?: string; validTo?: string; altNames?: string };
+    /** Why the certificate would be rejected, when verification was skipped. */
+    authorizationError?: string;
+  };
 }
 
 export interface YamletResponse {
@@ -226,6 +249,7 @@ export interface YamletResponse {
   bodyEncoding: "utf8" | "base64";
   contentType: string;
   timings: ResponseTimings;
+  network?: NetworkInfo;
   /** Redirects followed before the final response, in order: the status and the URL that sent it. */
   redirects?: { statusCode: number; url: string }[];
   testResults: ScriptTestResult[];

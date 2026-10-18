@@ -7,7 +7,7 @@ import { performance } from "node:perf_hooks";
 import type { Transform } from "node:stream";
 import zlib from "node:zlib";
 import { FormData, request, type Dispatcher } from "undici";
-import { defaultAgent, insecureAgent } from "./agents.js";
+import { defaultAgent, insecureAgent, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
@@ -230,6 +230,8 @@ interface HttpExchange {
   encodedBytes?: number;
   /** The body went past the size limit and was cut off there. */
   truncated?: boolean;
+  /** Connection details of the final request. */
+  trace: ExchangeTrace;
   sentHeaders: KeyValue[];
   firstByteMs: number;
   totalMs: number;
@@ -291,13 +293,16 @@ async function exchange(opts: {
     const cookie = [explicitCookie, fromJar].filter(Boolean).join("; ");
     if (cookie) sent.push({ key: "Cookie", value: cookie, enabled: true });
     new URL(url); // throws a readable "Invalid URL" before touching the network
-    const res = await request(url, {
-      method: method as Dispatcher.HttpMethod,
-      headers: toUndiciHeaders(sent),
-      body,
-      dispatcher: opts.dispatcher,
-      signal: opts.signal,
-    });
+    const trace: ExchangeTrace = {};
+    const res = await withTrace(trace, () =>
+      request(url, {
+        method: method as Dispatcher.HttpMethod,
+        headers: toUndiciHeaders(sent),
+        body,
+        dispatcher: opts.dispatcher,
+        signal: opts.signal,
+      }),
+    );
     const firstByteMs = performance.now() - start;
     const setCookie = res.headers["set-cookie"];
     if (opts.jar && setCookie) opts.jar.setFromResponse(url, Array.isArray(setCookie) ? setCookie : [setCookie]);
@@ -336,6 +341,7 @@ async function exchange(opts: {
       bytes: Buffer.concat(chunks),
       ...(decoder ? { encodedBytes } : {}),
       ...(truncated ? { truncated } : {}),
+      trace,
       sentHeaders: sent,
       firstByteMs,
       totalMs: performance.now() - start,
@@ -421,6 +427,17 @@ function errorResponse(base: YamletResponse, message: string): YamletResponse {
   const r = { ...base, isError: true, errorMessage: message };
   r.consoleText = consoleText(r);
   return r;
+}
+
+function timingsOf(ex: HttpExchange): YamletResponse["timings"] {
+  const c = ex.trace.connect;
+  const round = (n: number | undefined) => (n === undefined ? undefined : Math.round(n * 10) / 10);
+  return {
+    total: Math.round(ex.totalMs),
+    firstByte: Math.round(ex.firstByteMs),
+    download: Math.max(0, Math.round(ex.totalMs - ex.firstByteMs)),
+    ...(c ? { dns: round(c.dns), tcp: round(c.tcp), tls: round(c.tls) } : ex.trace.network ? { reusedConnection: true } : {}),
+  };
 }
 
 /** pm.sendRequest backend: a plain exchange, no scripts. */
@@ -571,7 +588,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       body: textual ? decodeText(ex.bytes, contentType) : ex.bytes.toString("base64"),
       bodyEncoding: textual ? "utf8" : "base64",
       contentType,
-      timings: { total: Math.round(ex.totalMs), firstByte: Math.round(ex.firstByteMs), download: Math.max(0, Math.round(ex.totalMs - ex.firstByteMs)) },
+      timings: timingsOf(ex),
+      ...(ex.trace.network ? { network: ex.trace.network } : {}),
       ...(ex.redirects.length ? { redirects: ex.redirects } : {}),
       ...(incomplete ? { incomplete } : {}),
     };

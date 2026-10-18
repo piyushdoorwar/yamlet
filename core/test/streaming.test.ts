@@ -119,4 +119,17 @@ describe("streamed responses", () => {
     expect(response.body).toBe("a".repeat(600) + "b".repeat(400));
     expect(response.incomplete).toMatch(/larger than/);
   });
+
+  it("reports connection phases, then reuse, and where the request went", async () => {
+    handler = (res) => res.end("ok");
+    const first = (await execute({ request: newRequest({ url: `${base}/a` }), globals: [], workspaceRoot: os.tmpdir() })).response;
+    expect(first.timings.tcp).toBeGreaterThanOrEqual(0);
+    expect(first.timings.reusedConnection).toBeUndefined();
+    expect(first.network).toMatchObject({ httpVersion: "1.1", remoteAddress: "127.0.0.1", remotePort: Number(new URL(base).port) });
+    // The pool frees the socket a moment after the body ends.
+    await new Promise((r) => setTimeout(r, 20));
+    const second = (await execute({ request: newRequest({ url: `${base}/b` }), globals: [], workspaceRoot: os.tmpdir() })).response;
+    expect(second.timings).toMatchObject({ reusedConnection: true });
+    expect(second.timings.tcp).toBeUndefined();
+  });
 });
