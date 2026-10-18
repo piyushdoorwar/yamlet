@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CookieJar } from "../src/cookieJar.js";
 import { newRequest, type ScriptTestResult, type YamletResponse } from "../src/models.js";
 import { runScript, ScriptVariables } from "../src/scriptRunner.js";
 
@@ -251,5 +252,36 @@ describe("script libraries", () => {
     const pre = await run("pm.execution.skipRequest()", { phase: "pre" });
     expect(pre.logs).toEqual([]);
     await expect(run("pm.execution.skipRequest()", { throwOnFailure: true })).rejects.toThrow(/only works in a pre-request script/);
+  });
+});
+
+describe("pm.cookies.jar", () => {
+  it("reads, sets and unsets jar cookies, and shows them to pre-request scripts", async () => {
+    const jar = new CookieJar();
+    jar.setFromResponse("https://api.test/", ["sid=old; Path=/"]);
+    const tests: ScriptTestResult[] = [];
+    const logs: string[] = [];
+    await runScript({
+      script: `
+pm.test('pre sees jar', () => pm.expect(pm.cookies.get('sid')).to.equal('old'));
+const jar = pm.cookies.jar();
+await new Promise((done) => jar.set('https://api.test', 'theme', 'dark', done));
+await new Promise((done) => jar.get('https://api.test/x', 'theme', (err, v) => { pm.test('get', () => pm.expect(v).to.equal('dark')); done(); }));
+await new Promise((done) => jar.unset('api.test', 'sid', done));`,
+      phase: "pre",
+      request: newRequest({ url: "{{base}}/items" }),
+      variables: new ScriptVariables({ environment: [{ key: "base", value: "https://api.test", enabled: true }], collection: [], globals: [] }),
+      tests,
+      logs,
+      cookieJar: jar,
+    });
+    expect(tests.map((t) => [t.name, t.passed])).toEqual([["pre sees jar", true], ["get", true]]);
+    expect(jar.list().map((c) => `${c.name}=${c.value}`)).toEqual(["theme=dark"]);
+  });
+
+  it("reports a turned-off jar to the callback", async () => {
+    const { logs } = await run(`pm.cookies.jar().get('https://a.test', 'x', (err) => console.log(err.message));
+await new Promise((r) => setTimeout(r, 0));`);
+    expect(logs.join("\n")).toContain("turned off");
   });
 });

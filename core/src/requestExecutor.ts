@@ -560,6 +560,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       iterationCount: input.iterationCount,
     },
     sendRequest: (spec: SendRequestSpec) => scriptSend(spec, input, dispatcher, sendRequestSignal),
+    cookieJar: settings.disableCookieJar ? undefined : input.cookieJar,
   };
   let oauthRefreshed: ExecuteResult["oauthRefreshed"];
   // pm.sendRequest calls end with the send (or its timeout), even if a script stopped waiting.

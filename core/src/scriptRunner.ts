@@ -9,7 +9,8 @@ import * as chai from "chai";
 import CryptoJS from "crypto-js";
 import _ from "lodash";
 import type { KeyValue, ScriptTestResult, Variable, YamletRequest, YamletResponse } from "./models.js";
-import { appendQuery } from "./requestBuilder.js";
+import type { CookieJar } from "./cookieJar.js";
+import { appendQuery, withScheme } from "./requestBuilder.js";
 import { lookupVariable, mergedVariables, resolveVariables, type VariableContext } from "./variableResolver.js";
 
 export const DEFAULT_SCRIPT_TIMEOUT_MS = 5000;
@@ -163,6 +164,8 @@ export interface RunScriptOptions {
   sendRequest?: (spec: SendRequestSpec) => Promise<YamletResponse>;
   /** Filled by pm.execution: skip the send, or pick the runner's next request. */
   execution?: ExecutionControl;
+  /** The workspace cookie jar, for pm.cookies.jar(); absent when the request turns the jar off. */
+  cookieJar?: CookieJar;
 }
 
 export interface ExecutionControl {
@@ -331,6 +334,54 @@ function headerList(list: KeyValue[]) {
     toObject: () => Object.fromEntries(list.map((h) => [h.key, h.value])),
     each: (fn: (h: { key: string; value: string }) => void) => list.forEach((h) => fn({ key: h.key, value: h.value })),
     count: () => list.length,
+  };
+}
+
+type JarCallback<T> = ((err: Error | null, value?: T) => void) | undefined;
+
+/** pm.cookies before a response: the jar's cookies for the request URL. */
+function jarCookies(jar: CookieJar | undefined, url: string) {
+  const list = () => jar?.cookiesFor(url) ?? [];
+  return {
+    get: (name: string) => list().find((c) => c.name === name)?.value,
+    has: (name: string) => list().some((c) => c.name === name),
+    toObject: () => Object.fromEntries(list().map((c) => [c.name, c.value])),
+    all: () => list().map((c) => ({ name: c.name, value: c.value, domain: c.domain, path: c.path })),
+  };
+}
+
+/** pm.cookies.jar(): callback-style access to the workspace jar for a URL. */
+function jarApi(jar: CookieJar | undefined) {
+  const run = <T>(cb: JarCallback<T>, work: (j: CookieJar) => T) => {
+    let err: Error | null = null;
+    let value: T | undefined;
+    try {
+      if (!jar) throw new Error("The cookie jar is turned off for this request");
+      value = work(jar);
+    } catch (e) {
+      err = e instanceof Error ? e : new Error(String(e));
+    }
+    if (typeof cb === "function") queueMicrotask(() => cb(err, value));
+  };
+  const host = (url: string) => {
+    const u = new URL(withScheme(String(url)));
+    return { domain: u.hostname.toLowerCase(), secure: u.protocol === "https:" };
+  };
+  return {
+    getAll: (url: string, cb?: JarCallback<{ name: string; value: string }[]>) =>
+      run(cb, (j) => j.cookiesFor(withScheme(String(url))).map((c) => ({ name: c.name, value: c.value, domain: c.domain, path: c.path }))),
+    get: (url: string, name: string, cb?: JarCallback<string | undefined>) => run(cb, (j) => j.cookiesFor(withScheme(String(url))).find((c) => c.name === name)?.value),
+    set: (url: string, nameOrCookie: string | { name: string; value?: string; path?: string; secure?: boolean; httpOnly?: boolean }, valueOrCb?: unknown, cb?: JarCallback<{ name: string; value: string }>) => {
+      const cookie = typeof nameOrCookie === "string" ? { name: nameOrCookie, value: String(valueOrCb ?? "") } : nameOrCookie;
+      const done = (typeof nameOrCookie === "string" ? cb : valueOrCb) as JarCallback<{ name: string; value: string }>;
+      run(done, (j) => {
+        const { domain, secure } = host(url);
+        j.set({ name: cookie.name, value: cookie.value ?? "", domain, hostOnly: true, path: cookie.path ?? "/", secure: cookie.secure ?? secure, httpOnly: cookie.httpOnly ?? false });
+        return { name: cookie.name, value: cookie.value ?? "" };
+      });
+    },
+    unset: (url: string, name: string, cb?: JarCallback<void>) => run(cb, (j) => j.remove(host(url).domain, name)),
+    clear: (url: string, cb?: JarCallback<void>) => run(cb, (j) => j.clear(host(url).domain)),
   };
 }
 
@@ -662,7 +713,7 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     replaceIn: (template: unknown) => resolveVariables(template == null ? "" : String(template), ctxForReplace()),
     request: requestFacade(opts.request),
     response,
-    cookies: response?.cookies ?? { get: () => undefined, has: () => false, toObject: () => ({}), all: () => [] },
+    cookies: { ...(response?.cookies ?? jarCookies(opts.cookieJar, withScheme(resolveVariables(opts.request.url, ctxForReplace())))), jar: () => jarApi(opts.cookieJar) },
     test,
     expect: chai.expect,
     sendRequest,

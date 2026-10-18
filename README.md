@@ -83,6 +83,7 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   snippets. `_` (lodash), `CryptoJS`, `Buffer`, and `require()` of `lodash`, `crypto-js`,
   `ajv`, `chai` and `uuid` are available. In the runner, `pm.execution.setNextRequest()`
   picks what runs next and `pm.execution.skipRequest()` skips a request.
+  `pm.cookies.jar()` reads and sets cookies in the workspace jar.
 - **Responses.** Pretty, raw and preview (HTML or images), headers, cookies and test
   results. Bodies stream in as they arrive, server-sent events show as a live list, and
   Stop keeps what came in. gzip, deflate and br bodies are decoded. Hover the time for
