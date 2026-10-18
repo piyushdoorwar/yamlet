@@ -151,7 +151,9 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
 - **OAuth 2.0**: client credentials and password grants are fetched by the server
   (`/api/oauth2/token`). Authorization code + PKCE: the UI opens the provider in a popup,
   the provider redirects to `/api/oauth2/callback` (`YAMLET_PUBLIC_URL` sets the base),
-  and the UI polls `/api/oauth2/authorize/status`.
+  and the UI polls `/api/oauth2/authorize/status`. The implicit grant returns the token in
+  the URL fragment: the callback page loads `/api/oauth2/implicit.js` (inline scripts are
+  blocked by the CSP), which posts the fragment to `/api/oauth2/implicit`.
 - **Attachments live in the workspace.** Form-data file fields and binary bodies
   reference a path relative to the workspace root; uploads from the browser are copied
   into `<workspace>/files/`.

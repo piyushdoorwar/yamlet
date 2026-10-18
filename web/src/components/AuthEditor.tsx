@@ -220,6 +220,7 @@ type TokenOutcome =
 /** Fields the chosen grant cannot do without. */
 function requiredFields(cfg: OAuth2Config): (keyof OAuth2Config)[] {
   if (cfg.grantType === "authorization_code") return ["authUrl", "accessTokenUrl", "clientId"];
+  if (cfg.grantType === "implicit") return ["authUrl", "clientId"];
   if (cfg.grantType === "password") return ["accessTokenUrl", "username"];
   return ["accessTokenUrl", "clientId"];
 }
@@ -240,6 +241,8 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
   const latestCfg = useRef(cfg);
   latestCfg.current = cfg;
 
+  const inBrowser = cfg.grantType === "authorization_code" || cfg.grantType === "implicit";
+  const implicit = cfg.grantType === "implicit";
   const missing = new Set(attempted ? requiredFields(cfg).filter((k) => !String(cfg[k] ?? "").trim()) : []);
 
   const getToken = async () => {
@@ -252,10 +255,11 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
       return;
     }
     cancelled.current = false;
-    setBusy(config.grantType === "authorization_code" ? "signin" : "token");
+    const inBrowser = config.grantType === "authorization_code" || config.grantType === "implicit";
+    setBusy(inBrowser ? "signin" : "token");
     try {
       const body = { config, collectionId, environmentId, requestVariables };
-      if (config.grantType === "authorization_code") {
+      if (inBrowser) {
         const { authUrl, state } = await api.authorize(body);
         const popup = window.open(authUrl, "yamlet-oauth", "width=520,height=720");
         if (!popup) throw new Error("The browser blocked the sign-in window. Allow pop-ups for Yamlet and try again.");
@@ -333,13 +337,14 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
         <select className="input max-w-xs" value={cfg.grantType} aria-label="Grant type" onChange={(e) => set({ grantType: e.target.value as OAuth2Config["grantType"] })}>
           <option value="client_credentials">Client credentials</option>
           <option value="authorization_code">Authorization code (PKCE)</option>
+          <option value="implicit">Implicit</option>
           <option value="password">Password</option>
         </select>
       </Field>
-      {cfg.grantType === "authorization_code" && text("authUrl", "Auth URL", { placeholder: "https://provider/authorize" })}
-      {text("accessTokenUrl", "Token URL", { placeholder: "https://provider/oauth/token" })}
+      {inBrowser && text("authUrl", "Auth URL", { placeholder: "https://provider/authorize" })}
+      {!implicit && text("accessTokenUrl", "Token URL", { placeholder: "https://provider/oauth/token" })}
       {text("clientId", "Client ID")}
-      {text("clientSecret", "Client secret", { placeholder: cfg.grantType === "authorization_code" ? "Optional for public clients" : undefined, secret: true })}
+      {!implicit && text("clientSecret", "Client secret", { placeholder: cfg.grantType === "authorization_code" ? "Optional for public clients" : undefined, secret: true })}
       {text("scope", "Scope", { placeholder: "read write" })}
       {cfg.grantType === "password" && (
         <>
@@ -347,12 +352,13 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
           {text("password", "Password", { secret: true })}
         </>
       )}
+      {inBrowser &&
+        text("redirectUri", "Redirect URI", {
+          placeholder: callback,
+          hint: <>Leave empty to use {callback ? <span className="font-mono">{callback}</span> : "Yamlet's callback"}; register it with your provider.</>,
+        })}
       {cfg.grantType === "authorization_code" && (
         <>
-          {text("redirectUri", "Redirect URI", {
-            placeholder: callback,
-            hint: <>Leave empty to use {callback ? <span className="font-mono">{callback}</span> : "Yamlet's callback"}; register it with your provider.</>,
-          })}
           <Field label="Code challenge">
             <select className="input max-w-xs" value={cfg.challengeAlgorithm} aria-label="Code challenge method" onChange={(e) => set({ challengeAlgorithm: e.target.value as OAuth2Config["challengeAlgorithm"] })}>
               <option value="S256">SHA-256</option>
@@ -361,12 +367,14 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
           </Field>
         </>
       )}
-      <Field label="Client authentication">
-        <select className="input max-w-xs" value={cfg.clientAuthentication} aria-label="Client authentication" onChange={(e) => set({ clientAuthentication: e.target.value as OAuth2Config["clientAuthentication"] })}>
-          <option value="basic">Send as Basic auth header</option>
-          <option value="body">Send in the request body</option>
-        </select>
-      </Field>
+      {!implicit && (
+        <Field label="Client authentication">
+          <select className="input max-w-xs" value={cfg.clientAuthentication} aria-label="Client authentication" onChange={(e) => set({ clientAuthentication: e.target.value as OAuth2Config["clientAuthentication"] })}>
+            <option value="basic">Send as Basic auth header</option>
+            <option value="body">Send in the request body</option>
+          </select>
+        </Field>
+      )}
 
       {outcome?.kind === "error" && (
         <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-danger-line bg-danger-soft px-4 py-3">

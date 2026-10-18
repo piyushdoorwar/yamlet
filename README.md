@@ -75,7 +75,7 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   form-data (with files), urlencoded, GraphQL or binary. Per-request timeout, redirects
   and SSL settings. Paste a cURL command into the URL box to import it.
 - **Auth.** Bearer, Basic, Digest, API key, cookie, AWS Signature v4, and OAuth 2.0
-  (client credentials, password, or authorization code with PKCE), set per request or
+  (client credentials, password, authorization code with PKCE, or implicit), set per request or
   inherited from the enclosing folder or collection.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request, folder and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,

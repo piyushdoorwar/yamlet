@@ -295,6 +295,8 @@ function grantType(raw: unknown): OAuth2GrantType {
     case "authorization-code":
     case "authorization_code_with_pkce":
       return "authorization_code";
+    case "implicit":
+      return "implicit";
     case "password":
     case "password_credentials":
       return "password";
@@ -382,7 +384,7 @@ export function readAuth(raw: unknown, fallback: AuthType = "none"): Auth {
 
 function writeOAuth2(o: OAuth2Config): Obj {
   const out: Obj = {
-    grant_type: o.grantType === "authorization_code" ? "authorization_code" : o.grantType === "password" ? "password_credentials" : "client_credentials",
+    grant_type: o.grantType === "password" ? "password_credentials" : o.grantType,
   };
   const put = (k: string, v: string | undefined) => {
     if (v) out[k] = v;

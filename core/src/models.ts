@@ -41,7 +41,7 @@ export interface AwsSigV4Config {
   service: string;
 }
 export type ApiKeyLocation = "header" | "query";
-export type OAuth2GrantType = "client_credentials" | "authorization_code" | "password";
+export type OAuth2GrantType = "client_credentials" | "authorization_code" | "implicit" | "password";
 export type OAuth2TokenLocation = "header" | "query";
 export type OAuth2ClientAuthentication = "basic" | "body";
 

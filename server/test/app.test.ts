@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { MockAgent } from "undici";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CSRF_HEADER, WORKSPACE_HEADER } from "../../shared/api.js";
-import { newRequest } from "../../core/src/models.js";
+import { defaultOAuth2, newRequest } from "../../core/src/models.js";
 import { buildApp } from "../src/app.js";
 
 let root: string;
@@ -211,5 +211,27 @@ describe("import", () => {
     const res = await app.inject({ method: "POST", url: "/api/import", headers: W(), payload: { text: "curl -X POST https://api.test/x -H 'A: b' -d '{\"a\":1}'" } });
     expect(res.json().kind).toBe("request");
     expect(res.json().request.method).toBe("POST");
+  });
+});
+
+describe("oauth implicit grant", () => {
+  it("asks for a token, then takes it from the fragment the callback page posts back", async () => {
+    await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
+    const config = { ...defaultOAuth2(), grantType: "implicit", authUrl: "https://id.test/authorize", clientId: "web", scope: "read" };
+    const started = (await app.inject({ method: "POST", url: "/api/oauth2/authorize", headers: W(), payload: { config } })).json();
+    const auth = new URL(started.authUrl);
+    expect(auth.searchParams.get("response_type")).toBe("token");
+    expect(auth.searchParams.get("code_challenge")).toBeNull();
+
+    const page = await app.inject({ method: "GET", url: "/api/oauth2/callback", headers: H });
+    expect(page.body).toContain('src="/api/oauth2/implicit.js"');
+    const script = await app.inject({ method: "GET", url: "/api/oauth2/implicit.js", headers: H });
+    expect(script.headers["content-type"]).toContain("javascript");
+
+    const fragment = `access_token=abc&token_type=Bearer&expires_in=3600&state=${started.state}`;
+    const posted = await app.inject({ method: "POST", url: "/api/oauth2/implicit", headers: { ...H, [CSRF_HEADER]: "1" }, payload: { fragment } });
+    expect(posted.json().message).toContain("has the access token");
+    const status = (await app.inject({ method: "GET", url: `/api/oauth2/authorize/status?state=${started.state}`, headers: H })).json();
+    expect(status).toEqual({ status: "done", token: { accessToken: "abc", tokenType: "Bearer", expiresIn: 3600 } });
   });
 });

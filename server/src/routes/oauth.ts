@@ -50,6 +50,32 @@ const page = (title: string, message: string) => `<!doctype html>
 main{background:#fff;border:1px solid #dde5e0;border-radius:8px;padding:32px 40px;text-align:center}h1{font-size:18px;color:#0e7a43;margin:0 0 8px}</style>
 </head><body><main><h1>${title}</h1><p>${message}</p></main></body></html>`;
 
+/**
+ * The implicit grant returns the token in the URL fragment, which never reaches the server.
+ * The callback page loads this script (inline scripts are blocked by the CSP) to post it back.
+ */
+const IMPLICIT_SCRIPT = `(() => {
+  const status = document.getElementById("status");
+  const fragment = location.hash.replace(/^#/, "");
+  history.replaceState(null, "", location.pathname);
+  fetch("/api/oauth2/implicit", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-yamlet": "1" },
+    body: JSON.stringify({ fragment }),
+  })
+    .then((r) => r.json())
+    .then((r) => { status.textContent = r.message; })
+    .catch(() => { status.textContent = "Could not hand the token to Yamlet. Start again from Yamlet."; });
+})();
+`;
+
+const implicitPage = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Signing in</title>
+<style>body{font-family:system-ui,sans-serif;background:#fcfcfc;color:#24302a;display:grid;place-items:center;height:100vh;margin:0}
+main{background:#fff;border:1px solid #dde5e0;border-radius:8px;padding:32px 40px;text-align:center}h1{font-size:18px;color:#0e7a43;margin:0 0 8px}</style>
+</head><body><main><h1>Yamlet sign-in</h1><p id="status">Finishing sign-in...</p></main>
+<script src="/api/oauth2/implicit.js"></script></body></html>`;
+
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export function oauthRoutes(app: FastifyInstance, { workspaces, config, dispatcher }: Deps): void {
@@ -79,7 +105,7 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config, dispatch
     const ctx = contextFor(store, req.body);
     const cfg = req.body.config;
     const state = randomBytes(16).toString("hex");
-    const { verifier, challenge } = createPkce(cfg.challengeAlgorithm);
+    const { verifier, challenge } = cfg.grantType === "implicit" ? { verifier: "", challenge: undefined } : createPkce(cfg.challengeAlgorithm);
     const redirectUri = resolveVariables(cfg.redirectUri, ctx).trim() || callbackUrl;
     const authUrl = await asHttp(() => buildAuthorizationUrl(cfg, (s) => resolveVariables(s, ctx), { state, codeChallenge: challenge, redirectUri }));
     pending.set(state, { config: cfg, ctx, verifier, redirectUri, status: { status: "pending" }, createdAt: Date.now() });
@@ -97,6 +123,8 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config, dispatch
     "/api/oauth2/callback",
     async (req, reply) => {
       reply.type("text/html");
+      // Implicit grant: the answer is in the fragment, so the query is empty.
+      if (!req.query.state && !req.query.code && !req.query.error) return implicitPage;
       const p = req.query.state ? pending.get(req.query.state) : undefined;
       if (!p) return page("Authorization expired", "Start again from Yamlet.");
       if (req.query.error) {
@@ -123,4 +151,29 @@ export function oauthRoutes(app: FastifyInstance, { workspaces, config, dispatch
       }
     },
   );
+
+  app.get("/api/oauth2/implicit.js", async (_req, reply) => reply.type("text/javascript").send(IMPLICIT_SCRIPT));
+
+  app.post<{ Body: { fragment?: string } }>("/api/oauth2/implicit", async (req): Promise<{ message: string }> => {
+    const params = new URLSearchParams(String(req.body?.fragment ?? ""));
+    const state = params.get("state");
+    const p = state ? pending.get(state) : undefined;
+    if (!p || p.config.grantType !== "implicit") return { message: "This sign-in has expired. Start again from Yamlet." };
+    const error = params.get("error");
+    if (error) {
+      p.status = { status: "error", error: `The provider refused the sign-in: ${[error, params.get("error_description")].filter(Boolean).join(": ")}` };
+      return { message: p.status.error };
+    }
+    const accessToken = params.get("access_token");
+    if (!accessToken) {
+      p.status = { status: "error", error: "The provider redirected back without an access token" };
+      return { message: p.status.error };
+    }
+    const expiresIn = Number(params.get("expires_in"));
+    p.status = {
+      status: "done",
+      token: { accessToken, tokenType: params.get("token_type") ?? undefined, expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : undefined },
+    };
+    return { message: "Yamlet has the access token. You can close this window." };
+  });
 }

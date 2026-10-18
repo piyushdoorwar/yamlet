@@ -119,11 +119,11 @@ export function buildAuthorizationUrl(
   opts: { state: string; codeChallenge?: string; redirectUri: string },
 ): string {
   const authUrl = resolveUrl("Auth URL", cfg.authUrl, resolve);
-  const params = new URLSearchParams({ response_type: "code", client_id: resolve(cfg.clientId), redirect_uri: opts.redirectUri });
+  const params = new URLSearchParams({ response_type: cfg.grantType === "implicit" ? "token" : "code", client_id: resolve(cfg.clientId), redirect_uri: opts.redirectUri });
   const scope = resolve(cfg.scope).trim();
   if (scope) params.set("scope", scope);
   params.set("state", opts.state);
-  if (opts.codeChallenge) {
+  if (opts.codeChallenge && cfg.grantType !== "implicit") {
     params.set("code_challenge", opts.codeChallenge);
     params.set("code_challenge_method", cfg.challengeAlgorithm === "plain" ? "plain" : "S256");
   }

@@ -513,7 +513,7 @@ function securityAuth(scheme: Obj, name: string): SchemeAuth | undefined {
       o.scope = pickScopes(f);
     } else if (isObj(flows.implicit) || scheme.flow === "implicit") {
       const f = isObj(flows.implicit) ? flows.implicit : scheme;
-      o.grantType = "authorization_code";
+      o.grantType = "implicit";
       o.authUrl = str(f.authorizationUrl);
       o.scope = pickScopes(f);
     } else o.grantType = "authorization_code";
