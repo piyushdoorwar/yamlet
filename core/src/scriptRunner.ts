@@ -4,7 +4,10 @@
 import { randomUUID } from "node:crypto";
 import { inspect } from "node:util";
 import vm from "node:vm";
+import { Ajv } from "ajv";
 import * as chai from "chai";
+import CryptoJS from "crypto-js";
+import _ from "lodash";
 import type { KeyValue, ScriptTestResult, Variable, YamletRequest, YamletResponse } from "./models.js";
 import { appendQuery } from "./requestBuilder.js";
 import { lookupVariable, mergedVariables, resolveVariables, type VariableContext } from "./variableResolver.js";
@@ -158,6 +161,14 @@ export interface RunScriptOptions {
   info?: ScriptInfo;
   /** Backs pm.sendRequest; when absent pm.sendRequest rejects. */
   sendRequest?: (spec: SendRequestSpec) => Promise<YamletResponse>;
+  /** Filled by pm.execution: skip the send, or pick the runner's next request. */
+  execution?: ExecutionControl;
+}
+
+export interface ExecutionControl {
+  skipRequest: boolean;
+  /** A request name or id to run next; null ends the iteration; undefined continues in order. */
+  nextRequest?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +236,23 @@ function installResponsePlugin(): void {
         return;
       }
       this.assert(utils.eql(parsed, pathOrValue), "expected response JSON body to deeply equal #{exp}", "expected response JSON body to not deeply equal #{exp}", pathOrValue, parsed);
+    });
+    // pm.response.to.have.jsonSchema(schema), and expect(value).to.have.jsonSchema(schema).
+    A.addMethod("jsonSchema", function (this: Chai.AssertionStatic, schema: object, options?: object) {
+      const r = resp(this);
+      let data: unknown = utils.flag(this, "object");
+      if (r) {
+        try {
+          data = JSON.parse(r.body);
+        } catch {
+          this.assert(false, "expected response body to be JSON to check it against a schema", "", undefined, undefined);
+          return;
+        }
+      }
+      const ajv = new Ajv({ allErrors: true, strict: false, ...options });
+      const validate = ajv.compile(schema);
+      const valid = validate(data);
+      this.assert(!!valid, `expected data to match the JSON schema: ${ajv.errorsText(validate.errors)}`, "expected data to not match the JSON schema", undefined, undefined);
     });
     A.addMethod("responseTime", function (this: Chai.AssertionStatic) {
       need(this);
@@ -627,9 +655,29 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     test,
     expect: chai.expect,
     sendRequest,
+    execution: {
+      /** In a pre-request script: don't send this request. */
+      skipRequest: () => {
+        if (opts.phase !== "pre") throw new Error("pm.execution.skipRequest() only works in a pre-request script");
+        if (opts.execution) opts.execution.skipRequest = true;
+      },
+      /** In the collection runner: run this request (name or id) next, or null to stop. */
+      setNextRequest: (next: unknown) => {
+        if (opts.execution) opts.execution.nextRequest = next === null || next === undefined ? null : String(next);
+      },
+    },
   };
 
-  const modules: Record<string, unknown> = { chai, uuid: { v4: randomUUID } };
+  const modules: Record<string, unknown> = {
+    chai,
+    uuid: { v4: randomUUID },
+    lodash: _,
+    "crypto-js": CryptoJS,
+    ajv: Ajv,
+    atob: (s: string) => atob(s),
+    btoa: (s: string) => btoa(s),
+    buffer: { Buffer },
+  };
   const sandbox: Record<string, unknown> = {
     pm,
     console: consoleApi,
@@ -641,6 +689,9 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     TextDecoder,
     structuredClone,
     crypto: globalThis.crypto,
+    Buffer,
+    _,
+    CryptoJS,
     setTimeout: (fn: (...a: unknown[]) => void, ms?: number, ...args: unknown[]) => {
       const t = setTimeout(() => {
         timers.delete(t);

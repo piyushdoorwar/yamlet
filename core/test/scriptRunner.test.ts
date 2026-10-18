@@ -204,3 +204,41 @@ try { require('fs'); } catch (e) { console.log(e.message); }`,
     expect(logs[0]).toMatch(/^err:/);
   });
 });
+
+describe("script libraries", () => {
+  it("offers lodash, CryptoJS, Buffer and require() of common modules", async () => {
+    const { logs } = await run(`
+      console.log(_.sumBy([{ n: 1 }, { n: 2 }], "n"));
+      console.log(require("lodash").chunk([1, 2, 3], 2).length);
+      console.log(CryptoJS.HmacSHA256("msg", "key").toString(CryptoJS.enc.Hex));
+      console.log(require("crypto-js").MD5("x").toString());
+      console.log(Buffer.from("hi").toString("base64"), require("buffer").Buffer.from("aGk=", "base64").toString());
+      console.log(require("btoa")("hi"));
+    `);
+    expect(logs).toEqual([
+      "3",
+      "2",
+      "2d93cbc1be167bcb1637a4a23cbff01a7878f0c50ee833954ea5221bb1b8c628",
+      "9dd4e461268c8034f5c8564e155c67a6",
+      "aGk= hi",
+      "aGk=",
+    ]);
+  });
+
+  it("checks bodies and values against a JSON schema", async () => {
+    const { tests } = await run(`
+      const schema = { type: "object", required: ["id", "name"], properties: { id: { type: "integer" }, name: { type: "string" } } };
+      pm.test("body matches", () => pm.response.to.have.jsonSchema(schema));
+      pm.test("value fails", () => pm.expect({ id: "x" }).to.have.jsonSchema(schema));
+    `);
+    expect(tests[0]).toEqual({ name: "body matches", passed: true });
+    expect(tests[1].passed).toBe(false);
+    expect(tests[1].error).toMatch(/must be integer|must have required property 'name'/);
+  });
+
+  it("only lets pre-request scripts skip the request", async () => {
+    const pre = await run("pm.execution.skipRequest()", { phase: "pre" });
+    expect(pre.logs).toEqual([]);
+    await expect(run("pm.execution.skipRequest()", { throwOnFailure: true })).rejects.toThrow(/only works in a pre-request script/);
+  });
+});

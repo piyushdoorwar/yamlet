@@ -79,7 +79,10 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   inherited from the collection.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
-  `pm.response.json()` and more), with built-in snippets.
+  `pm.response.json()`, `pm.response.to.have.jsonSchema()` and more), with built-in
+  snippets. `_` (lodash), `CryptoJS`, `Buffer`, and `require()` of `lodash`, `crypto-js`,
+  `ajv`, `chai` and `uuid` are available. In the runner, `pm.execution.setNextRequest()`
+  picks what runs next and `pm.execution.skipRequest()` skips a request.
 - **Responses.** Pretty, raw and preview (HTML or images), headers, cookies and test
   results. Bodies stream in as they arrive, server-sent events show as a live list, and
   Stop keeps what came in. gzip, deflate and br bodies are decoded. Hover the time for

@@ -280,6 +280,8 @@ export interface YamletResponse {
   errorMessage?: string;
   /** Set when the body broke off (timeout or dropped connection) after the headers arrived. */
   incomplete?: string;
+  /** A pre-request script called pm.execution.skipRequest(); nothing was sent. */
+  skipped?: boolean;
 }
 
 // ---------------------------------------------------------------------------

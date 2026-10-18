@@ -33,4 +33,11 @@ export const PM_COMPLETIONS: Completion[] = [
   fn("console.log", "Log to the response console", "console.log()"),
   fn("JSON.parse", "Parse JSON", "JSON.parse()"),
   fn("JSON.stringify", "Serialize JSON", "JSON.stringify()"),
+  fn("pm.execution.skipRequest", "Don't send this request (pre-request script)", "pm.execution.skipRequest()"),
+  fn("pm.execution.setNextRequest", "Runner: run this request next, or null to stop", 'pm.execution.setNextRequest("")'),
+  fn("pm.response.to.have.jsonSchema", "Assert the JSON body matches a schema", "pm.response.to.have.jsonSchema(schema)"),
+  fn("CryptoJS.HmacSHA256", "HMAC-SHA256 (crypto-js)", 'CryptoJS.HmacSHA256("message", "secret").toString(CryptoJS.enc.Base64)'),
+  fn("CryptoJS.SHA256", "SHA-256 hash (crypto-js)", 'CryptoJS.SHA256("").toString()'),
+  fn("CryptoJS.MD5", "MD5 hash (crypto-js)", 'CryptoJS.MD5("").toString()'),
+  fn("Buffer.from", "Bytes from text or base64", 'Buffer.from("", "utf8").toString("base64")'),
 ];

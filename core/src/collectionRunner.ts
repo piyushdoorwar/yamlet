@@ -109,6 +109,27 @@ export function planRun(workspace: YamletWorkspace, opts: Pick<RunOptions, "coll
   return opts.requestIds.map((id) => byId.get(id)).filter((p): p is PlannedRequest => !!p);
 }
 
+/** How often one planned request may run in an iteration before the run is stopped. */
+const MAX_VISITS_PER_REQUEST = 1000;
+
+function skippedResult(item: PlannedRequest, iteration: number): RunRequestResult {
+  return {
+    iteration,
+    requestId: item.request.id,
+    name: item.request.name,
+    path: item.path,
+    collectionId: item.collection.id,
+    collectionName: item.collection.name,
+    method: item.request.method,
+    url: item.request.url,
+    status: 0,
+    durationMs: 0,
+    sizeBytes: 0,
+    tests: [],
+    passed: true,
+  };
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (ms <= 0 || signal?.aborted) return resolve();
@@ -141,7 +162,17 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
   const results: RunRequestResult[] = [];
   let stopped = false;
   outer: for (let iteration = 0; iteration < iterations; iteration++) {
-    for (const item of plan) {
+    // pm.execution.setNextRequest can loop; this bounds a run that never ends on its own.
+    let steps = 0;
+    for (let i = 0; i < plan.length; ) {
+      const item = plan[i];
+      if (++steps > plan.length * MAX_VISITS_PER_REQUEST) {
+        const guard = { ...skippedResult(item, iteration), passed: false, error: `Stopped: more than ${MAX_VISITS_PER_REQUEST} runs per request in one iteration (a setNextRequest loop?)` };
+        results.push(guard);
+        opts.onResult?.(guard);
+        stopped = true;
+        break outer;
+      }
       if (opts.signal?.aborted) {
         stopped = true;
         break outer;
@@ -152,7 +183,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         break outer;
       }
       const collection = collectionFor(item.collection);
-      const { response, changes, oauthRefreshed } = await execute({
+      const { response, changes, oauthRefreshed, nextRequest } = await execute({
         request: item.request,
         collection,
         environment,
@@ -172,6 +203,18 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
       if (changes.environment && environment) environment = { ...environment, variables: changes.environment };
       if (changes.globals) globals = changes.globals;
       if (changes.collectionVariables) collectionVars.set(item.collection.id, changes.collectionVariables);
+      const next = (): number | null => {
+        if (nextRequest === null) return null;
+        if (nextRequest === undefined) return i + 1;
+        const j = plan.findIndex((p) => p.request.name === nextRequest || p.request.id === nextRequest);
+        return j >= 0 ? j : i + 1;
+      };
+      if (response.skipped) {
+        const n = next();
+        if (n === null) continue outer;
+        i = n;
+        continue;
+      }
 
       const transportError = response.isError;
       const statusOk = response.statusCode >= 200 && response.statusCode <= 399;
@@ -199,6 +242,9 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         stopped = true;
         break outer;
       }
+      const n = next();
+      if (n === null) continue outer;
+      i = n;
     }
   }
 

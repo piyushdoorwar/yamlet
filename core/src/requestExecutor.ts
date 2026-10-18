@@ -13,7 +13,7 @@ import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletU
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
-import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
+import { type ExecutionControl, runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
 import { resolveVariables } from "./variableResolver.js";
 
 export interface ExecuteInput {
@@ -56,6 +56,8 @@ export interface ResponseHead {
 
 export interface ExecuteResult {
   response: YamletResponse;
+  /** Set by pm.execution.setNextRequest: the runner's next request (null stops the iteration). */
+  nextRequest?: string | null;
   /** A new OAuth 2.0 token got with the stored refresh token, to save where the auth lives. */
   oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "collection" };
   /** Full new variable lists for scopes that scripts changed. */
@@ -499,7 +501,9 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   } catch (e) {
     return { response: errorResponse(emptyResponse(req.method, req.url), errMessage(e)), changes: {} };
   }
+  const execution: ExecutionControl = { skipRequest: false };
   const scriptBase = {
+    execution,
     request: req,
     variables: vars,
     tests,
@@ -517,7 +521,12 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   const finish = (response: YamletResponse): ExecuteResult => {
     const r = { ...response, testResults: tests, scriptLogs: logs };
     r.consoleText = consoleText(r);
-    return { response: r, changes: vars.changes(), ...(oauthRefreshed ? { oauthRefreshed } : {}) };
+    return {
+      response: r,
+      changes: vars.changes(),
+      ...(oauthRefreshed ? { oauthRefreshed } : {}),
+      ...(execution.nextRequest !== undefined ? { nextRequest: execution.nextRequest } : {}),
+    };
   };
 
   // 1. Pre-request scripts: collection first (errors logged, never fatal), then the request's.
@@ -534,6 +543,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     } catch (e) {
       return finish(errorResponse(emptyResponse(req.method, req.url), `Pre-request script error: ${errMessage(e)}`));
     }
+  }
+
+  if (execution.skipRequest) {
+    return finish({ ...errorResponse(emptyResponse(req.method, req.url), "Skipped: the pre-request script called pm.execution.skipRequest()."), skipped: true });
   }
 
   // 2. Resolve (after scripts, so their mutations apply) and fetch an OAuth2 token if needed.

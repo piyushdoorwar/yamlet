@@ -45,6 +45,33 @@ afterEach(async () => {
 });
 
 describe("runCollection", () => {
+  it("follows pm.execution.setNextRequest and skipRequest", async () => {
+    serve();
+    const c = newCollection({ name: "Flow" });
+    const req = (name: string, order: number, scripts: { pre?: string; post?: string } = {}) =>
+      newRequest({ name, order, url: `https://api.test/${name}`, preRequestScript: scripts.pre ?? "", postResponseScript: scripts.post ?? "" });
+    c.requests.push(
+      req("login", 1000, { post: "pm.execution.setNextRequest('poll')" }),
+      req("never", 2000),
+      req("poll", 3000, { post: "const n = Number(pm.collectionVariables.get('n') || 0) + 1; pm.collectionVariables.set('n', String(n)); if (n < 3) pm.execution.setNextRequest('poll');" }),
+      req("skipped", 4000, { pre: "pm.execution.skipRequest()" }),
+      req("done", 5000, { post: "pm.execution.setNextRequest(null)" }),
+      req("after", 6000),
+    );
+    const s = await run(workspaceWith(c), { iterations: 2 });
+    expect(urls.map((u) => u.replace("https://api.test/", ""))).toEqual(["login", "poll", "poll", "poll", "done", "login", "poll", "done"]);
+    expect(s.results.map((r) => r.name)).not.toContain("skipped");
+  });
+
+  it("stops a setNextRequest loop that never ends", async () => {
+    serve();
+    const c = newCollection();
+    c.requests.push(newRequest({ name: "spin", url: "https://api.test/spin", postResponseScript: "pm.execution.setNextRequest('spin')" }));
+    const s = await run(workspaceWith(c));
+    expect(s.stopped).toBe(true);
+    expect(s.results.at(-1)?.error).toMatch(/setNextRequest loop/);
+  }, 30_000);
+
   it("passes when tests pass", async () => {
     serve();
     const c = newCollection({ name: "Smoke" });

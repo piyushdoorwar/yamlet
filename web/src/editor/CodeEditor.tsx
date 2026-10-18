@@ -271,7 +271,7 @@ function valueComplete(values: string[]) {
 }
 
 function pmComplete(ctx: CompletionContext): CompletionResult | null {
-  const word = ctx.matchBefore(/(pm|console|JSON)(\.[\w]*)*\.?[\w]*/);
+  const word = ctx.matchBefore(/(pm|console|JSON|CryptoJS|Buffer)(\.[\w]*)*\.?[\w]*/);
   if (!word || (word.from === word.to && !ctx.explicit)) return null;
   const options = PM_COMPLETIONS.filter((c) => c.label.startsWith(word.text.split(".").slice(0, -1).join(".") + ".") || c.label.startsWith(word.text));
   return { from: word.from, options, validFor: /^[\w.]*$/ };
