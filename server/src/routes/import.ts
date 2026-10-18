@@ -3,7 +3,7 @@ import { type Dispatcher, fetch } from "undici";
 import { yamletUserAgent } from "../../../core/src/models.js";
 import { errMessage } from "../../../core/src/requestExecutor.js";
 import { parseCurl } from "../../../core/src/curl.js";
-import { detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../../../core/src/importers.js";
+import { bundleExternalRefs, detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../../../core/src/importers.js";
 import type { ImportBody, ImportResult } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
@@ -43,8 +43,10 @@ export function importRoutes(app: FastifyInstance, { workspaces, dispatcher }: D
     let text = req.body?.text ?? "";
     if (!text.trim()) throw new HttpError(400, "Nothing to import");
     let format = detectImportFormat(text);
+    let link: string | undefined;
     if (format === "link") {
-      const fetched = await fetchLink(text.trim(), dispatcher());
+      link = text.trim();
+      const fetched = await fetchLink(link, dispatcher());
       text = fetched.text;
       req.body.fileName = fetched.fileName;
       format = detectImportFormat(text);
@@ -68,7 +70,9 @@ export function importRoutes(app: FastifyInstance, { workspaces, dispatcher }: D
           return { kind: "collection", workspace: store.workspace, collectionId: c.id };
         }
         case "openapi": {
-          const c = await store.importCollection(importOpenApi(text));
+          // From a link, refs into other files are fetched next to it.
+          const source = link ? await bundleExternalRefs(text, link, async (u) => (await fetchLink(u, dispatcher())).text) : text;
+          const c = await store.importCollection(importOpenApi(source));
           return { kind: "collection", workspace: store.workspace, collectionId: c.id };
         }
         default:

@@ -318,22 +318,82 @@ export function importEnvironmentJson(json: unknown): YamletEnvironment {
 const METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace", "query"] as const;
 
 class RefResolver {
-  constructor(private readonly doc: Obj) {}
+  constructor(
+    private readonly doc: Obj,
+    private readonly externals: Record<string, unknown> = {},
+  ) {}
 
-  /** Follows local `$ref`s (`#/components/...`). External refs resolve to an empty object. */
+  /**
+   * Follows `$ref`s: local ones (`#/components/...`) and, when the spec came from a link,
+   * other files already fetched by `bundleExternalRefs` (`<url>#/...`). Others resolve to `{}`.
+   */
   deref(node: unknown, depth = 0): Obj {
     let cur = node;
     for (let i = 0; i < 16 && isObj(cur) && typeof cur.$ref === "string"; i++) {
       const ref = cur.$ref;
-      if (!ref.startsWith("#/") || depth > 32) return {};
-      cur = ref
-        .slice(2)
+      if (depth > 32) return {};
+      const hash = ref.indexOf("#");
+      const file = hash >= 0 ? ref.slice(0, hash) : ref;
+      const pointer = hash >= 0 ? ref.slice(hash + 1) : "";
+      const root = file ? this.externals[file] : this.doc;
+      if (root === undefined || (pointer && !pointer.startsWith("/"))) return {};
+      cur = pointer
+        .slice(1)
         .split("/")
+        .filter((p, n) => n > 0 || p !== "")
         .map((p) => p.replace(/~1/g, "/").replace(/~0/g, "~"))
-        .reduce<unknown>((o, k) => (isObj(o) || Array.isArray(o) ? (o as Obj)[k] : undefined), this.doc);
+        .reduce<unknown>((o, k) => (isObj(o) || Array.isArray(o) ? (o as Obj)[k] : undefined), root);
     }
     return asObj(cur);
   }
+}
+
+const MAX_REF_FILES = 30;
+
+/**
+ * Fetches the other files a spec's `$ref`s point to (`common.yaml#/User`), relative to the
+ * spec's URL, and rewrites every ref to `<absolute url>#<pointer>` so `importOpenApi` can
+ * follow them. Files that can't be fetched or read are left out (their refs read as `{}`).
+ */
+export async function bundleExternalRefs(text: string, url: string, fetchText: (url: string) => Promise<string>): Promise<{ doc: unknown; externals: Record<string, unknown> }> {
+  const doc = parseStructured(text);
+  // A ref from another file back into the spec itself.
+  const externals: Record<string, unknown> = { [url]: doc };
+  const queue: string[] = [];
+  const rewrite = (node: unknown, base: string, isExternal: boolean): void => {
+    if (Array.isArray(node)) for (const n of node) rewrite(n, base, isExternal);
+    else if (isObj(node)) {
+      if (typeof node.$ref === "string") {
+        const ref = node.$ref;
+        if (ref.startsWith("#")) {
+          if (isExternal) node.$ref = `${base}${ref}`;
+        } else {
+          const hash = ref.indexOf("#");
+          let abs: string;
+          try {
+            abs = new URL(hash >= 0 ? ref.slice(0, hash) : ref, base).toString();
+          } catch {
+            return;
+          }
+          node.$ref = `${abs}${hash >= 0 ? ref.slice(hash) : ""}`;
+          if (!(abs in externals) && !queue.includes(abs) && abs !== url) queue.push(abs);
+        }
+      }
+      for (const [k, v] of Object.entries(node)) if (k !== "$ref") rewrite(v, base, isExternal);
+    }
+  };
+  rewrite(doc, url, false);
+  for (let n = 0; n < queue.length && n < MAX_REF_FILES; n++) {
+    const next = queue[n];
+    try {
+      const parsed = parseStructured(await fetchText(next));
+      externals[next] = parsed ?? {};
+      rewrite(parsed, next, true);
+    } catch {
+      externals[next] = {};
+    }
+  }
+  return { doc, externals };
 }
 
 function sample(r: RefResolver, schemaNode: unknown, depth = 0): unknown {
@@ -542,13 +602,14 @@ function serverUrl(doc: Obj): string {
 }
 
 /** Imports an OpenAPI 3.x or Swagger 2.0 document given as JSON or YAML text. */
-export function importOpenApi(text: string): YamletCollection {
-  const parsed = parseStructured(text);
+/** `text` is the spec, or a spec already parsed by `bundleExternalRefs` with its other files. */
+export function importOpenApi(text: string | { doc: unknown; externals: Record<string, unknown> }): YamletCollection {
+  const parsed = typeof text === "string" ? parseStructured(text) : text.doc;
   if (!isObj(parsed)) throw new Error("Not a JSON or YAML document");
   const doc = parsed;
   const isSwagger2 = doc.swagger !== undefined;
   if (!isSwagger2 && doc.openapi === undefined) throw new Error("Not an OpenAPI or Swagger document");
-  const r = new RefResolver(doc);
+  const r = new RefResolver(doc, typeof text === "string" ? {} : text.externals);
   const info = asObj(doc.info);
   const c = newCollection({ name: str(info.title) || "Imported API" });
   if (info.description) c.description = str(info.description);

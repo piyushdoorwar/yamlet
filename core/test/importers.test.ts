@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../src/importers.js";
+import { bundleExternalRefs, detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../src/importers.js";
 import { effectiveAuth } from "../src/requestBuilder.js";
 
 const v21 = {
@@ -417,5 +417,29 @@ describe("importHar", () => {
       { key: "note", value: "hi", enabled: true },
     ]);
     expect(upload.headers).toEqual([]);
+  });
+});
+
+describe("OpenAPI refs into other files", () => {
+  it("fetches them relative to the spec and follows them", async () => {
+    const files: Record<string, string> = {
+      "https://specs.test/api/schemas/user.yaml": "User:\n  type: object\n  properties:\n    id: { $ref: '../common.yaml#/Id' }\n    home: { $ref: '#/Address' }\nAddress:\n  type: object\n  properties:\n    city: { type: string, example: Oslo }\n",
+      "https://specs.test/api/common.yaml": "Id: { type: integer, example: 7 }\n",
+    };
+    const fetched: string[] = [];
+    const spec = JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Users", version: "1" },
+      paths: { "/users": { post: { requestBody: { content: { "application/json": { schema: { $ref: "schemas/user.yaml#/User" } } } } } } },
+    });
+    const bundled = await bundleExternalRefs(spec, "https://specs.test/api/openapi.json", async (u) => {
+      fetched.push(u);
+      if (!(u in files)) throw new Error("404");
+      return files[u];
+    });
+    expect(fetched).toEqual(["https://specs.test/api/schemas/user.yaml", "https://specs.test/api/common.yaml"]);
+    const c = importOpenApi(bundled);
+    const body = JSON.parse(c.requests[0]?.body.raw ?? c.folders[0].requests[0].body.raw);
+    expect(body).toEqual({ id: 7, home: { city: "Oslo" } });
   });
 });
