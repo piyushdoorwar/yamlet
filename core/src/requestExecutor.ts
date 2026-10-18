@@ -1,12 +1,13 @@
 // Sends a request over HTTP: scripts, variable resolution, auth (incl. OAuth2 token
 // fetch), cookies, redirects, timeouts. Never throws; failures become error responses.
+import { randomBytes } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import { STATUS_CODES } from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import type { Transform } from "node:stream";
 import zlib from "node:zlib";
-import { FormData, request, type Dispatcher } from "undici";
+import { request, type Dispatcher } from "undici";
 import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
@@ -189,8 +190,44 @@ function resolveFile(p: string, workspaceRoot: string, requestFile?: string): st
 }
 
 interface PreparedBody {
-  body?: string | Buffer | FormData;
+  body?: string | Buffer;
   display?: string;
+  /** Set for multipart bodies: the Content-Type with its boundary. */
+  contentType?: string;
+}
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  json: "application/json", xml: "application/xml", csv: "text/csv", txt: "text/plain", html: "text/html", htm: "text/html",
+  md: "text/markdown", yaml: "application/yaml", yml: "application/yaml", js: "text/javascript", pdf: "application/pdf",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+  ico: "image/x-icon", bmp: "image/bmp", avif: "image/avif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
+  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", zip: "application/zip", gz: "application/gzip",
+  tar: "application/x-tar", "7z": "application/x-7z-compressed",
+  doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+
+/** A file's MIME type from its extension, or application/octet-stream. */
+export function mimeForFile(file: string): string {
+  return MIME_BY_EXTENSION[path.extname(file).slice(1).toLowerCase()] ?? "application/octet-stream";
+}
+
+/** Quotes a multipart parameter (RFC 7578: escape quotes and line breaks). */
+const partParam = (s: string) => s.replace(/"/g, "%22").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+
+/** A multipart/form-data body: text parts may carry a Content-Type, files are typed by name. */
+export function encodeMultipart(parts: { key: string; value: string | Buffer; fileName?: string; contentType?: string }[], boundary = `----YamletBoundary${randomBytes(12).toString("hex")}`): { body: Buffer; contentType: string } {
+  const chunks: Buffer[] = [];
+  for (const p of parts) {
+    let head = `--${boundary}\r\nContent-Disposition: form-data; name="${partParam(p.key)}"`;
+    if (p.fileName !== undefined) head += `; filename="${partParam(p.fileName)}"`;
+    head += "\r\n";
+    if (p.contentType) head += `Content-Type: ${p.contentType}\r\n`;
+    chunks.push(Buffer.from(`${head}\r\n`), Buffer.isBuffer(p.value) ? p.value : Buffer.from(p.value), Buffer.from("\r\n"));
+  }
+  chunks.push(Buffer.from(`--${boundary}--\r\n`));
+  return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
 async function prepareBody(built: BuiltRequest, workspaceRoot: string, requestFile?: string): Promise<PreparedBody> {
@@ -203,20 +240,22 @@ async function prepareBody(built: BuiltRequest, workspaceRoot: string, requestFi
       return { body: text, display: text };
     }
     case "form-data": {
-      const form = new FormData();
+      const parts: Parameters<typeof encodeMultipart>[0] = [];
       const lines: string[] = [];
       for (const f of b.fields) {
         if (f.isFile) {
           const file = resolveFile(f.value, workspaceRoot, requestFile);
           const data = await fs.readFile(file);
-          form.append(f.key, new Blob([data]), path.basename(file));
-          lines.push(`${f.key}: [file ${f.value}, ${data.length} bytes]`);
+          const type = f.contentType || mimeForFile(file);
+          parts.push({ key: f.key, value: data, fileName: path.basename(file), contentType: type });
+          lines.push(`${f.key}: [file ${f.value}, ${data.length} bytes, ${type}]`);
         } else {
-          form.append(f.key, f.value);
-          lines.push(`${f.key}: ${f.value}`);
+          parts.push({ key: f.key, value: f.value, contentType: f.contentType });
+          lines.push(`${f.key}: ${f.value}${f.contentType ? ` (${f.contentType})` : ""}`);
         }
       }
-      return { body: form, display: `[multipart form-data]\n${lines.join("\n")}` };
+      const { body, contentType } = encodeMultipart(parts);
+      return { body, contentType, display: `[multipart form-data]\n${lines.join("\n")}` };
     }
     case "binary": {
       const file = resolveFile(b.file, workspaceRoot, requestFile);
@@ -277,7 +316,7 @@ async function exchange(opts: {
   url: string;
   method: string;
   headers: KeyValue[];
-  body?: string | Buffer | FormData;
+  body?: string | Buffer;
   dispatcher?: Dispatcher;
   signal?: AbortSignal;
   followRedirects: boolean;
@@ -292,7 +331,7 @@ async function exchange(opts: {
   maxBytes?: number;
 }): Promise<HttpExchange> {
   let { url, method, body } = opts;
-  let headers = opts.headers.filter((h) => !(body instanceof FormData && h.key.toLowerCase() === "content-type" && !/boundary=/i.test(h.value)));
+  let headers = opts.headers;
   for (const d of DEFAULT_REQUEST_HEADERS) {
     if (!headers.some((h) => h.key.toLowerCase() === d.key.toLowerCase())) headers.push({ ...d, enabled: true });
   }
@@ -577,18 +616,19 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     response.requestBody = prepared.display;
     let ex: HttpExchange;
     let incomplete: string | undefined;
-    let headers = built.headers;
+    // Multipart bodies carry their own boundary, which no typed Content-Type can know.
+    const withBodyType = (list: KeyValue[]) =>
+      prepared.contentType ? [...list.filter((h) => h.key.toLowerCase() !== "content-type"), { key: "Content-Type", value: prepared.contentType, enabled: true }] : list;
+    let headers = withBodyType(built.headers);
     if (auth.type === "awsv4") {
       const a = auth.aws;
-      const streamed = prepared.body instanceof FormData;
       headers = [
         ...headers.filter((h) => h.key.toLowerCase() !== "authorization"),
         ...signAwsV4({
           method: built.method,
           url: built.url,
           headers,
-          body: streamed ? undefined : (prepared.body as string | Buffer | undefined),
-          streamedBody: streamed,
+          body: prepared.body,
           aws: { accessKey: resolve(a.accessKey), secretKey: resolve(a.secretKey), sessionToken: resolve(a.sessionToken), region: resolve(a.region), service: resolve(a.service) },
         }),
       ];
@@ -629,7 +669,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
         try {
           const token = await refreshAndRemember(auth.oauth2, resolve, { dispatcher, signal });
           built = buildRequest(req, { ctx, collection, oauthToken: token.accessToken });
-          headers = built.headers;
+          headers = withBodyType(built.headers);
           oauthRefreshed = { accessToken: token.accessToken, refreshToken: token.refreshToken, source: req.auth.type === "inherit" ? "collection" : "request" };
           logs.push("OAuth 2.0: the access token was rejected; got a new one with the refresh token and sent again.");
           ex = await send();

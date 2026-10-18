@@ -52,7 +52,7 @@ const curl: Gen = (b) => {
       for (const f of b.body.fields) lines.push(`--data-urlencode ${shq(`${f.key}=${f.value}`)}`);
       break;
     case "form-data":
-      for (const f of b.body.fields) lines.push(`--form ${shq(`${f.key}=${f.isFile ? "@" + f.value : f.value}`)}`);
+      for (const f of b.body.fields) lines.push(`--form ${shq(`${f.key}=${f.isFile ? "@" + f.value : f.value}${f.contentType ? `;type=${f.contentType}` : ""}`)}`);
       break;
     case "binary":
       lines.push(`--data-binary ${shq("@" + b.body.file)}`);

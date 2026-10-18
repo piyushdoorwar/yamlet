@@ -57,6 +57,7 @@ function v2Body(r: YamletRequest): Obj | undefined {
         formdata: b.fields.map((f) => ({
           key: f.key,
           ...(f.isFile ? { type: "file", src: f.value } : { type: "text", value: f.value }),
+          ...(f.contentType ? { contentType: f.contentType } : {}),
           ...(f.enabled === false ? { disabled: true } : {}),
           ...(f.description ? { description: f.description } : {}),
         })),

@@ -60,6 +60,7 @@ function formatWithPlaceholders(text: string, format: (t: string) => string): st
 export function BodyEditor({ body, onChange, variables }: { body: RequestBody; onChange: (b: RequestBody) => void; variables: VariableSource }) {
   const toast = useToast();
   const radioName = useId();
+  const partTypesId = useId();
   const kind = isRaw(body.type) ? "raw" : body.type;
   const set = (patch: Partial<RequestBody>) => onChange({ ...body, ...patch });
   const raw = RAW_TYPES.find((r) => r.id === body.type);
@@ -121,6 +122,11 @@ export function BodyEditor({ body, onChange, variables }: { body: RequestBody; o
 
       {body.type === "form-data" && (
         <div className="min-h-0 flex-1 overflow-y-auto">
+          <datalist id={partTypesId}>
+            {["application/json", "text/plain", "application/xml", "text/csv", "application/octet-stream", "image/png", "image/jpeg", "application/pdf"].map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
           <KeyValueTable<BodyField>
             rows={body.fields}
             onChange={(fields) => set({ fields })}
@@ -139,6 +145,17 @@ export function BodyEditor({ body, onChange, variables }: { body: RequestBody; o
               </select>
             )}
             renderValue={(row, update) => (row.isFile ? <FileChooser compact value={row.value} onChange={(value) => update({ value })} /> : undefined)}
+            afterValueLabel="Content-Type"
+            renderAfterValue={(row, update) => (
+              <input
+                className="kv-cell font-mono text-12"
+                list={partTypesId}
+                value={row.contentType ?? ""}
+                placeholder={row.isFile ? "From file name" : "None"}
+                aria-label="Part Content-Type"
+                onChange={(e) => update({ contentType: e.target.value || undefined })}
+              />
+            )}
           />
         </div>
       )}

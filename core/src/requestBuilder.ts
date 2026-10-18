@@ -8,7 +8,7 @@ export type BuiltBody =
   | { kind: "none" }
   | { kind: "text"; text: string; contentType?: string }
   | { kind: "urlencoded"; fields: { key: string; value: string }[] }
-  | { kind: "form-data"; fields: { key: string; value: string; isFile: boolean }[] }
+  | { kind: "form-data"; fields: { key: string; value: string; isFile: boolean; contentType?: string }[] }
   | { kind: "binary"; file: string; contentType?: string };
 
 export interface BuiltRequest {
@@ -228,7 +228,8 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
           .map((f) => {
             const value = r(f.value);
             const file = isFileField({ ...f, value });
-            return { key: r(f.key), value: file && value.startsWith("@") ? value.slice(1) : value, isFile: file };
+            const contentType = r(f.contentType).trim();
+            return { key: r(f.key), value: file && value.startsWith("@") ? value.slice(1) : value, isFile: file, ...(contentType ? { contentType } : {}) };
           }),
       };
       break;

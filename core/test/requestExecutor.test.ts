@@ -124,16 +124,28 @@ describe("execute", () => {
           method: "POST",
           url: "https://api.test/f",
           headers: [{ key: "Content-Type", value: "multipart/form-data", enabled: true }],
-          body: { ...body, type: "form-data", fields: [{ key: "domain", value: "{{who}}", enabled: true }, { key: "file", value: "upload.txt", enabled: true, isFile: true }] },
+          body: {
+            ...body,
+            type: "form-data",
+            fields: [
+              { key: "domain", value: "{{who}}", enabled: true },
+              { key: "file", value: "upload.txt", enabled: true, isFile: true },
+              { key: "meta", value: '{"a":1}', enabled: true, contentType: "application/json" },
+            ],
+          },
         }),
       });
-      const form = seen[2].body as FormData;
-      expect(form).toBeInstanceOf(FormData);
+      // The typed multipart/form-data header is replaced by one with the boundary.
+      const type = h(seen[2], "content-type") ?? "";
+      expect(type).toMatch(/^multipart\/form-data; boundary=----YamletBoundary/);
+      const raw = Buffer.from(seen[2].body as Buffer);
+      const form = await new Response(raw, { headers: { "content-type": type } }).formData();
       expect(form.get("domain")).toBe("yamlet user");
       const file = form.get("file") as File;
       expect(file.name).toBe("upload.txt");
+      expect(file.type).toBe("text/plain");
       expect(await file.text()).toBe("file content");
-      expect(h(seen[2], "content-type")).toBeUndefined(); // boundary is set by the client
+      expect(raw.toString()).toContain('Content-Disposition: form-data; name="meta"\r\nContent-Type: application/json\r\n\r\n{"a":1}');
       expect(r3.response.requestBody).toContain("[multipart form-data]");
 
       await fs.writeFile(path.join(dir, "blob.bin"), Buffer.from([1, 2, 3]));

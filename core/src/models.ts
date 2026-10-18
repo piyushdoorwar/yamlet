@@ -91,6 +91,8 @@ export interface BodyField {
   enabled: boolean;
   /** form-data only: `value` is a file path (relative to the workspace, or absolute). */
   isFile?: boolean;
+  /** form-data only: the part's Content-Type (files default to one guessed from the name). */
+  contentType?: string;
 }
 
 export interface RequestBody {

@@ -178,6 +178,7 @@ function v2Body(raw: unknown, headers: KeyValue[], req: YamletRequest): void {
           const src = Array.isArray(o.src) ? str(o.src[0]) : str(o.src);
           const f: BodyField = { key: str(o.key), value: isFile ? src : str(o.value), enabled: o.disabled !== true };
           if (isFile) f.isFile = true;
+          if (str(o.contentType)) f.contentType = str(o.contentType);
           const d = description(o.description);
           if (d) f.description = d;
           return f;

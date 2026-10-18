@@ -547,6 +547,8 @@ function readField(o: Obj): BodyField {
   };
   if (o.description !== undefined && o.description !== null) field.description = str(o.description);
   if (isFile) field.isFile = true;
+  const ct = optStr(o.contentType);
+  if (ct) field.contentType = ct;
   return field;
 }
 
@@ -574,6 +576,7 @@ function writeField(f: BodyField, multipart: boolean): Obj {
   const o: Obj = multipart ? { type: f.isFile ? "file" : "text", key: f.key } : { key: f.key };
   if (multipart && f.isFile) o.src = [f.value.startsWith("@") ? f.value.slice(1) : f.value];
   else o.value = f.value ?? "";
+  if (multipart && f.contentType) o.contentType = f.contentType;
   if (f.enabled === false) o.disabled = true;
   if (f.description) o.description = f.description;
   return o;
