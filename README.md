@@ -95,8 +95,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   one, extra CA certificates and client certificates per host. Kept in Yamlet's data folder.
 - **Collection runner.** Run a collection or folder with iterations, a delay, and a
   CSV or JSON data file. Results stream in live.
-- **Import and export.** Import cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), and v2.1
-  collection and environment JSON exports; export a collection or environment back to
+- **Import and export.** Import cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), HAR files
+  from browser devtools, and v2.1 collection and environment JSON exports; export a collection or environment back to
   that JSON.
 - **Code snippets.** cURL, raw HTTP, JavaScript fetch, Node axios, Python requests, Go,
   C#, Java, PHP, PowerShell and Ruby.

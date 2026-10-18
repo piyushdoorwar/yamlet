@@ -28,7 +28,7 @@ const asObj = (v: unknown): Obj => (isObj(v) ? v : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export type ImportFormat = "collection-v2" | "environment" | "openapi" | "curl" | "unknown";
+export type ImportFormat = "collection-v2" | "environment" | "openapi" | "curl" | "har" | "unknown";
 
 function parseStructured(text: string): unknown {
   const t = text.trim();
@@ -49,6 +49,7 @@ export function detectImportFormat(text: string): ImportFormat {
   if (/^curl(\.exe)?\s/i.test(t)) return "curl";
   const doc = parseStructured(t);
   if (!isObj(doc)) return "unknown";
+  if (isObj(doc.log) && Array.isArray(doc.log.entries)) return "har";
   if (typeof doc.openapi === "string" || typeof doc.swagger === "string" || typeof doc.openapi === "number" || typeof doc.swagger === "number") return "openapi";
   const coll = isObj(doc.collection) ? doc.collection : doc;
   if (isObj(coll.info) && (Array.isArray(coll.item) || /collection/i.test(str(coll.info.schema)))) return "collection-v2";
@@ -686,3 +687,59 @@ export function importOpenApi(text: string): YamletCollection {
   }
   return c;
 }
+
+// ---------------------------------------------------------------------------
+// HAR (HTTP Archive, e.g. "Save all as HAR" in browser devtools)
+
+// Set by the client or the connection, not by the person making the request.
+const HAR_SKIPPED_HEADERS = new Set(["host", "content-length", "connection", "accept-encoding", "transfer-encoding", "keep-alive", "upgrade", "te"]);
+
+function harBody(req: YamletRequest, postData: Obj, headers: KeyValue[]): void {
+  const mime = str(postData.mimeType).toLowerCase() || (headers.find((h) => h.key.toLowerCase() === "content-type")?.value.toLowerCase() ?? "");
+  const params = arr(postData.params).filter(isObj);
+  if (mime.startsWith("application/x-www-form-urlencoded")) {
+    req.body.type = "urlencoded";
+    req.body.fields = params.length
+      ? params.map((p) => ({ key: str(p.name), value: str(p.value), enabled: true }))
+      : splitRawUrl(`?${str(postData.text)}`).query;
+  } else if (mime.startsWith("multipart/form-data") && params.length) {
+    req.body.type = "form-data";
+    // Uploaded files aren't in the archive; their names are kept so a file can be picked again.
+    req.body.fields = params.map((p) => (p.fileName !== undefined ? { key: str(p.name), value: str(p.fileName), enabled: true, isFile: true } : { key: str(p.name), value: str(p.value), enabled: true }));
+    // The archived Content-Type has the old boundary.
+    req.headers = req.headers.filter((h) => h.key.toLowerCase() !== "content-type");
+  } else if (postData.text !== undefined) {
+    req.body.raw = str(postData.text);
+    req.body.type = mime.includes("json") ? "json" : mime.includes("xml") ? "xml" : mime.includes("html") ? "html" : "text";
+  }
+}
+
+/** One request per archived entry, in order, in a new collection. */
+export function importHar(json: unknown, name = "HAR import"): YamletCollection {
+  const doc = typeof json === "string" ? JSON.parse(json) : json;
+  const entries = arr(asObj(asObj(doc).log).entries).filter(isObj);
+  if (!entries.length) throw new Error("The HAR file has no entries");
+  const c = newCollection({ name });
+  entries.forEach((entry, i) => {
+    const r = asObj(entry.request);
+    const rawUrl = str(r.url);
+    if (!rawUrl) return;
+    const headers = arr(r.headers)
+      .filter(isObj)
+      .map((h) => ({ key: str(h.name), value: str(h.value), enabled: true }))
+      .filter((h) => h.key && !h.key.startsWith(":") && !HAR_SKIPPED_HEADERS.has(h.key.toLowerCase()));
+    const { base, query } = splitRawUrl(rawUrl);
+    let path = base;
+    try {
+      path = new URL(base).pathname;
+    } catch {
+      /* keep the raw URL */
+    }
+    const method = (str(r.method) || "GET").toUpperCase();
+    const req = newRequest({ name: `${method} ${path}`.slice(0, 120), method, url: base, headers, queryParams: query, order: i * 1000 });
+    if (isObj(r.postData)) harBody(req, r.postData, headers);
+    c.requests.push(req);
+  });
+  return c;
+}
+

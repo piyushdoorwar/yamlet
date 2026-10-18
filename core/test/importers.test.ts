@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectImportFormat, importCollectionV2, importEnvironmentJson, importOpenApi } from "../src/importers.js";
+import { detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../src/importers.js";
 import { effectiveAuth } from "../src/requestBuilder.js";
 
 const v21 = {
@@ -363,5 +363,59 @@ describe("OpenAPI 3.2 query operations", () => {
     const c = importOpenApi(JSON.stringify({ openapi: "3.2.0", info: { title: "Search", version: "1" }, paths: { "/items": { query: { summary: "Search items" } } } }));
     const all = [...c.requests, ...c.folders.flatMap((f) => f.requests)];
     expect(all.map((r) => r.method)).toContain("QUERY");
+  });
+});
+
+describe("importHar", () => {
+  const har = {
+    log: {
+      version: "1.2",
+      entries: [
+        {
+          request: {
+            method: "GET",
+            url: "https://api.test/users?page=2&q=a%20b",
+            headers: [
+              { name: ":authority", value: "api.test" },
+              { name: "Accept", value: "application/json" },
+              { name: "Host", value: "api.test" },
+              { name: "Authorization", value: "Bearer x" },
+            ],
+          },
+        },
+        { request: { method: "post", url: "https://api.test/users", headers: [{ name: "Content-Type", value: "application/json" }], postData: { mimeType: "application/json", text: '{"name":"Ada"}' } } },
+        { request: { method: "POST", url: "https://api.test/login", headers: [], postData: { mimeType: "application/x-www-form-urlencoded", params: [{ name: "user", value: "ada" }] } } },
+        {
+          request: {
+            method: "POST",
+            url: "https://api.test/upload",
+            headers: [{ name: "Content-Type", value: "multipart/form-data; boundary=x" }],
+            postData: { mimeType: "multipart/form-data; boundary=x", params: [{ name: "file", fileName: "a.png" }, { name: "note", value: "hi" }] },
+          },
+        },
+      ],
+    },
+  };
+
+  it("is detected and becomes one request per entry", () => {
+    expect(detectImportFormat(JSON.stringify(har))).toBe("har");
+    const c = importHar(har, "Session");
+    expect(c.name).toBe("Session");
+    expect(c.requests.map((r) => r.name)).toEqual(["GET /users", "POST /users", "POST /login", "POST /upload"]);
+    const [list, create, login, upload] = c.requests;
+    expect(list.url).toBe("https://api.test/users");
+    expect(list.queryParams).toEqual([
+      { key: "page", value: "2", enabled: true },
+      { key: "q", value: "a b", enabled: true },
+    ]);
+    expect(list.headers.map((h) => h.key)).toEqual(["Accept", "Authorization"]);
+    expect(create.body).toMatchObject({ type: "json", raw: '{"name":"Ada"}' });
+    expect(login.body).toMatchObject({ type: "urlencoded", fields: [{ key: "user", value: "ada", enabled: true }] });
+    expect(upload.body.type).toBe("form-data");
+    expect(upload.body.fields).toEqual([
+      { key: "file", value: "a.png", enabled: true, isFile: true },
+      { key: "note", value: "hi", enabled: true },
+    ]);
+    expect(upload.headers).toEqual([]);
   });
 });

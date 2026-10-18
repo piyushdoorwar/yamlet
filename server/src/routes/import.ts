@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { parseCurl } from "../../../core/src/curl.js";
-import { detectImportFormat, importCollectionV2, importEnvironmentJson, importOpenApi } from "../../../core/src/importers.js";
+import { detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../../../core/src/importers.js";
 import type { ImportBody, ImportResult } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
@@ -23,12 +23,17 @@ export function importRoutes(app: FastifyInstance, { workspaces }: Deps): void {
           const c = await store.importCollection(importCollectionV2(JSON.parse(text)));
           return { kind: "collection", workspace: store.workspace, collectionId: c.id };
         }
+        case "har": {
+          const name = req.body.fileName?.replace(/\.har$/i, "").trim() || "HAR import";
+          const c = await store.importCollection(importHar(JSON.parse(text), name));
+          return { kind: "collection", workspace: store.workspace, collectionId: c.id };
+        }
         case "openapi": {
           const c = await store.importCollection(importOpenApi(text));
           return { kind: "collection", workspace: store.workspace, collectionId: c.id };
         }
         default:
-          throw new HttpError(400, "Unrecognised format. Paste a cURL command, an OpenAPI/Swagger document, or a v2.1 collection or environment JSON export.");
+          throw new HttpError(400, "Unrecognised format. Paste a cURL command, an OpenAPI/Swagger document, a HAR file, or a v2.1 collection or environment JSON export.");
       }
     } catch (err) {
       if (err instanceof HttpError) throw err;
