@@ -19,9 +19,11 @@ const AUTH_LABEL: Record<string, string> = {
   none: "No auth",
   bearer: "Bearer token",
   basic: "Basic auth",
+  digest: "Digest auth",
   apikey: "API key",
   cookie: "Cookie",
   oauth2: "OAuth 2.0",
+  awsv4: "AWS Signature",
 };
 
 interface Props {

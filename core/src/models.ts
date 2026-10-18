@@ -29,7 +29,17 @@ export interface Variable {
   local?: boolean;
 }
 
-export type AuthType = "inherit" | "none" | "bearer" | "basic" | "apikey" | "cookie" | "oauth2";
+export type AuthType = "inherit" | "none" | "bearer" | "basic" | "digest" | "apikey" | "cookie" | "oauth2" | "awsv4";
+
+/** AWS Signature Version 4 credentials and scope. */
+export interface AwsSigV4Config {
+  accessKey: string;
+  secretKey: string;
+  /** For temporary credentials; sent as X-Amz-Security-Token. */
+  sessionToken: string;
+  region: string;
+  service: string;
+}
 export type ApiKeyLocation = "header" | "query";
 export type OAuth2GrantType = "client_credentials" | "authorization_code" | "password";
 export type OAuth2TokenLocation = "header" | "query";
@@ -69,6 +79,7 @@ export interface Auth {
   apiKeyIn: ApiKeyLocation;
   cookie: string;
   oauth2: OAuth2Config;
+  aws: AwsSigV4Config;
 }
 
 export type BodyType = "none" | "raw" | "json" | "xml" | "text" | "html" | "form-data" | "urlencoded" | "graphql" | "binary";
@@ -301,6 +312,7 @@ export function defaultAuth(type: AuthType = "inherit"): Auth {
     apiKeyIn: "header",
     cookie: "",
     oauth2: defaultOAuth2(),
+    aws: { accessKey: "", secretKey: "", sessionToken: "", region: "us-east-1", service: "" },
   };
 }
 

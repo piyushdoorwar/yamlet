@@ -1,4 +1,4 @@
-import type { Auth, AuthType, OAuth2Config, Variable } from "@core/models";
+import type { Auth, AuthType, AwsSigV4Config, OAuth2Config, Variable } from "@core/models";
 import clsx from "clsx";
 import { CircleAlert, CircleCheck, Eye, EyeOff, KeyRound, Loader2, TriangleAlert, X } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
@@ -12,9 +12,11 @@ const TYPES: { id: AuthType; label: string }[] = [
   { id: "none", label: "No auth" },
   { id: "bearer", label: "Bearer token" },
   { id: "basic", label: "Basic auth" },
+  { id: "digest", label: "Digest auth" },
   { id: "apikey", label: "API key" },
   { id: "cookie", label: "Cookie" },
   { id: "oauth2", label: "OAuth 2.0" },
+  { id: "awsv4", label: "AWS Signature" },
 ];
 
 interface Props {
@@ -122,6 +124,7 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
     onChange(latest.current);
   };
   const setO = (patch: Partial<OAuth2Config>) => set({ oauth2: { ...latest.current.oauth2, ...patch } });
+  const setAws = (patch: Partial<AwsSigV4Config>) => set({ aws: { ...latest.current.aws, ...patch } });
   const types = allowInherit ? TYPES : TYPES.filter((t) => t.id !== "inherit");
 
   return (
@@ -145,8 +148,9 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
         </Field>
       )}
 
-      {auth.type === "basic" && (
+      {(auth.type === "basic" || auth.type === "digest") && (
         <>
+          {auth.type === "digest" && <p className="text-13 text-muted">Yamlet sends the request, reads the server's Digest challenge, and sends it again signed. MD5 and SHA-256, with or without -sess, are supported.</p>}
           <Field label="Username">
             <VarInput label="Username" value={auth.username} onChange={(username) => set({ username })} variables={variables} />
           </Field>
@@ -177,6 +181,27 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
         <Field label="Cookie" hint="Sent as the Cookie header, e.g. session=abc; theme=light">
           <VarInput label="Cookie" value={auth.cookie} onChange={(cookie) => set({ cookie })} variables={variables} placeholder="name=value; other=value" />
         </Field>
+      )}
+
+      {auth.type === "awsv4" && (
+        <>
+          <p className="text-13 text-muted">Signed when sent, over the final URL, headers and body. Region and service default to what an amazonaws.com host names.</p>
+          <Field label="Access key">
+            <VarInput label="Access key" value={auth.aws.accessKey} onChange={(accessKey) => setAws({ accessKey })} variables={variables} placeholder="{{awsAccessKeyId}}" />
+          </Field>
+          <Field label="Secret key">
+            <VarInput label="Secret key" secret value={auth.aws.secretKey} onChange={(secretKey) => setAws({ secretKey })} variables={variables} placeholder="{{awsSecretAccessKey}}" />
+          </Field>
+          <Field label="Region">
+            <VarInput label="Region" value={auth.aws.region} onChange={(region) => setAws({ region })} variables={variables} placeholder="us-east-1" />
+          </Field>
+          <Field label="Service" hint="e.g. execute-api, s3, dynamodb, lambda">
+            <VarInput label="Service" value={auth.aws.service} onChange={(service) => setAws({ service })} variables={variables} placeholder="execute-api" />
+          </Field>
+          <Field label="Session token" hint="Only for temporary credentials.">
+            <VarInput label="Session token" secret value={auth.aws.sessionToken} onChange={(sessionToken) => setAws({ sessionToken })} variables={variables} />
+          </Field>
+        </>
       )}
 
       {auth.type === "oauth2" && <OAuth2Fields cfg={auth.oauth2} set={setO} variables={variables} collectionId={collectionId} requestVariables={requestVariables} />}

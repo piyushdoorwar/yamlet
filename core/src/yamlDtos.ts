@@ -266,6 +266,13 @@ function authType(raw: unknown): AuthType {
       return "bearer";
     case "basic":
       return "basic";
+    case "digest":
+      return "digest";
+    case "awsv4":
+    case "aws":
+    case "aws-sigv4":
+    case "awssigv4":
+      return "awsv4";
     case "apikey":
     case "api-key":
     case "api_key":
@@ -352,8 +359,18 @@ export function readAuth(raw: unknown, fallback: AuthType = "none"): Auth {
   const a = defaultAuth(type);
   const cred = (block: string, key: string) => credential(raw[block], key) ?? credential(raw.credentials, key) ?? str(raw[key]);
   a.token = cred("bearer", "token");
-  a.username = cred("basic", "username");
-  a.password = cred("basic", "password");
+  // Digest shares the username and password fields with basic.
+  const userBlock = type === "digest" && raw.digest !== undefined ? "digest" : "basic";
+  a.username = cred(userBlock, "username");
+  a.password = cred(userBlock, "password");
+  const aws = (key: string) => credential(raw.awsv4, key) ?? credential(raw.credentials, key) ?? str(raw[key]);
+  a.aws = {
+    accessKey: aws("accessKey"),
+    secretKey: aws("secretKey"),
+    sessionToken: aws("sessionToken"),
+    region: aws("region") || a.aws.region,
+    service: aws("service"),
+  };
   a.apiKeyName = credential(raw.apikey, "key") ?? (type === "apikey" ? credential(raw.credentials, "key") : undefined) ?? str(raw.key);
   a.apiKeyValue = credential(raw.apikey, "value") ?? (type === "apikey" ? credential(raw.credentials, "value") : undefined) ?? str(raw.value);
   a.apiKeyIn = (credential(raw.apikey, "in") ?? credential(raw.credentials, "in") ?? str(raw.in)).toLowerCase() === "query" ? "query" : "header";
@@ -395,6 +412,7 @@ const MODELED_CREDENTIALS = new Set(
     "accessTokenUrl", "tokenUrl", "access_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
     "clientSecret", "client_secret", "scope", "redirect_uri", "redirectUri", "redirect_url", "callbackUrl", "addTokenTo",
     "client_authentication", "clientAuthentication", "challengeAlgorithm",
+    "accessKey", "secretKey", "sessionToken", "region", "service",
   ].map((k) => k.toLowerCase()),
 );
 
@@ -421,8 +439,16 @@ export function writeAuth(a: Auth): Obj {
       put("token", a.token);
       break;
     case "basic":
+    case "digest":
       put("username", a.username);
       put("password", a.password);
+      break;
+    case "awsv4":
+      put("accessKey", a.aws.accessKey);
+      put("secretKey", a.aws.secretKey);
+      put("sessionToken", a.aws.sessionToken);
+      put("region", a.aws.region);
+      put("service", a.aws.service);
       break;
     case "apikey":
       put("key", a.apiKeyName);

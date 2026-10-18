@@ -74,8 +74,9 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   any custom verb. Query and `:path` params, headers, and bodies as JSON, XML, text, HTML,
   form-data (with files), urlencoded, GraphQL or binary. Per-request timeout, redirects
   and SSL settings. Paste a cURL command into the URL box to import it.
-- **Auth.** Bearer, Basic, API key, cookie, and OAuth 2.0 (client credentials, password,
-  or authorization code with PKCE), set per request or inherited from the collection.
+- **Auth.** Bearer, Basic, Digest, API key, cookie, AWS Signature v4, and OAuth 2.0
+  (client credentials, password, or authorization code with PKCE), set per request or
+  inherited from the collection.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
   `pm.response.json()` and more), with built-in snippets.
@@ -91,8 +92,9 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   one, extra CA certificates and client certificates per host. Kept in Yamlet's data folder.
 - **Collection runner.** Run a collection or folder with iterations, a delay, and a
   CSV or JSON data file. Results stream in live.
-- **Import.** cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), and v2.1 collection and
-  environment JSON exports.
+- **Import and export.** Import cURL, OpenAPI 3 / Swagger 2 (JSON or YAML), and v2.1
+  collection and environment JSON exports; export a collection or environment back to
+  that JSON.
 - **Code snippets.** cURL, raw HTTP, JavaScript fetch, Node axios, Python requests, Go,
   C#, Java, PHP, PowerShell and Ruby.
 - **Cookies and history.** A cookie jar shared across requests, and a per-workspace

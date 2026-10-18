@@ -10,6 +10,7 @@ import { FormData, request, type Dispatcher } from "undici";
 import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletRequest, type YamletResponse } from "./models.js";
+import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, getCachedToken } from "./oauth2.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, type BuiltRequest } from "./requestBuilder.js";
 import { runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
@@ -553,23 +554,50 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     response.requestBody = prepared.display;
     let ex: HttpExchange;
     let incomplete: string | undefined;
-    try {
-      ex = await exchange({
+    let headers = built.headers;
+    if (auth.type === "awsv4") {
+      const a = auth.aws;
+      const streamed = prepared.body instanceof FormData;
+      headers = [
+        ...headers.filter((h) => h.key.toLowerCase() !== "authorization"),
+        ...signAwsV4({
+          method: built.method,
+          url: built.url,
+          headers,
+          body: streamed ? undefined : (prepared.body as string | Buffer | undefined),
+          streamedBody: streamed,
+          aws: { accessKey: resolve(a.accessKey), secretKey: resolve(a.secretKey), sessionToken: resolve(a.sessionToken), region: resolve(a.region), service: resolve(a.service) },
+        }),
+      ];
+    }
+    const send = (extra: KeyValue[] = [], live = true) =>
+      exchange({
         url: built.url,
         method: built.method,
-        headers: built.headers,
+        headers: [...headers, ...extra],
         body: prepared.body,
         dispatcher,
         signal,
         followRedirects: settings.followRedirects !== false,
         jar: input.cookieJar,
-        onHead: input.onHead
+        onHead: input.onHead && live
           ? (status, headers, firstByteMs) =>
               input.onHead!({ statusCode: status, reasonPhrase: STATUS_CODES[status] ?? "", headers: toHeaderList(headers), contentType: headerValue(headers, "content-type") ?? "", firstByteMs: Math.round(firstByteMs) })
           : undefined,
-        onChunk: input.onChunk,
+        onChunk: live ? input.onChunk : undefined,
         maxBytes: input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES,
       });
+    try {
+      if (auth.type === "digest") {
+        // Ask first; answer the server's challenge with a second request.
+        const probe = await send([], false);
+        const challenge = probe.status === 401 ? parseDigestChallenge(headerValue(probe.headers, "www-authenticate")) : undefined;
+        if (challenge) {
+          const u = new URL(built.url);
+          const authorization = digestAuthorization(challenge, { username: resolve(auth.username), password: resolve(auth.password), method: built.method, uri: u.pathname + u.search });
+          ex = await send([{ key: "Authorization", value: authorization, enabled: true }]);
+        } else ex = probe;
+      } else ex = await send();
       if (ex.truncated) {
         const mb = Math.round(((input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES) / 1024 / 1024) * 10) / 10;
         incomplete = `The body is larger than ${mb} MB; only the first ${mb} MB were kept.`;
