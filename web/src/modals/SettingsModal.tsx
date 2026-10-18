@@ -186,7 +186,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               </section>
               <section>
                 <h3 className="text-13 font-medium text-ink">Client certificates</h3>
-                <p className="mt-0.5 mb-2 text-12 text-muted">Sent to hosts that ask for one (mutual TLS). Give a certificate and key, or a PFX file. Not used through a proxy.</p>
+                <p className="mt-0.5 mb-2 text-12 text-muted">Sent to hosts that ask for one (mutual TLS). Give a certificate and key, or a PFX file. These hosts are reached directly, not through a proxy.</p>
                 {net.clientCertificates.map((c, i) => (
                   <div key={i} className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-line p-3">
                     <label className="col-span-2 flex items-center gap-2">

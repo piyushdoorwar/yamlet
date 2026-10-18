@@ -280,6 +280,8 @@ interface HttpExchange {
   truncated?: boolean;
   /** Connection details of the final request. */
   trace: ExchangeTrace;
+  /** A Content-Encoding Yamlet can't decode (several codings, or an unknown one); the body is as received. */
+  undecoded?: string;
   sentHeaders: KeyValue[];
   firstByteMs: number;
   totalMs: number;
@@ -366,7 +368,7 @@ async function exchange(opts: {
       const next = new URL(location, url);
       if (next.host !== new URL(url).host && !opts.keepAuth) {
         // Credentials set for one host are not forwarded to another.
-        headers = headers.filter((h) => !["authorization", "cookie"].includes(h.key.toLowerCase()));
+        headers = headers.filter((h) => !["authorization", "cookie", "x-amz-security-token", "x-amz-date", "x-amz-content-sha256"].includes(h.key.toLowerCase()));
         explicitCookie = undefined;
       }
       if (res.statusCode === 303 || ((res.statusCode === 301 || res.statusCode === 302) && method === "POST" && !opts.keepMethod)) {
@@ -379,7 +381,9 @@ async function exchange(opts: {
     }
     opts.onHead?.(res.statusCode, res.headers, firstByteMs);
     const chunks: Buffer[] = [];
-    const decoder = decompressorFor(headerValue(res.headers, "content-encoding"));
+    const encoding = headerValue(res.headers, "content-encoding")?.trim();
+    const decoder = decompressorFor(encoding);
+    const undecoded = !decoder && !!encoding && !/^identity$/i.test(encoding) ? encoding : undefined;
     let encodedBytes = 0;
     let size = 0;
     let truncated = false;
@@ -394,6 +398,7 @@ async function exchange(opts: {
       bytes: Buffer.concat(chunks),
       ...(decoder ? { encodedBytes } : {}),
       ...(truncated ? { truncated } : {}),
+      ...(undecoded ? { undecoded } : {}),
       trace,
       sentHeaders: sent,
       firstByteMs,
@@ -415,6 +420,8 @@ async function exchange(opts: {
       // Leaving the loop early stops reading; let the connection go.
       if (truncated) res.body.destroy();
     } catch (e) {
+      // A failed decoder unpipes, but the byte counter would keep the socket reading.
+      res.body.destroy();
       throw new BodyInterrupted(result(), e);
     }
     return result();
@@ -494,13 +501,13 @@ function timingsOf(ex: HttpExchange): YamletResponse["timings"] {
 }
 
 /** pm.sendRequest backend: a plain exchange, no scripts. */
-async function scriptSend(spec: SendRequestSpec, input: ExecuteInput, dispatcher: Dispatcher | undefined): Promise<YamletResponse> {
+async function scriptSend(spec: SendRequestSpec, input: ExecuteInput, dispatcher: Dispatcher | undefined, signal: AbortSignal): Promise<YamletResponse> {
   const base = emptyResponse(spec.method, spec.url);
   try {
     const headers = spec.headers.some((h) => h.key.toLowerCase() === "user-agent")
       ? spec.headers
       : [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }, ...spec.headers];
-    const ex = await exchange({ url: spec.url, method: spec.method, headers, body: spec.body, dispatcher, signal: input.signal, followRedirects: true, jar: input.cookieJar });
+    const ex = await exchange({ url: spec.url, method: spec.method, headers, body: spec.body, dispatcher, signal, followRedirects: true, jar: input.cookieJar, maxBytes: input.maxResponseBytes ?? DEFAULT_MAX_RESPONSE_BYTES });
     const contentType = headerValue(ex.headers, "content-type") ?? "";
     const textual = isTextual(contentType, ex.bytes);
     return {
@@ -556,10 +563,15 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       iteration: input.iteration,
       iterationCount: input.iterationCount,
     },
-    sendRequest: (spec: SendRequestSpec) => scriptSend(spec, input, dispatcher),
+    sendRequest: (spec: SendRequestSpec) => scriptSend(spec, input, dispatcher, sendRequestSignal),
   };
   let oauthRefreshed: ExecuteResult["oauthRefreshed"];
+  // pm.sendRequest calls end with the send (or its timeout), even if a script stopped waiting.
+  const scriptRequests = new AbortController();
+  const scriptTimeoutMs = settings.timeoutMs > 0 ? settings.timeoutMs : input.defaultTimeoutMs ?? 0;
+  const sendRequestSignal = AbortSignal.any([scriptRequests.signal, ...(input.signal ? [input.signal] : []), ...(scriptTimeoutMs > 0 ? [AbortSignal.timeout(scriptTimeoutMs)] : [])]);
   const finish = (response: YamletResponse): ExecuteResult => {
+    scriptRequests.abort();
     const r = { ...response, testResults: tests, scriptLogs: logs };
     r.consoleText = consoleText(r);
     return {
@@ -701,7 +713,9 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       incomplete = timeoutSignal?.aborted ? `Timed out after ${timeoutMs} ms while receiving the body.` : `The connection closed before the body was complete: ${errMessage(e.reason)}`;
     }
     const contentType = headerValue(ex.headers, "content-type") ?? "";
-    const textual = isTextual(contentType, ex.bytes);
+    // Still-encoded bytes would show as garbage text; offer them as binary instead.
+    const textual = !ex.undecoded && isTextual(contentType, ex.bytes);
+    if (ex.undecoded) incomplete = `The body is still encoded with "${ex.undecoded}", which Yamlet can't decode; it is shown as received.`;
     response = {
       ...response,
       statusCode: ex.status,

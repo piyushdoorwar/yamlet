@@ -165,10 +165,14 @@ export function dispatcherFor(net: NetworkSettings = defaultNetworkSettings(), s
   const connect = connectorFor(net, { ...tls, ...h2 });
   let dispatcher: Dispatcher;
   const p = net.proxy;
+  // A tunnel can't present a client certificate, so hosts that have one connect directly.
+  const certHosts = net.clientCertificates.map((c) => c.host.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^\*\./, "."));
+  const bypass = (list: string | undefined) => [list ?? "", ...certHosts].map((x) => x.trim()).filter(Boolean).join(",");
   if (p.mode === "custom" && p.url) {
-    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, httpProxy: p.url, httpsProxy: p.url, noProxy: p.bypass, requestTls: tls, proxyTls: tls });
+    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, httpProxy: p.url, httpsProxy: p.url, noProxy: bypass(p.bypass), requestTls: tls, proxyTls: tls });
   } else if (p.mode === "system" && hasEnvProxy()) {
-    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, requestTls: tls, proxyTls: tls });
+    const envNoProxy = process.env.NO_PROXY ?? process.env.no_proxy;
+    dispatcher = new EnvHttpProxyAgent({ ...base, ...h2, connect, ...(certHosts.length ? { noProxy: bypass(envNoProxy) } : {}), requestTls: tls, proxyTls: tls });
   } else {
     dispatcher = new Agent({ ...base, ...h2, connect });
   }

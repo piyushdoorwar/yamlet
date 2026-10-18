@@ -132,4 +132,26 @@ describe("streamed responses", () => {
     expect(second.timings).toMatchObject({ reusedConnection: true });
     expect(second.timings.tcp).toBeUndefined();
   });
+
+  it("shows a body with codings it can't decode as binary, and lets a broken gzip stream go", async () => {
+    let closed = false;
+    handler = (res) => {
+      res.writeHead(200, { "content-type": "text/plain", "content-encoding": "gzip, br" });
+      res.end("still-encoded");
+    };
+    const multi = (await execute({ request: newRequest({ url: `${base}/multi` }), globals: [], workspaceRoot: os.tmpdir() })).response;
+    expect(multi.bodyEncoding).toBe("base64");
+    expect(multi.incomplete).toMatch(/still encoded with "gzip, br"/);
+
+    handler = (res) => {
+      res.on("close", () => (closed = true));
+      res.writeHead(200, { "content-type": "text/plain", "content-encoding": "gzip" });
+      res.write("not gzip at all");
+      // Keeps the connection open, as a stream would.
+    };
+    const broken = (await execute({ request: newRequest({ url: `${base}/broken` }), globals: [], workspaceRoot: os.tmpdir() })).response;
+    expect(broken.incomplete).toMatch(/connection closed before the body was complete/);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(closed).toBe(true);
+  });
 });

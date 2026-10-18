@@ -113,6 +113,12 @@ describe("URL encoding", () => {
     expect(encodeTypedQueryComponent("100%")).toBe("100%25");
   });
 
+  it("fully escapes the values of variables in params", () => {
+    const ctx = { environment: [{ key: "sig", value: "ab+c/d==", enabled: true }, { key: "pct", value: "100%25off", enabled: true }] };
+    const built = buildRequest(newRequest({ url: "https://x.test/s", queryParams: [{ key: "sig", value: "{{sig}}", enabled: true }, { key: "p", value: "x-{{pct}}+{{nope}}", enabled: true }] }), { ctx: ctx as never });
+    expect(built.url).toBe("https://x.test/s?sig=ab%2Bc%2Fd%3D%3D&p=x-100%2525off+%7B%7Bnope%7D%7D");
+  });
+
   it("fully escapes values it adds itself", () => {
     const req = newRequest({ url: "https://x.test", auth: { ...defaultAuth("apikey"), apiKeyName: "key", apiKeyValue: "a+b/c", apiKeyIn: "query" } });
     expect(buildRequest(req, { ctx: { scopes: [] } as never }).url).toBe("https://x.test?key=a%2Bb%2Fc");

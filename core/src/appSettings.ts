@@ -59,11 +59,12 @@ export class SettingsFile {
   private constructor(
     readonly filePath: string | undefined,
     private current: AppSettings,
+    private readonly defaults: AppSettings,
   ) {}
 
   /** Loads `<dataDir>/settings.json`; without a data folder settings live in memory. */
   static async open(dataDir: string | undefined, defaults: AppSettings = defaultAppSettings()): Promise<SettingsFile> {
-    if (!dataDir) return new SettingsFile(undefined, defaults);
+    if (!dataDir) return new SettingsFile(undefined, defaults, defaults);
     const filePath = path.join(dataDir, SETTINGS_FILE);
     let raw: unknown;
     try {
@@ -71,7 +72,7 @@ export class SettingsFile {
     } catch {
       raw = undefined;
     }
-    return new SettingsFile(filePath, normalizeSettings(raw, defaults));
+    return new SettingsFile(filePath, normalizeSettings(raw, defaults), defaults);
   }
 
   get(): AppSettings {
@@ -80,7 +81,7 @@ export class SettingsFile {
 
   /** Validates, stores and returns the cleaned settings. */
   async save(next: unknown): Promise<AppSettings> {
-    const clean = normalizeSettings(next);
+    const clean = normalizeSettings(next, this.defaults);
     validateSettings(clean);
     this.current = clean;
     if (this.filePath) {

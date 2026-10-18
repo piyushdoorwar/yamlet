@@ -38,6 +38,12 @@ describe("queryJson", () => {
     expect(queryJson(store, "$..book[?(@.author =~ /^H/)].title")).toEqual(["Moby"]);
   });
 
+  it("handles quotes in filters, reverse slices and inherited names", () => {
+    expect(queryJson([{ n: "a&&b" }, { n: "c" }], "$[?(@.n == 'a&&b')].n")).toEqual(["a&&b"]);
+    expect(queryJson([1, 2, 3], "$[5::-1]")).toEqual([3, 2, 1]);
+    expect(queryJson({ a: 1 }, "$.constructor")).toEqual([]);
+  });
+
   it("explains paths it can't read", () => {
     expect(() => queryJson(store, "store.book")).toThrow(JsonPathError);
     expect(() => queryJson(store, "$.store[book]")).toThrow(/Quote names/);

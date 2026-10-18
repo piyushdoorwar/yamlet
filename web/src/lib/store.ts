@@ -397,6 +397,9 @@ export const useStore = create<State>((set, get) => ({
           if (e.type === "head") {
             const { type: _, ...head } = e;
             live = { ...head, bytes: 0, text: "" };
+            // A retried request (e.g. after a token refresh) starts over.
+            sse = undefined;
+            events = undefined;
             if (isEventStream(head.contentType)) {
               sse = new SseParser();
               events = [];

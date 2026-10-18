@@ -32,7 +32,7 @@ function descendants(v: Json, out: Json[] = []): Json[] {
 function select(v: Json, s: Selector): Json[] {
   switch (s.kind) {
     case "name":
-      return isObj(v) ? s.names.filter((n) => n in v).map((n) => v[n]) : Array.isArray(v) && s.names.includes("length") ? [v.length] : [];
+      return isObj(v) ? s.names.filter((n) => Object.hasOwn(v, n)).map((n) => v[n]) : Array.isArray(v) && s.names.includes("length") ? [v.length] : [];
     case "index":
       if (!Array.isArray(v)) return [];
       return s.indexes.map((i) => (i < 0 ? v.length + i : i)).filter((i) => i >= 0 && i < v.length).map((i) => v[i]);
@@ -45,7 +45,7 @@ function select(v: Json, s: Selector): Json[] {
       const norm = (i: number) => (i < 0 ? Math.max(0, v.length + i) : Math.min(i, v.length));
       const out: Json[] = [];
       if (step > 0) for (let i = norm(s.start ?? 0); i < norm(s.end ?? v.length); i += step) out.push(v[i]);
-      else for (let i = s.start === undefined ? v.length - 1 : norm(s.start); i > (s.end === undefined ? -1 : norm(s.end)); i += step) out.push(v[i]);
+      else for (let i = s.start === undefined ? v.length - 1 : Math.min(norm(s.start), v.length - 1); i > (s.end === undefined ? -1 : norm(s.end)); i += step) out.push(v[i]);
       return out;
     }
     case "filter":
@@ -79,9 +79,29 @@ function literal(text: string): Json {
   }
 }
 
+/** Splits on `sep` outside quotes and regex literals. */
+function splitOutside(text: string, sep: string): string[] {
+  const parts: string[] = [];
+  let quote = "";
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === quote && text[i - 1] !== "\\") quote = "";
+    } else if (ch === "'" || ch === '"' || (ch === "/" && /=~\s*$/.test(text.slice(start, i)))) quote = ch;
+    else if (text.startsWith(sep, i)) {
+      parts.push(text.slice(start, i));
+      start = i + sep.length;
+      i += sep.length - 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
 function compileFilter(expr: string): (v: Json) => boolean {
-  const ors = expr.split("||").map((part) =>
-    part.split("&&").map((cond) => {
+  const ors = splitOutside(expr, "||").map((part) =>
+    splitOutside(part, "&&").map((cond) => {
       const m = /^\s*(@[^=!<>~]*?)\s*(==|!=|<=|>=|<|>|=~)\s*(.+?)\s*$/.exec(cond);
       if (!m) {
         const exists = cond.trim();

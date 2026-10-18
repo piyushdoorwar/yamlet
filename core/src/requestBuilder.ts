@@ -83,15 +83,33 @@ export function encodeTypedQueryComponent(s: string, isKey = false): string {
 }
 
 /**
+ * Encodes a param as typed, with each {{variable}} replaced by its value fully escaped:
+ * what the user wrote stays as written, but a token holding `+` or `%` arrives intact.
+ */
+export function encodeParamText(text: string | undefined, resolve: (s: string) => string, isKey = false): string {
+  const src = text ?? "";
+  let out = "";
+  let last = 0;
+  for (const m of src.matchAll(/\{\{[^{}]+\}\}/g)) {
+    out += encodeTypedQueryComponent(src.slice(last, m.index), isKey);
+    const value = resolve(m[0]);
+    // An unknown placeholder stays visible as typed.
+    out += value === m[0] ? encodeTypedQueryComponent(value, isKey) : encodeQueryComponent(value);
+    last = m.index! + m[0].length;
+  }
+  return out + encodeTypedQueryComponent(src.slice(last), isKey);
+}
+
+/**
  * Appends `key=value` pairs. Params the user typed are encoded leniently (`typed`);
  * values Yamlet fills in itself (API keys, tokens) are fully escaped.
  */
-export function appendQuery(url: string, pairs: { key: string; value: string }[], mode: "typed" | "strict" = "strict"): string {
+export function appendQuery(url: string, pairs: { key: string; value: string }[], mode: "typed" | "strict" | "encoded" = "strict"): string {
   if (!pairs.length) return url;
   const hashAt = url.indexOf("#");
   const base = hashAt >= 0 ? url.slice(0, hashAt) : url;
   const hash = hashAt >= 0 ? url.slice(hashAt) : "";
-  const enc = mode === "typed" ? encodeTypedQueryComponent : (v: string) => encodeQueryComponent(v);
+  const enc = mode === "encoded" ? (v: string) => v : mode === "typed" ? encodeTypedQueryComponent : (v: string) => encodeQueryComponent(v);
   const query = pairs.map((p) => `${enc(p.key, true)}=${enc(p.value)}`).join("&");
   const sep = base.includes("?") ? (base.endsWith("?") || base.endsWith("&") ? "" : "&") : "?";
   return base + sep + query + hash;
@@ -141,8 +159,8 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   );
   const query = (request.queryParams ?? [])
     .filter((p) => p.enabled !== false && p.key?.trim())
-    .map((p) => ({ key: r(p.key), value: r(p.value) }));
-  url = appendQuery(url, query, "typed");
+    .map((p) => ({ key: encodeParamText(p.key, r, true), value: encodeParamText(p.value, r) }));
+  url = appendQuery(url, query, "encoded");
 
   const headers: KeyValue[] = [{ key: "User-Agent", value: yamletUserAgent(), enabled: true }];
   for (const h of request.headers ?? []) {

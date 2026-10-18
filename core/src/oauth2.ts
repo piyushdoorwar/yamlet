@@ -275,6 +275,18 @@ export function refreshedTokenFor(cfg: OAuth2Config, resolve: Resolve): TokenRes
 /** Refreshes with the stored refresh token and remembers the result. */
 export async function refreshAndRemember(cfg: OAuth2Config, resolve: Resolve, opts?: OAuth2RequestOptions): Promise<TokenResponse> {
   const rt = resolve(cfg.refreshToken).trim();
+  // Sends that fail together share one refresh: a rotated refresh token works only once.
+  const key = refreshKey(cfg, resolve, rt);
+  const running = refreshing.get(key);
+  if (running) return running;
+  const p = doRefresh(cfg, resolve, rt, opts).finally(() => refreshing.delete(key));
+  refreshing.set(key, p);
+  return p;
+}
+
+const refreshing = new Map<string, Promise<TokenResponse>>();
+
+async function doRefresh(cfg: OAuth2Config, resolve: Resolve, rt: string, opts?: OAuth2RequestOptions): Promise<TokenResponse> {
   // A rotated refresh token is refreshed from its newest value.
   const latest = refreshed.get(refreshKey(cfg, resolve, rt));
   const token = await refreshAccessToken(latest?.refreshToken ? { ...cfg, refreshToken: latest.refreshToken } : cfg, resolve, opts);
