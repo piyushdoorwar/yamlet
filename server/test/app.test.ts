@@ -235,3 +235,18 @@ describe("oauth implicit grant", () => {
     expect(status).toEqual({ status: "done", token: { accessToken: "abc", tokenType: "Bearer", expiresIn: 3600 } });
   });
 });
+
+describe("import from a link", () => {
+  it("fetches the document and imports it", async () => {
+    await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
+    const spec = { openapi: "3.0.0", info: { title: "Pets", version: "1" }, paths: { "/pets": { get: { summary: "List pets" } } } };
+    agent.get("https://specs.test").intercept({ path: "/pets.json", method: "GET" }).reply(200, JSON.stringify(spec), { headers: { "content-type": "application/json" } });
+    const res = await app.inject({ method: "POST", url: "/api/import", headers: W(), payload: { text: "https://specs.test/pets.json" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().kind).toBe("collection");
+    agent.get("https://specs.test").intercept({ path: "/missing", method: "GET" }).reply(404, "nope");
+    const missing = await app.inject({ method: "POST", url: "/api/import", headers: W(), payload: { text: "https://specs.test/missing" } });
+    expect(missing.statusCode).toBe(502);
+    expect(missing.json().error).toContain("404");
+  });
+});

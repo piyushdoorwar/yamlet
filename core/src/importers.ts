@@ -28,7 +28,7 @@ const asObj = (v: unknown): Obj => (isObj(v) ? v : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "string" ? v : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-export type ImportFormat = "collection-v2" | "environment" | "openapi" | "curl" | "har" | "unknown";
+export type ImportFormat = "collection-v2" | "environment" | "openapi" | "curl" | "har" | "link" | "unknown";
 
 function parseStructured(text: string): unknown {
   const t = text.trim();
@@ -47,6 +47,8 @@ function parseStructured(text: string): unknown {
 export function detectImportFormat(text: string): ImportFormat {
   const t = text.trim();
   if (/^curl(\.exe)?\s/i.test(t)) return "curl";
+  // A bare link: the server fetches it and imports what it serves.
+  if (/^https?:\/\/\S+$/i.test(t)) return "link";
   const doc = parseStructured(t);
   if (!isObj(doc)) return "unknown";
   if (isObj(doc.log) && Array.isArray(doc.log.entries)) return "har";

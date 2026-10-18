@@ -15,6 +15,7 @@ const FORMAT_LABEL: Record<string, string> = {
   openapi: "OpenAPI / Swagger document",
   curl: "cURL command",
   har: "HAR (HTTP archive)",
+  link: "Link (fetched, then imported)",
   unknown: "Unrecognised format",
 };
 
@@ -69,7 +70,7 @@ export function ImportModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title="Import"
-      subtitle="Paste a cURL command, an OpenAPI or Swagger document (JSON or YAML), a HAR file from browser devtools, or a v2.1 collection or environment JSON export."
+      subtitle="Paste a cURL command, an OpenAPI or Swagger document (JSON or YAML), a HAR file from browser devtools, a v2.1 collection or environment JSON export, or a link to one of them."
       onClose={onClose}
       width={760}
       footer={

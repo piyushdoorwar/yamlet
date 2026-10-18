@@ -1,16 +1,55 @@
 import type { FastifyInstance } from "fastify";
+import { type Dispatcher, fetch } from "undici";
+import { yamletUserAgent } from "../../../core/src/models.js";
+import { errMessage } from "../../../core/src/requestExecutor.js";
 import { parseCurl } from "../../../core/src/curl.js";
 import { detectImportFormat, importCollectionV2, importEnvironmentJson, importHar, importOpenApi } from "../../../core/src/importers.js";
 import type { ImportBody, ImportResult } from "../../../shared/api.js";
 import type { Deps } from "../app.js";
 import { HttpError } from "../errors.js";
 
-export function importRoutes(app: FastifyInstance, { workspaces }: Deps): void {
+const MAX_LINK_BYTES = 20 * 1024 * 1024;
+
+/** Fetches an import from a link, with the app's network settings (proxy, certificates). */
+async function fetchLink(url: string, dispatcher: Dispatcher | undefined): Promise<{ text: string; fileName: string }> {
+  let res: Response;
+  try {
+    res = (await fetch(url, { headers: { accept: "application/json, application/yaml, text/yaml, */*", "user-agent": yamletUserAgent() }, dispatcher })) as unknown as Response;
+  } catch (err) {
+    throw new HttpError(502, `Could not fetch ${url}: ${errMessage(err)}`);
+  }
+  if (!res.ok) throw new HttpError(502, `Fetching ${url} answered ${res.status}.`);
+  if (Number(res.headers.get("content-length")) > MAX_LINK_BYTES) throw new HttpError(413, `${url} is larger than 20 MB.`);
+  const reader = res.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const part = await reader?.read();
+    if (!part || part.done) break;
+    size += part.value.length;
+    if (size > MAX_LINK_BYTES) {
+      await reader?.cancel();
+      throw new HttpError(413, `${url} is larger than 20 MB.`);
+    }
+    chunks.push(part.value);
+  }
+  const name = decodeURIComponent(new URL(res.url || url).pathname.split("/").pop() || "") || "import";
+  return { text: Buffer.concat(chunks).toString("utf8"), fileName: name };
+}
+
+export function importRoutes(app: FastifyInstance, { workspaces, dispatcher }: Deps): void {
   app.post<{ Body: ImportBody }>("/api/import", async (req): Promise<ImportResult> => {
     const { store } = await workspaces.fromHeaders(req.headers);
-    const text = req.body?.text ?? "";
+    let text = req.body?.text ?? "";
     if (!text.trim()) throw new HttpError(400, "Nothing to import");
-    const format = detectImportFormat(text);
+    let format = detectImportFormat(text);
+    if (format === "link") {
+      const fetched = await fetchLink(text.trim(), dispatcher());
+      text = fetched.text;
+      req.body.fileName = fetched.fileName;
+      format = detectImportFormat(text);
+      if (format === "link") format = "unknown";
+    }
     try {
       switch (format) {
         case "curl":
