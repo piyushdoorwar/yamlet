@@ -22,6 +22,7 @@ const RAW_TYPES: { id: BodyType; label: string; lang: EditorLanguage }[] = [
   { id: "text", label: "Text", lang: "text" },
   { id: "xml", label: "XML", lang: "xml" },
   { id: "html", label: "HTML", lang: "html" },
+  { id: "javascript", label: "JavaScript", lang: "javascript" },
   { id: "raw", label: "Raw", lang: "text" },
 ];
 

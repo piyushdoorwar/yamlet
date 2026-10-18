@@ -161,8 +161,10 @@ function v2Body(raw: unknown, headers: KeyValue[], req: YamletRequest): void {
             ? "xml"
             : lang === "html"
               ? "html"
-              : lang === "text" || lang === "javascript"
-                ? "text"
+              : lang === "javascript" || (!lang && ct.includes("javascript"))
+                ? "javascript"
+                : lang === "text"
+                  ? "text"
                 : "raw";
       break;
     }

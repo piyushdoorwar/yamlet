@@ -23,6 +23,8 @@ export interface ExchangeTrace {
   /** Set when a new connection was opened for this request. */
   connect?: { dns?: number; tcp?: number; tls?: number };
   network?: NetworkInfo;
+  /** Headers as written to the socket, including the ones undici adds (host, content-length, connection). */
+  wireHeaders?: { key: string; value: string }[];
 }
 
 const traces = new AsyncLocalStorage<ExchangeTrace>();
@@ -66,7 +68,21 @@ diagnostics.channel("undici:client:sendHeaders").subscribe((message) => {
   const trace = traces.getStore();
   const socket = (message as { socket?: Socket }).socket;
   if (trace && socket) trace.network = networkOf(socket);
+  const block = (message as { headers?: unknown }).headers;
+  if (trace && typeof block === "string") trace.wireHeaders = parseHeaderBlock(block);
 });
+
+/** Header lines from undici's raw block; the HTTP/1.1 request line is skipped. */
+export function parseHeaderBlock(block: string): { key: string; value: string }[] {
+  const out: { key: string; value: string }[] = [];
+  for (const line of block.split("\r\n")) {
+    if (!line || / HTTP\/\d(\.\d)?$/.test(line)) continue;
+    // Pseudo-headers (:method) start with a colon; the separator is the next one.
+    const sep = line.indexOf(":", line.startsWith(":") ? 1 : 0);
+    if (sep > 0) out.push({ key: line.slice(0, sep), value: line.slice(sep + 1).trim() });
+  }
+  return out;
+}
 
 interface TlsOptions {
   /** Offer h2 in ALPN (undici's default); false keeps connections on HTTP/1.1. */

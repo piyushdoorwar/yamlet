@@ -82,7 +82,7 @@ export interface Auth {
   aws: AwsSigV4Config;
 }
 
-export type BodyType = "none" | "raw" | "json" | "xml" | "text" | "html" | "form-data" | "urlencoded" | "graphql" | "binary";
+export type BodyType = "none" | "raw" | "json" | "xml" | "text" | "html" | "javascript" | "form-data" | "urlencoded" | "graphql" | "binary";
 
 export interface BodyField {
   key: string;

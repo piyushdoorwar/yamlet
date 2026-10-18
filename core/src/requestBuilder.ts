@@ -35,6 +35,7 @@ const DEFAULT_CONTENT_TYPES: Record<string, string> = {
   json: "application/json",
   xml: "application/xml",
   html: "text/html",
+  javascript: "application/javascript",
   graphql: "application/json",
 };
 
@@ -220,7 +221,8 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     case "json":
     case "xml":
     case "text":
-    case "html": {
+    case "html":
+    case "javascript": {
       if (b.raw) body = { kind: "text", text: r(b.raw), contentType: DEFAULT_CONTENT_TYPES[b.type] };
       break;
     }

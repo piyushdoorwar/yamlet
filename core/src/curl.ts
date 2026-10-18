@@ -323,6 +323,8 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
           ? "xml"
           : contentType.includes("html")
             ? "html"
+            : contentType.includes("javascript")
+              ? "javascript"
             : contentType.startsWith("text/")
               ? "text"
               : "raw";

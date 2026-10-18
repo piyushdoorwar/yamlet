@@ -315,6 +315,19 @@ function decompressorFor(encoding: string | undefined): Transform | undefined {
   }
 }
 
+/**
+ * The headers that went out on the socket, falling back to the ones handed to undici.
+ * HTTP/1.1 writes Content-Length after the diagnostics event, so it is added here.
+ */
+function wireHeaders(trace: ExchangeTrace, given: KeyValue[], body: string | Buffer | undefined): KeyValue[] {
+  if (!trace.wireHeaders?.length) return given;
+  const rows: KeyValue[] = trace.wireHeaders.map((h) => ({ ...h, enabled: true }));
+  if (body !== undefined && !rows.some((h) => h.key.toLowerCase() === "content-length")) {
+    rows.push({ key: "content-length", value: String(Buffer.byteLength(body)), enabled: true });
+  }
+  return rows;
+}
+
 /** One HTTP exchange including redirects (cookies are stored and re-sent on every hop). */
 async function exchange(opts: {
   url: string;
@@ -400,7 +413,7 @@ async function exchange(opts: {
       ...(truncated ? { truncated } : {}),
       ...(undecoded ? { undecoded } : {}),
       trace,
-      sentHeaders: sent,
+      sentHeaders: wireHeaders(trace, sent, body),
       firstByteMs,
       totalMs: performance.now() - start,
       redirects,

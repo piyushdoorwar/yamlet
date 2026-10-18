@@ -518,6 +518,9 @@ function bodyType(raw: unknown): BodyType {
       return "text";
     case "html":
       return "html";
+    case "javascript":
+    case "js":
+      return "javascript";
     case "graphql":
       return "graphql";
     case "form-data":
@@ -589,6 +592,7 @@ const BODY_TYPE_NAMES: Record<BodyType, string> = {
   xml: "xml",
   text: "text",
   html: "html",
+  javascript: "javascript",
   "form-data": "formdata",
   urlencoded: "urlencoded",
   graphql: "graphql",

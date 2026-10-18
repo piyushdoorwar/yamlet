@@ -46,6 +46,7 @@ function v2Body(r: YamletRequest): Obj | undefined {
     case "json":
     case "xml":
     case "html":
+    case "javascript":
     case "text":
     case "raw":
       return { mode: "raw", raw: b.raw, ...(b.type !== "raw" ? { options: { raw: { language: b.type } } } : {}) };

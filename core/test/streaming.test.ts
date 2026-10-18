@@ -155,3 +155,35 @@ describe("streamed responses", () => {
     expect(closed).toBe(true);
   });
 });
+
+describe("sent headers", () => {
+  let server: Server;
+  let base: string;
+
+  beforeEach(async () => {
+    server = createServer((req, res) => {
+      req.resume();
+      req.on("end", () => res.end("ok"));
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+  afterEach(async () => {
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  });
+
+  it("lists the headers written to the socket, including the ones the client adds", async () => {
+    const request = newRequest({ url: `${base}/echo`, method: "POST" });
+    request.headers = [{ key: "X-Trace", value: "1", enabled: true }];
+    request.body.type = "json";
+    request.body.raw = '{"a":"é"}';
+    const { response } = await execute({ request, globals: [], workspaceRoot: os.tmpdir() });
+    const sent = Object.fromEntries(response.requestHeaders.map((h) => [h.key.toLowerCase(), h.value]));
+    expect(sent.host).toBe(base.slice("http://".length));
+    expect(sent["x-trace"]).toBe("1");
+    expect(sent["content-type"]).toBe("application/json");
+    expect(sent["content-length"]).toBe("10");
+    expect(sent.connection).toBe("keep-alive");
+  });
+});
