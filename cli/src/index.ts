@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { parseDataFile, runCollection, type RunRequestResult, type RunSummary } from "../../core/src/collectionRunner.js";
 import { CookieJar } from "../../core/src/cookieJar.js";
-import { setYamletVersion, type YamletEnvironment, type YamletWorkspace } from "../../core/src/models.js";
+import { defaultNetworkSettings, newEnvironment, setYamletVersion, type Variable, type YamletEnvironment, type YamletFolder, type YamletWorkspace } from "../../core/src/models.js";
 import { WorkspaceStore } from "../../core/src/workspaceStore.js";
 import { environmentFromYaml, globalsFromYaml } from "../../core/src/yamlDtos.js";
 
@@ -25,6 +25,12 @@ export interface RunArgs {
   reporter: "table" | "json" | "junit";
   out?: string;
   color: boolean;
+  folder?: string;
+  timeoutMs?: number;
+  insecure: boolean;
+  envVars: [string, string][];
+  globalVars: [string, string][];
+  caFiles: string[];
 }
 
 const USAGE = `Yamlet CLI: run Yamlet API collections headlessly.
@@ -41,15 +47,24 @@ Options:
                             path to an environment YAML file.
   -g, --globals <file>      Use these globals instead of the workspace's.
   -c, --collection <name>   Only run this collection (repeatable).
+  -f, --folder <name>       Only run this folder (inside the chosen collections).
   -n, --iterations <n>      Run everything n times (default 1).
   -d, --data <file>         CSV or JSON data file; one iteration per row.
       --delay <ms>          Wait between requests.
       --bail                Stop after the first failing request.
+      --env-var <key=value> Set an environment variable (repeatable).
+      --global-var <key=value>
+                            Set a global variable (repeatable).
+      --timeout <ms>        Abandon a request after this long (default: none).
+  -k, --insecure            Don't verify SSL certificates.
+      --ca <file>           Also trust this CA certificate (PEM; repeatable).
   -r, --reporter <name>     table (default), json, or junit.
   -o, --out <file>          Write the json/junit report to a file instead of stdout.
       --no-color            Disable ANSI colors (also honors NO_COLOR).
   -h, --help                Show this help.
   -v, --version             Show the version.
+
+HTTP_PROXY, HTTPS_PROXY and NO_PROXY are honored.
 
 A request fails on a network error, a status outside 2xx/3xx, or a failed
 pm.test assertion. The exit code is 1 if anything failed, else 0.
@@ -58,7 +73,7 @@ Example:
   yamlet run ./my-workspace --env dev --reporter junit --out results.xml`;
 
 export function parseArgs(argv: string[]): RunArgs {
-  const args: RunArgs = { workspace: "", collections: [], delayMs: 0, bail: false, reporter: "table", color: !process.env.NO_COLOR };
+  const args: RunArgs = { workspace: "", collections: [], delayMs: 0, bail: false, reporter: "table", color: !process.env.NO_COLOR, insecure: false, envVars: [], globalVars: [], caFiles: [] };
   const value = (i: number, flag: string) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("-")) throw new CliError(`Option '${flag}' requires a value.`);
@@ -69,9 +84,34 @@ export function parseArgs(argv: string[]): RunArgs {
     if (!Number.isInteger(n) || n < min) throw new CliError(`Option '${flag}' needs a whole number of at least ${min}.`);
     return n;
   };
+  const pair = (raw: string, flag: string): [string, string] => {
+    const eq = raw.indexOf("=");
+    if (eq <= 0) throw new CliError(`Option '${flag}' needs key=value.`);
+    return [raw.slice(0, eq), raw.slice(eq + 1)];
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
+      case "-f":
+      case "--folder":
+        args.folder = value(i++, a);
+        break;
+      case "--timeout":
+        args.timeoutMs = int(value(i++, a), a, 0);
+        break;
+      case "-k":
+      case "--insecure":
+        args.insecure = true;
+        break;
+      case "--env-var":
+        args.envVars.push(pair(value(i++, a), a));
+        break;
+      case "--global-var":
+        args.globalVars.push(pair(value(i++, a), a));
+        break;
+      case "--ca":
+        args.caFiles.push(value(i++, a));
+        break;
       case "-e":
       case "--env":
         args.env = value(i++, a);
@@ -242,6 +282,17 @@ export function formatJson(summary: RunSummary): string {
   return JSON.stringify(rest, null, 2);
 }
 
+/** Variables with command-line values replacing (or added after) the file's. */
+function withOverrides(list: Variable[], pairs: [string, string][]): Variable[] {
+  const out = list.map((v) => ({ ...v }));
+  for (const [key, value] of pairs) {
+    const hit = out.find((v) => v.key === key);
+    if (hit) Object.assign(hit, { value, enabled: true });
+    else out.push({ key, value, enabled: true });
+  }
+  return out;
+}
+
 // ---- main -----------------------------------------------------------------
 
 export async function run(args: RunArgs): Promise<number> {
@@ -257,7 +308,10 @@ export async function run(args: RunArgs): Promise<number> {
     if (!existsSync(path)) throw new CliError(`Globals file not found: ${path}`);
     globals = globalsFromYaml(readFileSync(path, "utf8"));
   }
-  const environment = resolveEnvironment(ws, args.env);
+  let environment = resolveEnvironment(ws, args.env);
+  if (args.envVars.length) environment = { ...(environment ?? newEnvironment({ name: "(command line)" })), variables: withOverrides(environment?.variables ?? [], args.envVars) };
+  if (args.globalVars.length) globals = withOverrides(globals, args.globalVars);
+  for (const f of args.caFiles) if (!existsSync(resolve(f))) throw new CliError(`CA certificate not found: ${resolve(f)}`);
 
   let collectionIds: string[] | undefined;
   if (args.collections.length) {
@@ -266,6 +320,23 @@ export async function run(args: RunArgs): Promise<number> {
       if (!c) throw new CliError(`Collection '${name}' not found. Available: ${ws.collections.map((x) => x.name).join(", ") || "none"}.`);
       return c.id;
     });
+  }
+
+  let folderId: string | undefined;
+  if (args.folder) {
+    const name = args.folder.toLowerCase();
+    const search = (folders: YamletFolder[]): YamletFolder | undefined => {
+      for (const f of folders) {
+        if (f.name.toLowerCase() === name) return f;
+        const hit = search(f.folders);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    const scope = ws.collections.filter((x) => !collectionIds || collectionIds.includes(x.id));
+    const hit = scope.map((x) => search(x.folders)).find(Boolean);
+    if (!hit) throw new CliError(`Folder '${args.folder}' not found${collectionIds ? " in the chosen collections" : ""}.`);
+    folderId = hit.id;
   }
 
   let data: Record<string, string>[] | undefined;
@@ -293,8 +364,11 @@ export async function run(args: RunArgs): Promise<number> {
     workspace: ws,
     workspaceRoot: ws.rootPath,
     collectionIds,
+    folderId,
     environment,
     globals,
+    defaultTimeoutMs: args.timeoutMs,
+    network: { ...defaultNetworkSettings(), verifySsl: !args.insecure, caCertificatePaths: args.caFiles.map((f) => resolve(f)) },
     iterations: args.iterations,
     data,
     delayMs: args.delayMs,
