@@ -421,6 +421,23 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(h(side, "x-a")).toBe("1");
     expect(h(seen.find((s) => s.origin === "https://api.test")!, "x-v")).toBe("9");
   });
+
+  it("sends pm.sendRequest form-data bodies as multipart", async () => {
+    route("https://side.test");
+    route("https://api.test");
+    await send({
+      request: newRequest({
+        url: "https://api.test/x",
+        variables: [{ key: "who", value: "ann", enabled: true }],
+        preRequestScript: "await pm.sendRequest({ url: 'https://side.test/f', method: 'POST', body: { mode: 'formdata', formdata: [{ key: 'name', value: '{{who}}' }, { key: 'off', value: 'x', disabled: true }] } });",
+      }),
+    });
+    const side = seen.find((s) => s.origin === "https://side.test")!;
+    expect(h(side, "content-type")).toMatch(/^multipart\/form-data; boundary=/);
+    const body = Buffer.from(side.body as unknown as Uint8Array).toString();
+    expect(body).toContain('name="name"\r\n\r\nann\r\n');
+    expect(body).not.toContain("off");
+  });
 });
 
 describe("transport error messages", () => {

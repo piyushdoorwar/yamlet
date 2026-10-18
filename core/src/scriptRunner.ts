@@ -10,6 +10,7 @@ import CryptoJS from "crypto-js";
 import _ from "lodash";
 import type { KeyValue, ScriptTestResult, Variable, YamletRequest, YamletResponse } from "./models.js";
 import type { CookieJar } from "./cookieJar.js";
+import { encodeMultipart } from "./multipart.js";
 import { appendQuery, withScheme } from "./requestBuilder.js";
 import { lookupVariable, mergedVariables, resolveVariables, type VariableContext } from "./variableResolver.js";
 
@@ -134,7 +135,7 @@ export interface SendRequestSpec {
   url: string;
   method: string;
   headers: KeyValue[];
-  body?: string;
+  body?: string | Buffer;
 }
 
 export interface ScriptInfo {
@@ -564,7 +565,8 @@ function scopeApi(vars: ScriptVariables, scope: ScriptScope, ctxForReplace: () =
   };
 }
 
-function normalizeSendSpec(input: unknown): SendRequestSpec {
+/** The spec as given; text is resolved later, except form parts, which are resolved here before encoding. */
+function normalizeSendSpec(input: unknown, resolve: (s: string) => string): SendRequestSpec {
   if (typeof input === "string") return { url: input, method: "GET", headers: [] };
   const o = (input ?? {}) as Record<string, unknown>;
   const url = typeof o.url === "string" ? o.url : String((o.url as { toString?: () => string })?.toString?.() ?? "");
@@ -576,12 +578,19 @@ function normalizeSendSpec(input: unknown): SendRequestSpec {
   } else if (rawHeaders && typeof rawHeaders === "object") {
     for (const [k, v] of Object.entries(rawHeaders)) headers.push({ key: k, value: String(v), enabled: true });
   }
-  let body: string | undefined;
+  let body: string | Buffer | undefined;
   const b = o.body;
   if (typeof b === "string") body = b;
   else if (b && typeof b === "object") {
-    const bo = b as { mode?: string; raw?: unknown; urlencoded?: { key: string; value?: unknown }[] };
-    if (bo.mode === "urlencoded" && Array.isArray(bo.urlencoded)) {
+    const bo = b as { mode?: string; raw?: unknown; urlencoded?: { key: string; value?: unknown }[]; formdata?: { key: string; value?: unknown; type?: string; contentType?: string; disabled?: boolean }[] };
+    if (bo.mode === "formdata" && Array.isArray(bo.formdata)) {
+      // Text parts only: a script has no file picker, and files would need the workspace.
+      const parts = bo.formdata.filter((f) => !f.disabled && f.type !== "file").map((f) => ({ key: resolve(String(f.key)), value: resolve(String(f.value ?? "")), ...(f.contentType ? { contentType: String(f.contentType) } : {}) }));
+      const encoded = encodeMultipart(parts);
+      body = encoded.body;
+      headers.splice(0, headers.length, ...headers.filter((h) => h.key.toLowerCase() !== "content-type"));
+      headers.push({ key: "Content-Type", value: encoded.contentType, enabled: true });
+    } else if (bo.mode === "urlencoded" && Array.isArray(bo.urlencoded)) {
       body = new URLSearchParams(bo.urlencoded.map((f) => [String(f.key), String(f.value ?? "")])).toString();
       if (!headers.some((h) => h.key.toLowerCase() === "content-type"))
         headers.push({ key: "Content-Type", value: "application/x-www-form-urlencoded", enabled: true });
@@ -667,13 +676,13 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
   const sendRequest = (spec: unknown, cb?: (err: unknown, res: unknown) => void) => {
     const p = (async () => {
       if (!opts.sendRequest) throw new Error("pm.sendRequest is not available here");
-      const s = normalizeSendSpec(spec);
       const resolve = (t: string) => resolveVariables(t, ctxForReplace());
+      const s = normalizeSendSpec(spec, resolve);
       const res = await opts.sendRequest({
         url: resolve(s.url),
         method: s.method,
         headers: s.headers.map((h) => ({ ...h, key: resolve(h.key), value: resolve(h.value) })),
-        body: s.body === undefined ? undefined : resolve(s.body),
+        body: typeof s.body === "string" ? resolve(s.body) : s.body,
       });
       if (res.isError) throw new Error(res.errorMessage ?? "Request failed");
       return responseFacade(res);

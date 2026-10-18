@@ -6,18 +6,19 @@ import { MethodLabel } from "../components/Labels";
 import { useMenu } from "../components/Menu";
 import { type Tab, tabKey, useStore } from "../lib/store";
 import { findFolder, findRequest } from "../lib/tree";
+import { useActions } from "../lib/useActions";
 import { QuickLook } from "./QuickLook";
 
 const NONE: never[] = [];
 
-function useTabLabel(tab: Tab): { label: string; icon: React.ReactNode; saving?: boolean } {
+function useTabLabel(tab: Tab): { label: string; icon: React.ReactNode; saving?: boolean; saveFailed?: boolean } {
   const workspace = useStore((s) => s.workspace);
   const draft = useStore((s) => (tab.kind === "request" ? s.drafts[tab.id] : undefined));
   const saveState = useStore((s) => (tab.kind === "request" ? s.saveState[tab.id] : undefined));
   switch (tab.kind) {
     case "request": {
       const r = draft ?? findRequest(workspace, tab.id)?.request;
-      return { label: r?.name ?? "Request", icon: <MethodLabel method={r?.method ?? "GET"} short />, saving: saveState === "saving" };
+      return { label: r?.name ?? "Request", icon: <MethodLabel method={r?.method ?? "GET"} short />, saving: saveState === "saving", saveFailed: saveState === "error" };
     }
     case "collection":
       return { label: workspace?.collections.find((c) => c.id === tab.id)?.name ?? "Collection", icon: <Layers size={14} aria-hidden /> };
@@ -44,7 +45,8 @@ function TabItem({ tab, index, menu }: { tab: Tab; index: number; menu: ReturnTy
   const closeRight = useStore((s) => s.closeTabsToRight);
   const closeAll = useStore((s) => s.closeAllTabs);
   const moveTab = useStore((s) => s.moveTab);
-  const { label, icon, saving } = useTabLabel(tab);
+  const { label, icon, saving, saveFailed } = useTabLabel(tab);
+  const actions = useActions();
   return (
     <div
       role="tab"
@@ -63,6 +65,7 @@ function TabItem({ tab, index, menu }: { tab: Tab; index: number; menu: ReturnTy
       onAuxClick={(e) => e.button === 1 && closeTab(key)}
       onContextMenu={(e) =>
         menu.openAt(e, [
+          ...(tab.kind === "request" ? [{ label: "Duplicate", onSelect: () => void actions.duplicateRequest(tab.id) }, "separator" as const] : []),
           { label: "Close", onSelect: () => closeTab(key), hint: "Alt W" },
           { label: "Close other tabs", onSelect: () => closeOthers(key) },
           { label: "Close tabs to the right", onSelect: () => closeRight(key) },
@@ -70,7 +73,7 @@ function TabItem({ tab, index, menu }: { tab: Tab; index: number; menu: ReturnTy
           { label: "Close all tabs", onSelect: () => closeAll() },
         ])
       }
-      title={label}
+      title={saveFailed ? `${label}: changes not saved to disk` : label}
       className={clsx(
         "group relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-2 border-r border-line-soft px-3 text-13",
         active ? "bg-canvas text-ink" : "bg-surface text-grey hover:bg-subtle hover:text-ink",
@@ -81,6 +84,7 @@ function TabItem({ tab, index, menu }: { tab: Tab; index: number; menu: ReturnTy
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         {saving && <span className="absolute h-1.5 w-1.5 rounded-full bg-primary group-hover:hidden" aria-label="Saving" />}
+        {saveFailed && !saving && <span className="absolute h-2 w-2 rounded-full bg-danger group-hover:hidden" aria-label="Not saved" />}
         <button
           type="button"
           aria-label={`Close ${label}`}

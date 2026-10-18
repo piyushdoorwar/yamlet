@@ -1,6 +1,5 @@
 // Sends a request over HTTP: scripts, variable resolution, auth (incl. OAuth2 token
 // fetch), cookies, redirects, timeouts. Never throws; failures become error responses.
-import { randomBytes } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import { STATUS_CODES } from "node:http";
 import path from "node:path";
@@ -13,6 +12,7 @@ import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletFolder, type YamletRequest, type YamletResponse } from "./models.js";
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
+import { encodeMultipart } from "./multipart.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, mimeForFile, type BuiltRequest } from "./requestBuilder.js";
 import { type ExecutionControl, runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
 import { resolveVariables } from "./variableResolver.js";
@@ -204,23 +204,6 @@ interface PreparedBody {
   display?: string;
   /** Set for multipart bodies: the Content-Type with its boundary. */
   contentType?: string;
-}
-
-/** Quotes a multipart parameter (RFC 7578: escape quotes and line breaks). */
-const partParam = (s: string) => s.replace(/"/g, "%22").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-
-/** A multipart/form-data body: text parts may carry a Content-Type, files are typed by name. */
-export function encodeMultipart(parts: { key: string; value: string | Buffer; fileName?: string; contentType?: string }[], boundary = `----YamletBoundary${randomBytes(12).toString("hex")}`): { body: Buffer; contentType: string } {
-  const chunks: Buffer[] = [];
-  for (const p of parts) {
-    let head = `--${boundary}\r\nContent-Disposition: form-data; name="${partParam(p.key)}"`;
-    if (p.fileName !== undefined) head += `; filename="${partParam(p.fileName)}"`;
-    head += "\r\n";
-    if (p.contentType) head += `Content-Type: ${p.contentType}\r\n`;
-    chunks.push(Buffer.from(`${head}\r\n`), Buffer.isBuffer(p.value) ? p.value : Buffer.from(p.value), Buffer.from("\r\n"));
-  }
-  chunks.push(Buffer.from(`--${boundary}--\r\n`));
-  return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
 async function prepareBody(built: BuiltRequest, workspaceRoot: string, requestFile?: string): Promise<PreparedBody> {
@@ -521,7 +504,7 @@ async function scriptSend(spec: SendRequestSpec, input: ExecuteInput, dispatcher
       durationMs: Math.round(ex.totalMs),
       sizeBytes: ex.bytes.length,
       requestHeaders: ex.sentHeaders,
-      requestBody: spec.body,
+      requestBody: typeof spec.body === "string" ? spec.body : spec.body?.toString("utf8"),
       headers: toHeaderList(ex.headers),
       cookies: cookiesOf(spec.url, ex.headers),
       body: textual ? decodeText(ex.bytes, contentType) : ex.bytes.toString("base64"),
