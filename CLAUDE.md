@@ -72,17 +72,21 @@ core/src/     UI-free engine (TypeScript, NodeNext: relative imports end in .js)
   scriptRunner.ts      pre/post scripts in node:vm with the `pm` API
   oauth2.ts            token endpoint calls, PKCE, authorization URL
   requestExecutor.ts   execute(): scripts, build, auth, send via undici, response
+  multipart.ts         multipart/form-data encoding (request bodies, pm.sendRequest)
   collectionRunner.ts  runCollection(): iterations, data files, bail, live results
+  runReports.ts        JUnit XML / JSON run reports (CLI and Runner view)          (isomorphic)
   browser.ts           re-exports only the isomorphic modules
 server/src/   Fastify app: app.ts (wiring), security.ts, context.ts (open workspaces,
               cookie jars), routes/*.ts (one file per area)
 shared/api.ts JSON request/response shapes shared by server and web
 web/src/      React 19 + Vite 7 + Tailwind 4 UI
   lib/         api.ts (fetch client), store.ts (zustand app state), ui.ts (modals,
-               sidebar), actions.tsx (tree actions), variables.ts, urlSync.ts, tree.ts
+               sidebar), actions.tsx (tree actions), variables.ts, urlSync.ts, tree.ts,
+               responseCache.ts (last response per request in IndexedDB, restored on reload)
   components/  Button, Modal, Dialogs (confirm/prompt), Toast, Menu, Tabs,
                KeyValueTable, AuthEditor, FolderBrowser, FileChooser, Page, Labels
-  editor/      CodeEditor (CodeMirror 6) with {{variable}} highlight/peek/autocomplete
+  editor/      CodeEditor (CodeMirror 6) with {{variable}} highlight/peek/autocomplete;
+               graphqlMode.ts (loaded on demand: GraphQL syntax, schema fetch, completion)
   sidebar/     Sidebar, CollectionsTree, EnvironmentsList, HistoryList
   views/       Workbench, TopBar, TabContent, request/*, CollectionView, FolderView,
                EnvironmentView (+ Globals), RunnerView, WelcomeView, EmptyTabs, StatusBar
