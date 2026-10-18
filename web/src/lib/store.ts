@@ -95,6 +95,8 @@ interface State {
   closeOtherTabs: (key: string) => void;
   closeTabsToRight: (key: string) => void;
   closeAllTabs: () => void;
+  /** Opens the most recently closed tab that still exists. */
+  reopenClosedTab: () => void;
   setActive: (key: string) => void;
   moveTab: (from: number, to: number) => void;
 
@@ -119,6 +121,12 @@ const savesInFlight = new Map<string, Promise<void>>();
 // Requests whose last save failed; their drafts are kept until a save succeeds.
 const unsaved = new Set<string>();
 const inflight = new Map<string, AbortController>();
+// Recently closed tabs, newest last, for "reopen closed tab".
+const closedTabs: Tab[] = [];
+function rememberClosed(tabs: Tab[]) {
+  closedTabs.push(...tabs);
+  closedTabs.splice(0, Math.max(0, closedTabs.length - 25));
+}
 
 function persistSession(s: Pick<State, "workspace" | "tabs" | "active" | "environmentId">) {
   if (!s.workspace) return;
@@ -253,6 +261,7 @@ export const useStore = create<State>((set, get) => ({
     const idx = s.tabs.findIndex((t) => tabKey(t) === key);
     if (idx < 0) return;
     const closing = s.tabs[idx];
+    rememberClosed([closing]);
     if (closing.kind === "request") void get().saveNow(closing.id);
     const tabs = s.tabs.filter((_, i) => i !== idx);
     const active = s.active === key ? (tabs[Math.min(idx, tabs.length - 1)] ? tabKey(tabs[Math.min(idx, tabs.length - 1)]) : null) : s.active;
@@ -262,6 +271,7 @@ export const useStore = create<State>((set, get) => ({
 
   closeOtherTabs: (key) => {
     const s = get();
+    rememberClosed(s.tabs.filter((t) => tabKey(t) !== key));
     for (const t of s.tabs) if (t.kind === "request" && tabKey(t) !== key) void get().saveNow(t.id);
     set({ tabs: s.tabs.filter((t) => tabKey(t) === key), active: key });
     persistSession({ ...get() });
@@ -272,6 +282,7 @@ export const useStore = create<State>((set, get) => ({
     const idx = s.tabs.findIndex((t) => tabKey(t) === key);
     if (idx < 0) return;
     const closing = s.tabs.slice(idx + 1);
+    rememberClosed(closing);
     for (const t of closing) if (t.kind === "request") void get().saveNow(t.id);
     const tabs = s.tabs.slice(0, idx + 1);
     set({ tabs, active: tabs.some((t) => tabKey(t) === s.active) ? s.active : key });
@@ -279,9 +290,18 @@ export const useStore = create<State>((set, get) => ({
   },
 
   closeAllTabs: () => {
+    rememberClosed(get().tabs);
     for (const t of get().tabs) if (t.kind === "request") void get().saveNow(t.id);
     set({ tabs: [], active: null });
     persistSession({ ...get() });
+  },
+
+  reopenClosedTab: () => {
+    const ws = get().workspace;
+    while (closedTabs.length) {
+      const tab = closedTabs.pop()!;
+      if (ws && tabExists(ws, tab)) return get().openTab(tab);
+    }
   },
 
   setActive: (key) => {

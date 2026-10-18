@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { AboutModal } from "../modals/AboutModal";
 import { CookiesModal } from "../modals/CookiesModal";
@@ -10,6 +10,8 @@ import { ShortcutsModal } from "../modals/ShortcutsModal";
 import { SnippetModal } from "../modals/SnippetModal";
 import { useConsole } from "../lib/consoleLog";
 import { tabKey, useStore } from "../lib/store";
+import { findFolder, findRequest } from "../lib/tree";
+import { useActions } from "../lib/useActions";
 import { useUi } from "../lib/ui";
 import { Sidebar } from "../sidebar/Sidebar";
 import { ConsolePanel } from "./ConsolePanel";
@@ -18,6 +20,12 @@ import { TabContent } from "./TabContent";
 import { TopBar } from "./TopBar";
 
 function useShortcuts() {
+  const actions = useActions();
+  // The keydown handler is installed once; it reads the latest actions through refs.
+  const newRequestRef = useRef(actions.newRequest);
+  const newCollectionRef = useRef(actions.newCollection);
+  newRequestRef.current = actions.newRequest;
+  newCollectionRef.current = actions.newCollection;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
@@ -35,6 +43,20 @@ function useShortcuts() {
           e.preventDefault();
           void s.send(activeTab.id);
         }
+      } else if (e.altKey && e.shiftKey && e.code === "KeyT") {
+        e.preventDefault();
+        s.reopenClosedTab();
+      } else if (e.altKey && !e.shiftKey && e.code === "KeyN") {
+        // A new request beside the active one, or in the first collection.
+        e.preventDefault();
+        const loc = activeTab?.kind === "request" ? findRequest(s.workspace, activeTab.id) : undefined;
+        const collectionId =
+          loc?.collection.id ??
+          (activeTab?.kind === "collection" ? activeTab.id : activeTab?.kind === "folder" ? findFolder(s.workspace, activeTab.id)?.collection.id : undefined) ??
+          s.workspace?.collections[0]?.id;
+        const folderId = loc ? (loc.folders.at(-1)?.id ?? null) : activeTab?.kind === "folder" ? activeTab.id : null;
+        if (collectionId) void newRequestRef.current?.(collectionId, folderId);
+        else void newCollectionRef.current?.();
       } else if (e.altKey && e.key.toLowerCase() === "w") {
         e.preventDefault();
         if (s.active) s.closeTab(s.active);

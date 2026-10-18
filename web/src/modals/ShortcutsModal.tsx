@@ -10,6 +10,8 @@ const SHORTCUTS: [string, string][] = [
   ["Fold / unfold JSON", "Ctrl Shift [ / ]"],
   ["Insert a variable", "Type {{"],
   ["Insert a dynamic variable", "Type {{$"],
+  ["New request", "Alt N"],
+  ["Reopen closed tab", "Alt Shift T"],
   ["Show or hide the console", "Ctrl Alt C"],
   ["Settings", "Ctrl ,"],
   ["Keyboard shortcuts", "Ctrl /"],
