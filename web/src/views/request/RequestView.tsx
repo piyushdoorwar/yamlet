@@ -58,6 +58,7 @@ export function RequestView({ requestId }: { requestId: string }) {
   const actions = useActions();
   const loc = useMemo(() => findRequest(workspace, requestId), [workspace, requestId]);
   const request = draft ?? loc?.request;
+  useEffect(() => void useStore.getState().restoreResponse(requestId), [requestId]);
   const ctx = useVariableContext(loc?.collection.id, request?.variables);
   const update = useCallback((fn: (r: YamletRequest) => YamletRequest) => updateDraft(requestId, fn), [updateDraft, requestId]);
   const writeRequestVariable = useCallback(

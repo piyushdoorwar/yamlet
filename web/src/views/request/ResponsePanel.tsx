@@ -1,7 +1,7 @@
 import { newId, type YamletRequest, type YamletResponse } from "@core/models";
 import { isEventStream, parseEventStream } from "@core/sse";
 import clsx from "clsx";
-import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Filter, Loader2, MoreHorizontal, Send, WrapText } from "lucide-react";
+import { BookmarkPlus, CircleAlert, CircleCheck, CircleX, Copy, CornerDownRight, Download, Filter, History, Loader2, MoreHorizontal, Send, WrapText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { IconButton } from "../../components/Button";
 import { useDialogs } from "../../components/Dialogs";
@@ -201,6 +201,12 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
             <TimeBreakdown r={r} />
             <SizeBreakdown r={r} />
             <NetworkBadge r={r} />
+            {state.restoredAt && (
+              <span className="flex items-center gap-1 text-muted" title={`Received ${new Date(state.restoredAt).toLocaleString()}, before the page was reloaded. Send again for a fresh response.`}>
+                <History size={13} aria-hidden />
+                Last session
+              </span>
+            )}
           </span>
         ) : null}
         <span className="ml-auto flex shrink-0 items-center gap-1">

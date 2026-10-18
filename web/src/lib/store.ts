@@ -4,6 +4,7 @@ import { isEventStream, SseParser, type SseEvent } from "@core/sse";
 import { create } from "zustand";
 import { api, errorMessage, setApiWorkspace } from "./api";
 import { entryFromResponse, useConsole } from "./consoleLog";
+import { loadResponse, saveResponse } from "./responseCache";
 import { keys, readJson, writeJson } from "./storage";
 import { findFolder, findRequest } from "./tree";
 
@@ -39,6 +40,8 @@ export interface ResponseState {
   live?: LiveResponse;
   /** Server-sent events in arrival order, for text/event-stream responses. */
   events?: SseEvent[];
+  /** Set when the response was restored from an earlier session rather than just sent. */
+  restoredAt?: number;
 }
 
 export interface HistoryEntry {
@@ -109,6 +112,8 @@ interface State {
 
   send: (id: string) => Promise<void>;
   cancel: (id: string) => void;
+  /** Shows the request's last response from an earlier session, if one was kept and nothing newer is shown. */
+  restoreResponse: (id: string) => Promise<void>;
   clearHistory: () => void;
 }
 
@@ -414,6 +419,7 @@ export const useStore = create<State>((set, get) => ({
       );
       if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
       patch({ loading: false, response: result.response, events });
+      keepResponse(id, result.response, events);
       if (result.workspace) get().applyWorkspace(result.workspace);
       const t = result.oauthRefreshed;
       if (t) {
@@ -430,6 +436,7 @@ export const useStore = create<State>((set, get) => ({
         const response = stoppedResponse(request, live, Date.now() - startedAt);
         if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
         patch({ loading: false, response, events });
+        keepResponse(id, response, events);
         recordHistory(id, request, response);
       } else if (inflight.get(id) === controller) {
         // (A send replaced by a newer one of the same request is not worth reporting.)
@@ -450,12 +457,25 @@ export const useStore = create<State>((set, get) => ({
     inflight.get(id)?.abort();
   },
 
+  restoreResponse: async (id) => {
+    const root = get().workspace?.rootPath;
+    if (!root || get().responses[id]) return;
+    const kept = await loadResponse(root, id);
+    if (!kept || get().responses[id] || get().workspace?.rootPath !== root) return;
+    set({ responses: { ...get().responses, [id]: { loading: false, response: kept.response, events: kept.events, restoredAt: kept.savedAt } } });
+  },
+
   clearHistory: () => {
     set({ history: [] });
     const root = get().workspace?.rootPath;
     if (root) writeJson(keys.history(root), []);
   },
 }));
+
+function keepResponse(requestId: string, response: YamletResponse, events?: SseEvent[]): void {
+  const root = useStore.getState().workspace?.rootPath;
+  if (root) void saveResponse(root, requestId, response, events);
+}
 
 function recordHistory(requestId: string, request: YamletRequest, r: YamletResponse): void {
   useConsole.getState().add(entryFromResponse(request.name, r));
