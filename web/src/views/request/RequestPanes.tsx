@@ -127,7 +127,7 @@ export function RequestPanes({ request, collection, folders, update, variables }
 
         {pane === "body" && (
           <div className="flex min-h-72 flex-1 flex-col">
-            <BodyEditor body={request.body} onChange={(body) => set({ body })} variables={variables} />
+            <BodyEditor body={request.body} onChange={(body) => set({ body })} variables={variables} request={request} collectionId={collection?.id} />
           </div>
         )}
 

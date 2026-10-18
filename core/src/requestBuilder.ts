@@ -18,6 +18,8 @@ export interface BuiltRequest {
   /** Enabled, resolved headers including auth, Content-Type (except multipart) and User-Agent. */
   headers: KeyValue[];
   body: BuiltBody;
+  /** Reasons the request can't be sent as written (the executor refuses; snippets ignore them). */
+  problems?: string[];
 }
 
 export interface BuildOptions {
@@ -216,6 +218,7 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   // Body. GET/HEAD bodies are still honored when explicitly configured.
   const b = request.body;
   let body: BuiltBody = { kind: "none" };
+  const problems: string[] = [];
   switch (b?.type) {
     case "raw":
     case "json":
@@ -233,8 +236,8 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
       if (varsText) {
         try {
           variables = JSON.parse(varsText);
-        } catch {
-          variables = undefined;
+        } catch (e) {
+          problems.push(`The GraphQL variables aren't valid JSON (${e instanceof Error ? e.message : String(e)}).`);
         }
       }
       const payload: Record<string, unknown> = { query };
@@ -282,7 +285,13 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
     body = { ...body, contentType: headers.find((h) => h.key.toLowerCase() === "content-type")!.value };
   }
 
-  return { method, url, headers, body };
+  const host = /^[a-z][\w+.-]*:\/\/([^/?#]*)/i.exec(url)?.[1] ?? "";
+  const unresolved = /\{\{\s*([^{}]+?)\s*\}\}|%7B%7B(.+?)%7D%7D/i.exec(host);
+  if (unresolved) {
+    const name = unresolved[1] ?? decodeURIComponent(unresolved[2]);
+    problems.push(`The URL uses {{${name}}}, which isn't defined. Select an environment that defines it, or add it as a variable.`);
+  }
+  return { method, url, headers, body, ...(problems.length ? { problems } : {}) };
 }
 
 /** Serializes urlencoded fields the way browsers and curl do (`+` for spaces). */

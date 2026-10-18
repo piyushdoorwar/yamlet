@@ -642,6 +642,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   let built = buildRequest(req, { ctx, collection, folders, oauthToken });
   let response = emptyResponse(built.method, built.url);
   response.requestHeaders = built.headers;
+  if (built.problems?.length) return finish(errorResponse(response, built.problems.join(" ")));
 
   // 3. Send.
   const timeoutMs = settings.timeoutMs > 0 ? settings.timeoutMs : input.defaultTimeoutMs ?? 0;

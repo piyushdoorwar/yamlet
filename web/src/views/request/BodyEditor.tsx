@@ -1,12 +1,14 @@
-import type { BodyField, BodyType, RequestBody } from "@core/models";
+import type { BodyField, BodyType, RequestBody, YamletRequest } from "@core/models";
+import type { Extension } from "@codemirror/state";
 import clsx from "clsx";
-import { Wand2 } from "lucide-react";
-import { useId } from "react";
+import { Check, CircleAlert, LoaderCircle, RefreshCw, Wand2 } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { FileChooser } from "../../components/FileChooser";
 import { KeyValueTable } from "../../components/KeyValueTable";
 import { useToast } from "../../components/Toast";
 import { CodeEditor, type EditorLanguage, type VariableSource } from "../../editor/CodeEditor";
 import { prettyXml } from "../../lib/format";
+import { useStore } from "../../lib/store";
 
 const KINDS: { id: string; label: string }[] = [
   { id: "none", label: "none" },
@@ -58,7 +60,98 @@ function formatWithPlaceholders(text: string, format: (t: string) => string): st
   return out.replace(/"__yamlet_(\d+)__"|__yamlet_(\d+)__/g, (_, a, b) => stash[Number(a ?? b)]);
 }
 
-export function BodyEditor({ body, onChange, variables }: { body: RequestBody; onChange: (b: RequestBody) => void; variables: VariableSource }) {
+/** Why `text` isn't JSON, with {{variables}} counted as values; undefined when it's fine or empty. */
+function jsonProblem(text: string): string | undefined {
+  if (!text.trim()) return undefined;
+  try {
+    JSON.parse(text.replace(/\{\{[^{}]*\}\}/g, "0"));
+    return undefined;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+}
+
+type SchemaState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; types: number } | { kind: "error"; message: string };
+
+/** The GraphQL query editor: highlighting always, completion and checks once a schema is fetched. */
+function GraphQlQuery({ value, onChange, variables, request, collectionId }: { value: string; onChange: (v: string) => void; variables: VariableSource; request?: YamletRequest; collectionId?: string }) {
+  const environmentId = useStore((s) => s.environmentId);
+  const [mode, setMode] = useState<typeof import("../../editor/graphqlMode") | null>(null);
+  const [ext, setExt] = useState<Extension | undefined>(undefined);
+  const [schema, setSchema] = useState<SchemaState>({ kind: "idle" });
+
+  useEffect(() => {
+    let live = true;
+    void import("../../editor/graphqlMode").then((m) => {
+      if (!live) return;
+      setMode(m);
+      const cached = request ? m.cachedSchema(request.id) : undefined;
+      setExt(m.graphqlExtension(cached));
+      setSchema(cached ? { kind: "ready", types: Object.keys(cached.getTypeMap()).length } : { kind: "idle" });
+    });
+    return () => {
+      live = false;
+    };
+  }, [request?.id]);
+
+  const fetchSchema = async () => {
+    if (!mode || !request) return;
+    setSchema({ kind: "loading" });
+    try {
+      const s = await mode.fetchSchema(request, collectionId, environmentId);
+      setExt(mode.graphqlExtension(s));
+      setSchema({ kind: "ready", types: Object.keys(s.getTypeMap()).length });
+    } catch (err) {
+      setSchema({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
+  return (
+    <div className="flex min-h-0 flex-col">
+      <div className="mb-1.5 flex min-h-6 items-center gap-2">
+        <span className="text-12 font-medium text-grey">Query</span>
+        {request && (
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            {schema.kind === "ready" && (
+              <span className="flex items-center gap-1 text-11 text-muted">
+                <Check size={12} className="text-primary" aria-hidden />
+                Schema loaded ({schema.types} types)
+              </span>
+            )}
+            {schema.kind === "error" && (
+              <span className="flex min-w-0 items-center gap-1 text-11 text-danger" title={schema.message} role="alert">
+                <CircleAlert size={12} className="shrink-0" aria-hidden />
+                <span className="truncate">{schema.message}</span>
+              </span>
+            )}
+            <button type="button" className="btn btn-ghost btn-sm shrink-0" disabled={!mode || schema.kind === "loading" || !request.url.trim()} onClick={() => void fetchSchema()} title="Run an introspection query against this URL, with this request's headers and auth">
+              {schema.kind === "loading" ? <LoaderCircle size={13} className="animate-spin" aria-hidden /> : <RefreshCw size={13} aria-hidden />}
+              {schema.kind === "ready" ? "Refresh schema" : "Fetch schema"}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="min-h-40 flex-1 overflow-hidden rounded-lg border border-line">
+        <CodeEditor fill value={value} onChange={onChange} variables={variables} extensions={ext} placeholder={"query {\n  viewer { id }\n}"} ariaLabel="GraphQL query" />
+      </div>
+    </div>
+  );
+}
+
+export function BodyEditor({
+  body,
+  onChange,
+  variables,
+  request,
+  collectionId,
+}: {
+  body: RequestBody;
+  onChange: (b: RequestBody) => void;
+  variables: VariableSource;
+  /** The request this body belongs to; lets the GraphQL editor fetch the schema. */
+  request?: YamletRequest;
+  collectionId?: string;
+}) {
   const toast = useToast();
   const radioName = useId();
   const partTypesId = useId();
@@ -169,14 +262,17 @@ export function BodyEditor({ body, onChange, variables }: { body: RequestBody; o
 
       {body.type === "graphql" && (
         <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[3fr_2fr]">
+          <GraphQlQuery value={body.graphqlQuery} onChange={(v) => set({ graphqlQuery: v })} variables={variables} request={request} collectionId={collectionId} />
           <div className="flex min-h-0 flex-col">
-            <span className="mb-1.5 text-12 font-medium text-grey">Query</span>
-            <div className="min-h-40 flex-1 overflow-hidden rounded-lg border border-line">
-              <CodeEditor fill value={body.graphqlQuery} onChange={(v) => set({ graphqlQuery: v })} variables={variables} placeholder={"query {\n  viewer { id }\n}"} ariaLabel="GraphQL query" />
+            <div className="mb-1.5 flex min-h-6 items-center gap-2">
+              <span className="text-12 font-medium text-grey">Variables (JSON)</span>
+              {jsonProblem(body.graphqlVariables) && (
+                <span className="flex min-w-0 items-center gap-1 text-11 text-danger" title={jsonProblem(body.graphqlVariables)}>
+                  <CircleAlert size={12} className="shrink-0" aria-hidden />
+                  <span className="truncate">Not valid JSON; the request won't send</span>
+                </span>
+              )}
             </div>
-          </div>
-          <div className="flex min-h-0 flex-col">
-            <span className="mb-1.5 text-12 font-medium text-grey">Variables (JSON)</span>
             <div className="min-h-40 flex-1 overflow-hidden rounded-lg border border-line">
               <CodeEditor fill language="json" value={body.graphqlVariables} onChange={(v) => set({ graphqlVariables: v })} variables={variables} placeholder="{}" ariaLabel="GraphQL variables" />
             </div>

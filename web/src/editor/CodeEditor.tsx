@@ -45,6 +45,11 @@ interface Props {
   wrap?: boolean;
   /** Whole-value completions offered while typing (single-line cells such as header values). */
   suggestions?: string[];
+  /**
+   * Extra editor extensions, e.g. a language loaded on demand. Their own completions
+   * (language data) are offered alongside variable completions.
+   */
+  extensions?: Extension;
 }
 
 const PLACEHOLDER = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/g;
@@ -200,7 +205,7 @@ const singleLineExtensions: Extension = [
 ];
 
 export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEditor(
-  { value, onChange, language = "text", readOnly, singleLine, placeholder, variables, onSubmit, className, fill, minHeight, lineNumbers = true, ariaLabel, wrap = true, suggestions },
+  { value, onChange, language = "text", readOnly, singleLine, placeholder, variables, onSubmit, className, fill, minHeight, lineNumbers = true, ariaLabel, wrap = true, suggestions, extensions: extra },
   ref,
 ) {
   const cm = useRef<ReactCodeMirrorRef>(null);
@@ -219,7 +224,11 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
     }
     if (language === "javascript") sources.push(pmComplete);
     if (suggestions?.length) sources.push(valueComplete(suggestions));
-    if (sources.length && !readOnly) ext.push(autocompletion({ override: sources, icons: false }));
+    if (extra) {
+      // Language data completions only run without `override`, so ours join them there.
+      ext.push(extra, EditorState.languageData.of(() => sources.map((autocomplete) => ({ autocomplete }))));
+      if (!readOnly) ext.push(autocompletion({ icons: false }));
+    } else if (sources.length && !readOnly) ext.push(autocompletion({ override: sources, icons: false }));
     if (singleLine) ext.push(singleLineExtensions);
     else if (wrap) ext.push(EditorView.lineWrapping);
     ext.push(
@@ -234,7 +243,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, Props>(function CodeEdito
     return ext;
     // variables.version captures every lookup change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, singleLine, readOnly, variables?.version, ariaLabel, wrap, suggestions?.join("\n")]);
+  }, [language, singleLine, readOnly, variables?.version, ariaLabel, wrap, suggestions?.join("\n"), extra]);
 
   return (
     <CodeMirror

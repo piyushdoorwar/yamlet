@@ -189,3 +189,20 @@ describe("QUERY snippets", () => {
     expect(generateSnippet("powershell", { ...built, method: "GET" })).toContain("-Method 'GET'");
   });
 });
+
+describe("build problems", () => {
+  it("names an undefined variable in the host instead of letting DNS fail", () => {
+    expect(buildRequest(newRequest({ url: "{{baseUrl}}/users" }), { ctx: {} }).problems).toEqual([expect.stringContaining("{{baseUrl}}")]);
+    expect(buildRequest(newRequest({ url: "https://api.test/{{id}}" }), { ctx: {} }).problems).toBeUndefined();
+  });
+
+  it("reports GraphQL variables that aren't JSON", () => {
+    const r = newRequest({ url: "https://api.test/graphql", method: "POST" });
+    r.body.type = "graphql";
+    r.body.graphqlQuery = "query { a }";
+    r.body.graphqlVariables = "{ id: 1 }";
+    expect(buildRequest(r, { ctx: {} }).problems?.[0]).toMatch(/GraphQL variables aren't valid JSON/);
+    r.body.graphqlVariables = '{"id": {{id}}}';
+    expect(buildRequest(r, { ctx: { environment: [{ key: "id", value: "3", enabled: true }] } }).problems).toBeUndefined();
+  });
+});
