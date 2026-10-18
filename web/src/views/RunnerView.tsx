@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { CircleCheck, CircleX, FileSpreadsheet, Play, Square, X } from "lucide-react";
+import { formatJson, formatJunit, type ReportSummary } from "@core/runReports";
+import { CircleCheck, CircleX, Download, FileSpreadsheet, Play, Square, X } from "lucide-react";
 import { Fragment, useMemo, useRef, useState } from "react";
 import type { RunEvent } from "../../../shared/api";
 import { Button } from "../components/Button";
@@ -7,7 +8,7 @@ import { MethodLabel, StatusPill } from "../components/Labels";
 import { Card, PageHeader } from "../components/Page";
 import { useToast } from "../components/Toast";
 import { api, errorMessage } from "../lib/api";
-import { formatMs } from "../lib/format";
+import { downloadBlob, formatMs } from "../lib/format";
 import { useStore } from "../lib/store";
 import { allRequests, findFolder } from "../lib/tree";
 
@@ -100,6 +101,21 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
       setRunning(false);
       abort.current = null;
     }
+  };
+
+  const exportReport = (format: "json" | "junit") => {
+    if (!summary) return;
+    const report: ReportSummary = {
+      results: results.map((r) => ({ ...r, collectionName: collection.name })),
+      total: summary.total,
+      passed: summary.passed,
+      failed: summary.failed,
+      durationMs: summary.durationMs,
+      iterations: summary.iterations,
+    };
+    const base = `${scope.name} run ${new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-")}`;
+    if (format === "junit") downloadBlob(formatJunit(report), `${base}.xml`, "application/xml");
+    else downloadBlob(formatJson(report), `${base}.json`, "application/json");
   };
 
   const passed = results.filter((r) => r.passed).length;
@@ -220,6 +236,18 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
                   <span className="font-medium text-primary">{passed} passed</span>
                   <span className={clsx("font-medium", failed ? "text-danger" : "text-muted")}>{failed} failed</span>
                   {summary && <span className="text-muted">{formatMs(summary.durationMs)}</span>}
+                  {summary && !running && (
+                    <>
+                      <button type="button" className="btn btn-ghost btn-sm" title="Download the results as JUnit XML" onClick={() => exportReport("junit")}>
+                        <Download size={13} aria-hidden />
+                        JUnit
+                      </button>
+                      <button type="button" className="btn btn-ghost btn-sm" title="Download the results as JSON" onClick={() => exportReport("json")}>
+                        <Download size={13} aria-hidden />
+                        JSON
+                      </button>
+                    </>
+                  )}
                 </span>
               )
             }

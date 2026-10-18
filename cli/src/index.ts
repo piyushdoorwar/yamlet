@@ -5,7 +5,10 @@ import { parseDataFile, runCollection, type RunRequestResult, type RunSummary } 
 import { CookieJar } from "../../core/src/cookieJar.js";
 import { defaultNetworkSettings, newEnvironment, setYamletVersion, type Variable, type YamletEnvironment, type YamletFolder, type YamletWorkspace } from "../../core/src/models.js";
 import { WorkspaceStore } from "../../core/src/workspaceStore.js";
+import { formatJson, formatJunit } from "../../core/src/runReports.js";
 import { environmentFromYaml, globalsFromYaml } from "../../core/src/yamlDtos.js";
+
+export { formatJson, formatJunit };
 
 declare const __YAMLET_VERSION__: string;
 const VERSION = typeof __YAMLET_VERSION__ === "string" ? __YAMLET_VERSION__ : "0.0.0-dev";
@@ -248,38 +251,6 @@ export function formatTable(summary: RunSummary, color: boolean, columns = 120):
   out.push(`Summary: ${req}; ${asserts}; ${fmtMs(summary.durationMs)} total.`);
   out.push(summary.failed ? paint("RESULT: FAIL", color, "red", "bold") : paint("RESULT: PASS", color, "green", "bold"));
   return out.join("\n");
-}
-
-const xml = (s: string) => s.replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]!);
-
-export function formatJunit(summary: RunSummary): string {
-  const byCollection = new Map<string, RunRequestResult[]>();
-  for (const r of summary.results) byCollection.set(r.collectionName, [...(byCollection.get(r.collectionName) ?? []), r]);
-  const lines = [`<?xml version="1.0" encoding="UTF-8"?>`, `<testsuites name="yamlet" tests="${summary.total}" failures="${summary.failed}" time="${(summary.durationMs / 1000).toFixed(3)}">`];
-  for (const [name, results] of byCollection) {
-    const failures = results.filter((r) => !r.passed).length;
-    const time = results.reduce((t, r) => t + r.durationMs, 0) / 1000;
-    lines.push(`  <testsuite name="${xml(name)}" tests="${results.length}" failures="${failures}" time="${time.toFixed(3)}">`);
-    for (const r of results) {
-      const case_ = `${[...r.path, r.name].join(" / ")}${summary.iterations > 1 ? ` [${r.iteration + 1}]` : ""}`;
-      lines.push(`    <testcase classname="${xml(name)}" name="${xml(case_)}" time="${(r.durationMs / 1000).toFixed(3)}">`);
-      if (!r.passed) {
-        const bad = r.tests.filter((t) => !t.passed);
-        const message = bad.length ? bad.map((t) => `${t.name}${t.error ? `: ${t.error}` : ""}`).join("; ") : (r.error ?? `HTTP ${r.status}`);
-        lines.push(`      <failure message="${xml(message)}">${xml(`${r.method} ${r.url}\n${message}`)}</failure>`);
-      }
-      lines.push(`      <system-out>${xml(`${r.method} ${r.url} -> ${r.status || "ERROR"} in ${r.durationMs} ms`)}</system-out>`);
-      lines.push("    </testcase>");
-    }
-    lines.push("  </testsuite>");
-  }
-  lines.push("</testsuites>");
-  return lines.join("\n");
-}
-
-export function formatJson(summary: RunSummary): string {
-  const { variables: _v, ...rest } = summary;
-  return JSON.stringify(rest, null, 2);
 }
 
 /** Variables with command-line values replacing (or added after) the file's. */
