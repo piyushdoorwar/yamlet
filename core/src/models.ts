@@ -63,6 +63,8 @@ export interface OAuth2Config {
   /** Scheme used in the Authorization header (usually "Bearer"). */
   headerPrefix: string;
   accessTokenUrl: string;
+  /** Where refresh requests go, for providers that use another endpoint; blank means the token URL. */
+  refreshTokenUrl?: string;
   authUrl: string;
   clientId: string;
   clientSecret: string;

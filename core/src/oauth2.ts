@@ -246,7 +246,8 @@ export async function refreshAccessToken(cfg: OAuth2Config, resolve: Resolve, op
   const form: Record<string, string> = { grant_type: "refresh_token", refresh_token: refreshToken };
   const scope = resolve(cfg.scope).trim();
   if (scope) form.scope = scope;
-  const result = await requestToken(cfg, resolve, form, opts);
+  const refreshUrl = resolve(cfg.refreshTokenUrl ?? "").trim();
+  const result = await requestToken(refreshUrl ? { ...cfg, accessTokenUrl: cfg.refreshTokenUrl! } : cfg, resolve, form, opts);
   if (!result.refreshToken) result.refreshToken = refreshToken;
   return result;
 }

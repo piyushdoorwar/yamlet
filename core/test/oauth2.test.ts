@@ -1,7 +1,8 @@
 import { MockAgent } from "undici";
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultOAuth2, type OAuth2Config } from "../src/models.js";
-import { buildAuthorizationUrl, fetchToken, OAuth2Error } from "../src/oauth2.js";
+import { buildAuthorizationUrl, fetchToken, OAuth2Error, refreshAccessToken } from "../src/oauth2.js";
+import { readAuth, writeAuth } from "../src/yamlDtos.js";
 
 let agent: MockAgent;
 
@@ -65,6 +66,18 @@ describe("fetchToken errors", () => {
       .intercept({ path: "/token", method: "POST" })
       .reply(200, JSON.stringify({ access_token: "tok", expires_in: 60 }), { headers: { "content-type": "application/json" } });
     await expect(fetchToken(cfg(), same, { dispatcher: agent })).resolves.toMatchObject({ accessToken: "tok", expiresIn: 60 });
+  });
+});
+
+describe("refresh token URL", () => {
+  it("sends refreshes to its own endpoint when set, and is kept in the YAML", async () => {
+    agent
+      .get("https://refresh.test")
+      .intercept({ path: "/renew", method: "POST" })
+      .reply(200, JSON.stringify({ access_token: "renewed" }), { headers: { "content-type": "application/json" } });
+    const c = cfg({ refreshToken: "r", refreshTokenUrl: "https://refresh.test/renew" });
+    await expect(refreshAccessToken(c, same, { dispatcher: agent })).resolves.toMatchObject({ accessToken: "renewed", refreshToken: "r" });
+    expect(readAuth(writeAuth({ ...readAuth({ type: "oauth2" }), type: "oauth2", oauth2: c })).oauth2.refreshTokenUrl).toBe("https://refresh.test/renew");
   });
 });
 

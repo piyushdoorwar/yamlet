@@ -393,6 +393,7 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
       <div className="grid gap-4 md:grid-cols-2">
         {text("audience", "Audience", { placeholder: "Optional", hint: "Sent as audience on token and sign-in requests" })}
         {text("resource", "Resource", { placeholder: "Optional", hint: "Sent as resource on token and sign-in requests" })}
+        {!implicit && text("refreshTokenUrl", "Refresh token URL", { placeholder: "Same as the token URL", hint: "Only if the provider refreshes tokens at another endpoint" })}
       </div>
       {!implicit && (
         <Field label="Client authentication">

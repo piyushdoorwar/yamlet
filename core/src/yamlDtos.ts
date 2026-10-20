@@ -340,6 +340,7 @@ export function readOAuth2(o: unknown): OAuth2Config {
     refreshToken: get("refreshToken", "refresh_token") ?? "",
     headerPrefix: get("headerPrefix", "tokenType")?.trim() || d.headerPrefix,
     accessTokenUrl: get("accessTokenUrl", "tokenUrl", "access_token_url") ?? "",
+    ...(get("refreshTokenUrl", "refresh_token_url") ? { refreshTokenUrl: get("refreshTokenUrl", "refresh_token_url") } : {}),
     authUrl: get("authUrl", "authorizationUrl", "auth_url") ?? "",
     clientId: get("clientId", "client_id") ?? "",
     clientSecret: get("clientSecret", "client_secret") ?? "",
@@ -397,6 +398,7 @@ function writeOAuth2(o: OAuth2Config): Obj {
     if (v) out[k] = v;
   };
   put("accessTokenUrl", o.accessTokenUrl);
+  put("refreshTokenUrl", o.refreshTokenUrl);
   put("authUrl", o.authUrl);
   put("clientId", o.clientId);
   put("clientSecret", o.clientSecret);
@@ -420,7 +422,7 @@ const MODELED_CREDENTIALS = new Set(
   [
     "token", "username", "password", "key", "value", "in", "cookie",
     "grant_type", "grantType", "accessToken", "access_token", "refreshToken", "refresh_token", "headerPrefix", "tokenType",
-    "accessTokenUrl", "tokenUrl", "access_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
+    "accessTokenUrl", "tokenUrl", "access_token_url", "refreshTokenUrl", "refresh_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
     "clientSecret", "client_secret", "scope", "redirect_uri", "redirectUri", "redirect_url", "callbackUrl", "addTokenTo",
     "client_authentication", "clientAuthentication", "challengeAlgorithm", "audience", "resource",
     "accessKey", "secretKey", "sessionToken", "region", "service",
