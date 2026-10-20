@@ -217,6 +217,27 @@ try { require('fs'); } catch (e) { console.log(e.message); }`,
   });
 });
 
+describe("pm.request changes", () => {
+  it("adds and removes query params and body fields", async () => {
+    const { request, logs } = await run(
+      `
+      pm.request.url.addQueryParams("a=1&b=two");
+      pm.request.url.addQueryParams([{ key: "c", value: 3 }]);
+      pm.request.url.removeQueryParams(["b"]);
+      pm.request.body.urlencoded.add({ key: "user", value: "ada" });
+      pm.request.body.urlencoded.upsert({ key: "user", value: "bob" });
+      pm.request.body.urlencoded.add("x=1");
+      pm.request.body.urlencoded.remove("x");
+      console.log(pm.request.url.getPathWithQuery(), pm.request.url.query.count(), pm.request.body.urlencoded.get("user"), pm.request.body.formdata.count());
+    `,
+      { phase: "pre" },
+    );
+    expect(logs).toEqual(["/items?a=1&c=3 2 bob 0"]);
+    expect(request.queryParams.map((q) => q.key)).toEqual(["a", "c"]);
+    expect(request.body).toMatchObject({ type: "urlencoded", fields: [{ key: "user", value: "bob", enabled: true }] });
+  });
+});
+
 describe("older script globals", () => {
   it("records tests[...] and maps postman.* onto pm", async () => {
     const vars = new ScriptVariables({ environment: [], collection: [], globals: [] });
@@ -284,15 +305,16 @@ describe("script libraries", () => {
     expect(tests[1].error).toMatch(/must be integer|must have required property 'name'/);
   });
 
-  it("offers tv4 and the safe Node built-ins", async () => {
+  it("offers tv4, moment and the safe Node built-ins", async () => {
     const { logs } = await run(`
       const tv4 = require("tv4");
       const schema = { $schema: "http://json-schema.org/draft-04/schema#", id: "x", type: "object", required: ["id"] };
       console.log(tv4.validate({ id: 1 }, schema), tv4.validate({}, schema), tv4.error.message);
       console.log(require("querystring").stringify({ a: 1, b: "x y" }), require("url").parse("https://h/p?q=1").pathname);
       console.log(require("path").join("a", "b"), require("node:util").format("%s=%d", "n", 2));
+      console.log(require("moment").utc("2026-01-02T03:04:05Z").add(1, "day").format("YYYY-MM-DD HH:mm"));
     `);
-    expect(logs).toEqual(["true false data must have required property 'id'", "a=1&b=x%20y /p", "a/b n=2"]);
+    expect(logs).toEqual(["true false data must have required property 'id'", "a=1&b=x%20y /p", "a/b n=2", "2026-01-03 03:04"]);
   });
 
   it("parses XML with xml2Json", async () => {

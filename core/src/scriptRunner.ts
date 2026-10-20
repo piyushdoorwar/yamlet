@@ -12,6 +12,7 @@ import { Ajv } from "ajv";
 import * as chai from "chai";
 import CryptoJS from "crypto-js";
 import _ from "lodash";
+import moment from "moment";
 import type { KeyValue, ScriptTestResult, Variable, YamletRequest, YamletResponse } from "./models.js";
 import type { CookieJar } from "./cookieJar.js";
 import { encodeMultipart } from "./multipart.js";
@@ -526,7 +527,17 @@ function requestFacade(req: YamletRequest) {
     has: (key: string) => req.queryParams.some((q) => q.key === key && q.enabled !== false),
     all: () => req.queryParams.filter((q) => q.enabled !== false).map((q) => ({ key: q.key, value: q.value })),
     toObject: () => Object.fromEntries(req.queryParams.filter((q) => q.enabled !== false).map((q) => [q.key, q.value])),
+    each: (fn: (q: { key: string; value: string }) => void) => req.queryParams.filter((q) => q.enabled !== false).forEach((q) => fn({ key: q.key, value: q.value })),
+    count: () => req.queryParams.filter((q) => q.enabled !== false).length,
   };
+  /** Query or field entries given as a list, one object, or `a=1&b=2` text. */
+  const entries = (input: unknown): { key: string; value: string }[] => {
+    if (typeof input === "string") return splitUrl(`?${input.replace(/^\?/, "")}`).query.map((q) => ({ key: q.key, value: q.value }));
+    const list = Array.isArray(input) ? input : input && typeof input === "object" ? [input] : [];
+    return list.flatMap((p) => (p && typeof p === "object" && "key" in p ? [{ key: String(p.key), value: p.value === undefined || p.value === null ? "" : String(p.value) }] : []));
+  };
+  const keysOf = (input: unknown): Set<string> =>
+    new Set((Array.isArray(input) ? input : [input]).map((k) => (k && typeof k === "object" ? String((k as { key?: unknown }).key ?? "") : String(k ?? ""))));
   const full = () => appendQuery(req.url, req.queryParams.filter((q) => q.enabled !== false && q.key), "typed");
   const setUrl = (value: unknown) => {
     const { base, query } = splitUrl(String(value ?? ""));
@@ -545,7 +556,55 @@ function requestFacade(req: YamletRequest) {
     },
     getPath: () => req.url.replace(/^[a-z]+:\/\/[^/]+/i, "").replace(/[?#].*$/, "") || "/",
     getQueryString: () => full().split("?")[1] ?? "",
+    getPathWithQuery: () => {
+      const q = full().split("?")[1];
+      return (req.url.replace(/^[a-z]+:\/\/[^/]+/i, "").replace(/[?#].*$/, "") || "/") + (q ? `?${q}` : "");
+    },
+    addQueryParams: (params: unknown) => {
+      for (const p of entries(params)) req.queryParams.push({ ...p, enabled: true });
+    },
+    removeQueryParams: (keys: unknown) => {
+      const drop = keysOf(keys);
+      req.queryParams = req.queryParams.filter((q) => !drop.has(q.key));
+    },
     query: queryApi,
+  };
+  /** pm.request.body.urlencoded / .formdata: the body's fields as a list (switching an empty body to that mode). */
+  const fieldList = (mode: "urlencoded" | "form-data") => {
+    const own = () => (req.body.type === mode ? req.body.fields.filter((f) => f.enabled !== false) : []);
+    const take = () => {
+      if (req.body.type !== mode) {
+        req.body.type = mode;
+        req.body.fields = [];
+      }
+      return req.body.fields;
+    };
+    const list = {
+      add: (p: unknown) => {
+        for (const e of entries(p)) take().push({ ...e, enabled: true });
+      },
+      upsert: (p: unknown) => {
+        for (const e of entries(p)) {
+          const hit = take().find((f) => f.key === e.key);
+          if (hit) Object.assign(hit, { value: e.value, enabled: true });
+          else take().push({ ...e, enabled: true });
+        }
+      },
+      remove: (keys: unknown) => {
+        const drop = keysOf(keys);
+        if (req.body.type === mode) req.body.fields = req.body.fields.filter((f) => !drop.has(f.key));
+      },
+      clear: () => {
+        if (req.body.type === mode) req.body.fields = [];
+      },
+      get: (key: string) => own().find((f) => f.key === key)?.value,
+      has: (key: string) => own().some((f) => f.key === key),
+      all: () => own().map((f) => ({ key: f.key, value: f.value })),
+      toObject: () => Object.fromEntries(own().map((f) => [f.key, f.value])),
+      each: (fn: (f: { key: string; value: string }) => void) => own().forEach((f) => fn({ key: f.key, value: f.value })),
+      count: () => own().length,
+    };
+    return list;
   };
   const body = {
     get mode() {
@@ -554,6 +613,8 @@ function requestFacade(req: YamletRequest) {
     get raw() {
       return req.body.raw;
     },
+    urlencoded: fieldList("urlencoded"),
+    formdata: fieldList("form-data"),
     set raw(v: unknown) {
       req.body.raw = v === undefined || v === null ? "" : String(v);
     },
@@ -815,6 +876,7 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     "crypto-js": CryptoJS,
     ajv: Ajv,
     tv4: tv4Shim(),
+    moment,
     atob: (s: string) => atob(s),
     btoa: (s: string) => btoa(s),
     buffer: { Buffer },
