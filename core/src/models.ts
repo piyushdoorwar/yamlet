@@ -420,13 +420,23 @@ export function inheritLocal(previous: readonly Variable[], next: Variable[]): V
  */
 export function asCurrentValues(previous: readonly Variable[], next: Variable[]): Variable[] {
   const before = new Map(previous.map((v) => [v.key, v]));
-  return next.map((v) => {
+  const out = next.map((v) => {
     if (v.local) return v;
     const old = before.get(v.key);
     const fileValue = old ? (old.initialValue ?? old.value) : "";
     const { initialValue: _drop, ...rest } = v;
     return v.value === fileValue ? rest : { ...rest, initialValue: fileValue };
   });
+  // unset() / clear() drop only the current value: the file keeps the key and its
+  // initial value (a local variable keeps its key, blank), in its old place.
+  const kept = new Set(next.map((v) => v.key));
+  previous.forEach((old, i) => {
+    if (kept.has(old.key)) return;
+    const { initialValue, ...rest } = old;
+    const restored = old.local ? { ...rest, value: "" } : { ...rest, value: initialValue ?? old.value };
+    out.splice(Math.min(i, out.length), 0, restored);
+  });
+  return out;
 }
 
 /** QUERY is the safe, idempotent method that carries a body (like GET with a search payload). */

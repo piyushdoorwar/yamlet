@@ -6,10 +6,14 @@ import { useDialogs } from "./Dialogs";
 
 export type StorageMode = "file" | "local" | "mixed";
 
-/** `v` with `local` set or removed (a file-stored variable carries no flag). Either way its current value becomes the value. */
+/**
+ * `v` with `local` set or removed (a file-stored variable carries no flag). A file-stored
+ * variable keeps its current-value override, so its file value stays as it was.
+ */
 export function withLocal(v: Variable, local: boolean): Variable {
-  const { local: _drop, initialValue: _current, ...rest } = v;
-  return local ? { ...rest, local: true } : rest;
+  const { local: _drop, initialValue, ...rest } = v;
+  if (local) return { ...rest, local: true };
+  return !v.local && initialValue !== undefined ? { ...rest, initialValue } : rest;
 }
 
 /** Under a value that overrides the file's: what the file has, and ways to go back to it or save over it. */
@@ -39,6 +43,7 @@ export function useValueStorage(vars: Variable[], onChange: (vars: Variable[]) =
     vars.length === 0 ? (preferLocal ? "local" : "file") : vars.every((v) => v.local) ? "local" : vars.some((v) => v.local) ? "mixed" : "file";
   const setMode = (next: "file" | "local") => {
     setPreferLocal(next === "local");
+    if (next === mode) return;
     onChange(vars.map((v) => withLocal(v, next === "local")));
   };
   const blank = (): Variable => withLocal({ key: "", value: "", enabled: true }, mode === "local");
@@ -61,7 +66,14 @@ export function ValueStorageSwitch({ vars, onChange, mode, setMode }: { vars: Va
       message: `Go back to the file's value for ${overridden === 1 ? "the variable" : `${overridden} variables`} that this machine overrides?`,
       action: "Reset",
     });
-    if (ok) onChange(vars.map((v) => (!v.local && v.initialValue !== undefined ? withLocal({ ...v, value: v.initialValue }, false) : v)));
+    if (ok)
+      onChange(
+        vars.map((v) => {
+          if (v.local || v.initialValue === undefined) return v;
+          const { initialValue, ...rest } = v;
+          return { ...rest, value: initialValue };
+        }),
+      );
   };
   const clear = async () => {
     const ok = await confirm({

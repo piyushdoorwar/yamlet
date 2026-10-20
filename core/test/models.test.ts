@@ -37,4 +37,17 @@ describe("asCurrentValues", () => {
       { key: "n", value: "made", enabled: true, initialValue: "" },
     ]);
   });
+
+  it("keeps keys a script unset or cleared, with their file values", () => {
+    const before = [
+      { key: "a", value: "cur", enabled: true, initialValue: "file" },
+      { key: "t", value: "secret", enabled: true, local: true },
+      { key: "b", value: "2", enabled: true },
+    ];
+    expect(asCurrentValues(before, [{ key: "b", value: "2", enabled: true }])).toEqual([
+      { key: "a", value: "file", enabled: true },
+      { key: "t", value: "", enabled: true, local: true },
+      { key: "b", value: "2", enabled: true },
+    ]);
+  });
 });
