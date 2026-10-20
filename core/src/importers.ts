@@ -194,6 +194,7 @@ function v2Body(raw: unknown, headers: KeyValue[], req: YamletRequest): void {
       req.body.type = "graphql";
       req.body.graphqlQuery = str(g.query);
       req.body.graphqlVariables = typeof g.variables === "string" ? g.variables : g.variables ? JSON.stringify(g.variables, null, 2) : "";
+      if (typeof g.operationName === "string" && g.operationName) req.body.graphqlOperationName = g.operationName;
       break;
     }
     case "file":

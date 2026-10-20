@@ -110,6 +110,8 @@ export interface RequestBody {
   graphqlQuery: string;
   /** GraphQL variables as JSON text. */
   graphqlVariables: string;
+  /** GraphQL operation to run when the query defines several; blank picks the first. */
+  graphqlOperationName?: string;
   /** binary: file path (relative to the workspace, or absolute). */
   binaryFile: string;
 }

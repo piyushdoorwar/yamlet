@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSnippet, SNIPPET_LANGUAGES, snippetSigns } from "../src/codegen.js";
 import { defaultAuth, newCollection, newRequest, yamletUserAgent } from "../src/models.js";
+import { graphqlOperations, operationNameToSend } from "../src/graphqlOperations.js";
 import { applyPathVariables, buildRequest, encodeTypedQueryComponent } from "../src/requestBuilder.js";
 
 const header = (b: ReturnType<typeof buildRequest>, name: string) => b.headers.find((h) => h.key.toLowerCase() === name.toLowerCase())?.value;
@@ -223,6 +224,41 @@ describe("build problems", () => {
     expect(buildRequest(r, { ctx: {} }).problems?.[0]).toMatch(/GraphQL variables aren't valid JSON/);
     r.body.graphqlVariables = '{"id": {{id}}}';
     expect(buildRequest(r, { ctx: { environment: [{ key: "id", value: "3", enabled: true }] } }).problems).toBeUndefined();
+  });
+
+  it("sends operationName when the document has several operations", () => {
+    const r = newRequest({ url: "https://api.test/graphql", method: "POST" });
+    r.body.type = "graphql";
+    r.body.graphqlQuery = "query One { a }\nmutation Two($v: Int) { b(v: $v) }\nfragment F on T { c }";
+    const sent = () => JSON.parse(buildRequest(r, { ctx: {} }).body?.kind === "text" ? (buildRequest(r, { ctx: {} }).body as { text: string }).text : "{}");
+    expect(sent().operationName).toBe("One");
+    r.body.graphqlOperationName = "Two";
+    expect(sent().operationName).toBe("Two");
+    r.body.graphqlOperationName = "Gone";
+    expect(sent().operationName).toBe("One");
+    r.body.graphqlQuery = "{ a }";
+    expect(sent()).not.toHaveProperty("operationName");
+  });
+});
+
+describe("graphqlOperations", () => {
+  it("lists top-level operations and skips fragments, strings, comments and variables", () => {
+    const doc = [
+      '# query Commented { x }',
+      'query Q($query: String = "mutation Fake", $o: In = {a: 1}) @live { a(s: """subscription No""") { b } }',
+      "fragment F on T { query }",
+      "mutation M { c(id: {{id}}) }",
+      "{ anonymous }",
+      "subscription { s }",
+    ].join("\n");
+    expect(graphqlOperations(doc)).toEqual([
+      { type: "query", name: "Q" },
+      { type: "mutation", name: "M" },
+      { type: "query" },
+      { type: "subscription" },
+    ]);
+    expect(operationNameToSend("query A { a }", undefined)).toBeUndefined();
+    expect(operationNameToSend("query A { a }", "A")).toBe("A");
   });
 });
 

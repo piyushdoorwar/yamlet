@@ -70,7 +70,7 @@ function v2Body(r: YamletRequest): Obj | undefined {
       } catch {
         /* keep the text as typed */
       }
-      return { mode: "graphql", graphql: { query: b.graphqlQuery, variables } };
+      return { mode: "graphql", graphql: { query: b.graphqlQuery, variables, ...(b.graphqlOperationName ? { operationName: b.graphqlOperationName } : {}) } };
     }
     case "binary":
       return { mode: "file", file: { src: b.binaryFile } };

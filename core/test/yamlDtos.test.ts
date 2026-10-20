@@ -146,6 +146,8 @@ describe("request files", () => {
     expect(bin.body).toMatchObject({ type: "binary", binaryFile: "files/b.bin" });
     const gql = requestFromYaml(requestToYaml(newRequest({ body: { ...newRequest().body, type: "graphql", graphqlQuery: "{ a }", graphqlVariables: '{"x":1}' } })));
     expect(gql.body).toMatchObject({ type: "graphql", graphqlQuery: "{ a }", graphqlVariables: '{"x":1}' });
+    const named = requestFromYaml(requestToYaml(newRequest({ body: { ...newRequest().body, type: "graphql", graphqlQuery: "query A { a } query B { b }", graphqlOperationName: "B" } })));
+    expect(named.body.graphqlOperationName).toBe("B");
   });
 
   it("round-trips the core fields", () => {

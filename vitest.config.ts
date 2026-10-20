@@ -14,7 +14,13 @@ export default defineConfig({
       },
       {
         plugins: [react()],
-        resolve: { alias: { "@core": fileURLToPath(new URL("./core/src", import.meta.url)) } },
+        resolve: {
+          alias: {
+            "@core": fileURLToPath(new URL("./core/src", import.meta.url)),
+            // Its ES module build, as the app bundle uses, so it shares the tests' graphql instance.
+            "graphql-language-service": fileURLToPath(new URL("./node_modules/graphql-language-service/esm/index.js", import.meta.url)),
+          },
+        },
         test: {
           name: "web",
           environment: "jsdom",

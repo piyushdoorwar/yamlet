@@ -3,6 +3,7 @@
 // Isomorphic: shared by the executor and the UI's code snippets.
 import { yamletUserAgent, type Auth, type KeyValue, type YamletCollection, type YamletFolder, type YamletRequest } from "./models.js";
 import { resolveVariables, type VariableContext } from "./variableResolver.js";
+import { operationNameToSend } from "./graphqlOperations.js";
 
 export type BuiltBody =
   | { kind: "none" }
@@ -280,6 +281,8 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
         }
       }
       const payload: Record<string, unknown> = { query };
+      const operationName = operationNameToSend(query, b.graphqlOperationName?.trim() || undefined);
+      if (operationName) payload.operationName = operationName;
       if (variables !== undefined) payload.variables = variables;
       body = { kind: "text", text: JSON.stringify(payload), contentType: "application/json" };
       break;

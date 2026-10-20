@@ -1,3 +1,4 @@
+import { graphqlOperations, operationNameToSend } from "@core/graphqlOperations";
 import type { BodyField, BodyType, RequestBody, YamletRequest } from "@core/models";
 import type { Extension } from "@codemirror/state";
 import clsx from "clsx";
@@ -74,7 +75,23 @@ function jsonProblem(text: string): string | undefined {
 type SchemaState = { kind: "idle" } | { kind: "loading" } | { kind: "ready"; types: number } | { kind: "error"; message: string };
 
 /** The GraphQL query editor: highlighting always, completion and checks once a schema is fetched. */
-function GraphQlQuery({ value, onChange, variables, request, collectionId }: { value: string; onChange: (v: string) => void; variables: VariableSource; request?: YamletRequest; collectionId?: string }) {
+function GraphQlQuery({
+  value,
+  onChange,
+  operationName,
+  onOperationName,
+  variables,
+  request,
+  collectionId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  operationName?: string;
+  onOperationName: (name: string) => void;
+  variables: VariableSource;
+  request?: YamletRequest;
+  collectionId?: string;
+}) {
   const environmentId = useStore((s) => s.environmentId);
   const [mode, setMode] = useState<typeof import("../../editor/graphqlMode") | null>(null);
   const [ext, setExt] = useState<Extension | undefined>(undefined);
@@ -106,10 +123,27 @@ function GraphQlQuery({ value, onChange, variables, request, collectionId }: { v
     }
   };
 
+  const named = graphqlOperations(value).flatMap((o) => (o.name ? [o.name] : []));
+
   return (
     <div className="flex min-h-0 flex-col">
       <div className="mb-1.5 flex min-h-6 items-center gap-2">
         <span className="text-12 font-medium text-grey">Query</span>
+        {named.length > 1 && (
+          <select
+            className="input h-6 w-auto min-w-0 max-w-48 py-0 text-12"
+            aria-label="Operation to run"
+            title="The document defines several operations; this one is sent as operationName"
+            value={operationNameToSend(value, operationName) ?? ""}
+            onChange={(e) => onOperationName(e.target.value)}
+          >
+            {named.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        )}
         {request && (
           <div className="ml-auto flex min-w-0 items-center gap-2">
             {schema.kind === "ready" && (
@@ -262,7 +296,12 @@ export function BodyEditor({
 
       {body.type === "graphql" && (
         <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-[3fr_2fr]">
-          <GraphQlQuery value={body.graphqlQuery} onChange={(v) => set({ graphqlQuery: v })} variables={variables} request={request} collectionId={collectionId} />
+          <GraphQlQuery
+            value={body.graphqlQuery}
+            onChange={(v) => set({ graphqlQuery: v })}
+            operationName={body.graphqlOperationName}
+            onOperationName={(graphqlOperationName) => set({ graphqlOperationName })}
+            variables={variables} request={request} collectionId={collectionId} />
           <div className="flex min-h-0 flex-col">
             <div className="mb-1.5 flex min-h-6 items-center gap-2">
               <span className="text-12 font-medium text-grey">Variables (JSON)</span>

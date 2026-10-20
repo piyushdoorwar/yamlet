@@ -578,6 +578,7 @@ export function readBody(raw: unknown): RequestBody {
   b.graphqlQuery = str(gql.query);
   b.graphqlVariables = gql.variables === undefined || gql.variables === null ? "" : typeof gql.variables === "string" ? gql.variables : JSON.stringify(gql.variables, null, 2);
   if (b.type === "graphql" && !b.graphqlQuery && b.raw) b.graphqlQuery = b.raw;
+  if (typeof gql.operationName === "string" && gql.operationName) b.graphqlOperationName = gql.operationName;
   const src = Array.isArray(raw.src) ? raw.src[0] : raw.src;
   b.binaryFile = str(raw.file ?? raw.binaryFile ?? (b.type === "binary" && typeof src === "string" ? src : ""));
   if (b.type === "binary" && !b.binaryFile && b.raw) b.binaryFile = b.raw;
@@ -623,6 +624,7 @@ export function writeBody(b: RequestBody): Obj | undefined {
     case "graphql": {
       const g: Obj = { query: b.graphqlQuery ?? "" };
       if (b.graphqlVariables) g.variables = b.graphqlVariables;
+      if (b.graphqlOperationName) g.operationName = b.graphqlOperationName;
       out.content = g;
       break;
     }
