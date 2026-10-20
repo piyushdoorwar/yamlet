@@ -144,7 +144,8 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   under an override with Reset / Save to file. Exports carry initial values; the CLI uses them.
 - **Variable precedence** (highest first): request, runner data row, environment,
   collection, globals (as in v2.1-compatible clients: an environment overrides a
-  collection default). Values may contain placeholders, expanded up to 10 levels (cycles
+  collection default). Names are case-sensitive (a near miss is named in the peek and
+  the undefined-host error). Values may contain placeholders, expanded up to 10 levels (cycles
   stay as written). Unknown `{{placeholders}}` are left untouched so missing
   variables stay visible; one left in the URL's host stops the send with its name. `{{$name}}` falls back to dynamic variables (user variables
   win; each occurrence is fresh).

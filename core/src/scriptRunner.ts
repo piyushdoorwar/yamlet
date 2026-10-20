@@ -72,10 +72,10 @@ export class ScriptVariables {
       return hit && hit.scope !== "dynamic" ? hit.value : undefined;
     }
     const list = this.list(scope);
-    const lk = key.toLowerCase();
+    const lk = key;
     if (!list) return this.local.get(lk)?.value; // scope not available: falls back to local
     for (let i = list.length - 1; i >= 0; i--) {
-      if (list[i].enabled !== false && list[i].key.toLowerCase() === lk) return list[i].value;
+      if (list[i].enabled !== false && list[i].key === lk) return list[i].value;
     }
     return undefined;
   }
@@ -84,11 +84,11 @@ export class ScriptVariables {
     if (!key?.trim()) return;
     const list = this.list(scope);
     if (scope === "local" || !list) {
-      this.local.set(key.toLowerCase(), { key, value, enabled: true });
+      this.local.set(key, { key, value, enabled: true });
       this.dirty.add("local");
       return;
     }
-    const existing = list.find((v) => v.key.toLowerCase() === key.toLowerCase());
+    const existing = list.find((v) => v.key === key);
     if (existing) {
       existing.value = value;
       existing.enabled = true;
@@ -98,13 +98,13 @@ export class ScriptVariables {
 
   unset(scope: ScriptScope, key: string): void {
     const list = this.list(scope);
-    const lk = key.toLowerCase();
+    const lk = key;
     if (scope === "local" || !list) {
       if (this.local.delete(lk)) this.dirty.add("local");
       return;
     }
     const before = list.length;
-    for (let i = list.length - 1; i >= 0; i--) if (list[i].key.toLowerCase() === lk) list.splice(i, 1);
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].key === lk) list.splice(i, 1);
     if (list.length !== before) this.dirty.add(scope);
   }
 

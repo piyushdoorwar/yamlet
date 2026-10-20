@@ -64,7 +64,7 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 - **Tabs, tree and quick open.** Drag and drop to reorder or move, rename inline,
   duplicate, Ctrl+K to jump to any request. Open tabs come back when you reload.
 - **Variables.** Request, environment, collection and global scopes (highest precedence
-  first), with `{{variable}}` highlighting. Hover a variable to see its value and edit it in place.
+  first), with case-sensitive names and `{{variable}}` highlighting. Hover a variable to see its value and edit it in place.
   Switch an environment, the collection variables or globals (or a single variable) to
   **Local** to keep values such as tokens on your machine only: the YAML keeps the key with
   a blank value, and the value survives restarts and upgrades in Yamlet's data folder.

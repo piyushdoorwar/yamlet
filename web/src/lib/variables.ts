@@ -22,12 +22,11 @@ export function useVariableContext(collectionId: string | undefined, requestVari
 }
 
 /**
- * Sets `name` in a variable list: updates (and enables) an existing entry, matching the
- * key case-insensitively like the resolver does, or appends a new one.
+ * Sets `name` in a variable list: updates (and enables) the entry with that exact
+ * (case-sensitive) key, or appends a new one.
  */
 export function upsertVariable(vars: Variable[], name: string, value: string): Variable[] {
-  const idx = vars.findIndex((v) => v.key === name);
-  const at = idx >= 0 ? idx : vars.findIndex((v) => v.key.toLowerCase() === name.toLowerCase());
+  const at = vars.findIndex((v) => v.key === name);
   if (at < 0) return [...vars, { key: name, value, enabled: true, ...(scopeIsLocal(vars) ? { local: true } : {}) }];
   return vars.map((v, i) => (i === at ? { ...v, value, enabled: true } : v));
 }
@@ -92,10 +91,10 @@ export function useVariableSource(ctx: VariableContext, targets?: VariableTarget
       targets,
       lookup: (name) => {
         if (name.startsWith("$")) return undefined;
-        const key = name.trim().toLowerCase();
+        const key = name.trim();
         for (const [scope, vars] of scopes) {
           // Later entries win within a scope, as in the resolver.
-          const hit = vars?.findLast((v) => v.enabled !== false && v.key && v.key.toLowerCase() === key);
+          const hit = vars?.findLast((v) => v.enabled !== false && v.key === key);
           if (hit) return { value: hit.value ?? "", scope, secret: hit.secret };
         }
         return undefined;

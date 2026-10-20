@@ -533,7 +533,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     environment: input.environment ? structuredClone(input.environment.variables ?? []) : undefined,
     globals: structuredClone(input.globals ?? []),
   });
-  for (const v of input.localVariables ?? []) vars.local.set(v.key.toLowerCase(), { ...v });
+  for (const v of input.localVariables ?? []) vars.local.set(v.key, { ...v });
   const tests: ScriptTestResult[] = [];
   const logs: string[] = [];
   const settings = { ...defaultSettings(), ...req.settings };

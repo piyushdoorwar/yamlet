@@ -61,9 +61,10 @@ describe("useAutosave", () => {
 });
 
 describe("upsertVariable", () => {
-  it("updates an existing key (case-insensitively) and enables it", () => {
+  it("updates the exact key and enables it; another case is another variable", () => {
     const vars = [{ key: "Token", value: "old", enabled: false }];
-    expect(upsertVariable(vars, "token", "new")).toEqual([{ key: "Token", value: "new", enabled: true }]);
+    expect(upsertVariable(vars, "Token", "new")).toEqual([{ key: "Token", value: "new", enabled: true }]);
+    expect(upsertVariable(vars, "token", "x")).toEqual([...vars, { key: "token", value: "x", enabled: true }]);
   });
 
   it("appends a missing key", () => {

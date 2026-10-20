@@ -67,6 +67,7 @@ export function VariablePeek({ name, source, pinned, onEdit, onClose }: Props) {
   const info = source.lookup(name);
   const targets = source.targets ?? [];
   const resolved = !!info && info.value !== "";
+  const similar = info ? undefined : source.names().find((v) => v.name !== name && v.name.toLowerCase() === name.toLowerCase())?.name;
   const [reveal, setReveal] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -121,7 +122,15 @@ export function VariablePeek({ name, source, pinned, onEdit, onClose }: Props) {
       ) : (
         <p className="flex items-start gap-1.5 text-grey">
           <TriangleAlert size={14} className="mt-px shrink-0 text-warning" aria-hidden />
-          <span>Not defined in the request, active environment, collection or globals. It is sent as typed.</span>
+          <span>
+            Not defined in the request, active environment, collection or globals. It is sent as typed.
+            {similar && (
+              <>
+                {" "}
+                Names are case-sensitive: did you mean <span className="font-mono text-ink">{similar}</span>?
+              </>
+            )}
+          </span>
         </p>
       )}
       {info && !info.value && <p className="mt-2 text-11 text-muted">Defined but empty, so the request sends an empty string.</p>}

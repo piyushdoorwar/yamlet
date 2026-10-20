@@ -2,7 +2,7 @@
 // resolved, query and path parameters applied, auth and default headers added.
 // Isomorphic: shared by the executor and the UI's code snippets.
 import { yamletUserAgent, type Auth, type KeyValue, type YamletCollection, type YamletFolder, type YamletRequest } from "./models.js";
-import { resolveVariables, type VariableContext } from "./variableResolver.js";
+import { caseMismatch, resolveVariables, type VariableContext } from "./variableResolver.js";
 import { operationNameToSend } from "./graphqlOperations.js";
 
 export type BuiltBody =
@@ -331,7 +331,12 @@ export function buildRequest(request: YamletRequest, opts: BuildOptions): BuiltR
   const unresolved = /\{\{\s*([^{}]+?)\s*\}\}|%7B%7B(.+?)%7D%7D/i.exec(host);
   if (unresolved) {
     const name = unresolved[1] ?? decodeURIComponent(unresolved[2]);
-    problems.push(`The URL uses {{${name}}}, which isn't defined. Select an environment that defines it, or add it as a variable.`);
+    const similar = caseMismatch(name, opts.ctx);
+    problems.push(
+      similar
+        ? `The URL uses {{${name}}}, which isn't defined. Names are case-sensitive: did you mean {{${similar}}}?`
+        : `The URL uses {{${name}}}, which isn't defined. Select an environment that defines it, or add it as a variable.`,
+    );
   }
   return { method, url, headers, body, ...(problems.length ? { problems } : {}), ...(signing ? { signing } : {}) };
 }

@@ -225,6 +225,7 @@ describe("build problems", () => {
   it("names an undefined variable in the host instead of letting DNS fail", () => {
     expect(buildRequest(newRequest({ url: "{{baseUrl}}/users" }), { ctx: {} }).problems).toEqual([expect.stringContaining("{{baseUrl}}")]);
     expect(buildRequest(newRequest({ url: "https://api.test/{{id}}" }), { ctx: {} }).problems).toBeUndefined();
+    expect(buildRequest(newRequest({ url: "{{BaseUrl}}/x" }), { ctx: { environment: [{ key: "baseUrl", value: "https://h", enabled: true }] } }).problems?.[0]).toMatch(/did you mean \{\{baseUrl\}\}/);
   });
 
   it("reports GraphQL variables that aren't JSON", () => {

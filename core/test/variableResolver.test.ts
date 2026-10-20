@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DYNAMIC_VARIABLES, findDynamicVariable, isDynamicVariable, tryGenerate } from "../src/dynamicVariables.js";
 import type { Variable } from "../src/models.js";
-import { findPlaceholders, lookupVariable, mergedVariables, resolveVariables } from "../src/variableResolver.js";
+import { caseMismatch, findPlaceholders, lookupVariable, mergedVariables, resolveVariables } from "../src/variableResolver.js";
 
 const vars = (...pairs: [string, string][]): Variable[] => pairs.map(([key, value]) => ({ key, value, enabled: true }));
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -48,8 +48,12 @@ describe("resolveVariables", () => {
     expect(resolveVariables("{{v}}", { collection: [{ key: "v", value: "off", enabled: false }] })).toBe("{{v}}");
   });
 
-  it("matches keys case-insensitively", () => {
-    expect(resolveVariables("{{BASEURL}}", { environment: vars(["baseUrl", "x"]) })).toBe("x");
+  it("matches names case-sensitively and names the near miss", () => {
+    const ctx = { environment: vars(["baseUrl", "x"], ["id", "1"], ["ID", "2"]) };
+    expect(resolveVariables("{{BASEURL}}", ctx)).toBe("{{BASEURL}}");
+    expect(resolveVariables("{{id}}-{{ID}}", ctx)).toBe("1-2");
+    expect(caseMismatch("BASEURL", ctx)).toBe("baseUrl");
+    expect(caseMismatch("nope", ctx)).toBeUndefined();
   });
 
   it("handles multiple placeholders and expands nested ones", () => {

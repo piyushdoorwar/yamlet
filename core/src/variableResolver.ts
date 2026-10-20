@@ -4,7 +4,7 @@ import { tryGenerate } from "./dynamicVariables.js";
 
 /**
  * The scopes available when resolving a request. Precedence, highest first:
- * request, iteration data, environment, collection, globals. Keys match case-insensitively.
+ * request, iteration data, environment, collection, globals. Names are case-sensitive.
  */
 export interface VariableContext {
   request?: Variable[];
@@ -40,7 +40,7 @@ function layerFromVariables(scope: Layer["scope"], vars: Variable[] | undefined)
   const values = new Map<string, string>();
   for (const v of vars) {
     // Later entries win within a layer.
-    if (v && v.enabled !== false && v.key) values.set(v.key.toLowerCase(), v.value ?? "");
+    if (v && v.enabled !== false && v.key) values.set(v.key, v.value ?? "");
   }
   return { scope, values };
 }
@@ -52,7 +52,7 @@ function layers(ctx: VariableContext): Layer[] {
   const data = ctx.iterationData
     ? {
         scope: "data" as const,
-        values: new Map(Object.entries(ctx.iterationData).map(([k, v]) => [k.toLowerCase(), dataText(v)])),
+        values: new Map(Object.entries(ctx.iterationData).map(([k, v]) => [k, dataText(v)])),
       }
     : undefined;
   return [
@@ -65,7 +65,7 @@ function layers(ctx: VariableContext): Layer[] {
 }
 
 function lookupIn(ls: Layer[], name: string): VariableLookup | undefined {
-  const key = name.toLowerCase();
+  const key = name;
   for (const l of ls) {
     const v = l.values.get(key);
     if (v !== undefined) return { value: v, scope: l.scope };
@@ -81,14 +81,23 @@ export function lookupVariable(name: string, ctx: VariableContext): VariableLook
   return generated === undefined ? undefined : { value: generated, scope: "dynamic" };
 }
 
+/**
+ * A defined variable whose name differs from `name` only in case (names are
+ * case-sensitive), for "did you mean" hints.
+ */
+export function caseMismatch(name: string, ctx: VariableContext): string | undefined {
+  const lower = name.toLowerCase();
+  for (const l of layers(ctx)) for (const k of l.values.keys()) if (k !== name && k.toLowerCase() === lower) return k;
+  return undefined;
+}
+
 /** Flattened view of all user variables with precedence applied; keys keep their original casing. */
 export function mergedVariables(ctx: VariableContext): Record<string, string> {
   const out: Record<string, string> = {};
   const seen = new Set<string>();
   const add = (k: string, v: string) => {
-    const lk = k.toLowerCase();
-    if (seen.has(lk)) return;
-    seen.add(lk);
+    if (seen.has(k)) return;
+    seen.add(k);
     out[k] = v;
   };
   const addVars = (vars?: Variable[]) => {
@@ -124,7 +133,7 @@ export function resolveVariables(text: string | undefined | null, ctx: VariableC
     s.replace(PLACEHOLDER, (match, name: string) => {
       const found = lookupIn(ls, name);
       if (!found) return tryGenerate(name) ?? match;
-      const key = name.toLowerCase();
+      const key = name;
       if (expanding.has(key)) return match; // a cycle: leave the reference visible
       if (!found.value.includes("{{") || expanding.size >= MAX_NESTING || --budget < 0) return found.value;
       expanding.add(key);
