@@ -559,6 +559,12 @@ function securityAuth(scheme: Obj, name: string): SchemeAuth | undefined {
   if ((type === "http" && str(scheme.scheme).toLowerCase() === "bearer") || type === "bearer") {
     return { auth: { ...defaultAuth("bearer"), token: "{{bearerToken}}" }, vars: [secret("bearerToken")] };
   }
+  if (type === "http" && str(scheme.scheme).toLowerCase() === "digest") {
+    return {
+      auth: { ...defaultAuth("digest"), username: "{{username}}", password: "{{password}}" },
+      vars: [{ key: "username", value: "", enabled: true }, secret("password")],
+    };
+  }
   if ((type === "http" && str(scheme.scheme).toLowerCase() === "basic") || type === "basic") {
     return {
       auth: { ...defaultAuth("basic"), username: "{{username}}", password: "{{password}}" },
@@ -611,20 +617,32 @@ function securityAuth(scheme: Obj, name: string): SchemeAuth | undefined {
   return undefined;
 }
 
-function serverUrl(doc: Obj): string {
+/**
+ * The API's base URL. One given relative to the document (no host, `/v1`, or no servers
+ * at all) is resolved against the URL it was imported from, or else starts with a
+ * `{{host}}` placeholder to fill in.
+ */
+function serverUrl(doc: Obj, sourceUrl?: string): { url: string; relative: boolean } {
+  let url: string;
   if (typeof doc.swagger === "string" || typeof doc.swagger === "number") {
     const host = str(doc.host);
     const basePath = str(doc.basePath);
-    if (!host) return basePath.replace(/\/$/, "");
     const scheme = arr(doc.schemes).map(str)[0] || "https";
-    return `${scheme}://${host}${basePath}`.replace(/\/$/, "");
+    url = host ? `${scheme}://${host}${basePath}` : basePath || "/";
+  } else {
+    const server = arr(doc.servers).filter(isObj)[0];
+    // Server variables become {{placeholders}}, with their defaults as collection variables.
+    url = server ? str(server.url) || "/" : "/";
+    for (const k of Object.keys(asObj(server?.variables))) url = url.split(`{${k}}`).join(`{{${k}}}`);
   }
-  const server = arr(doc.servers).filter(isObj)[0];
-  if (!server) return "";
-  // Server variables become {{placeholders}}, with their defaults as collection variables.
-  let url = str(server.url);
-  for (const k of Object.keys(asObj(server.variables))) url = url.split(`{${k}}`).join(`{{${k}}}`);
-  return url.replace(/\/$/, "");
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) || url.startsWith("{{")) return { url: url.replace(/\/$/, ""), relative: false };
+  if (url.startsWith("//")) return { url: `https:${url}`.replace(/\/$/, ""), relative: false };
+  if (sourceUrl && /^https?:\/\//i.test(sourceUrl)) {
+    const src = new URL(sourceUrl);
+    const path = url.startsWith("/") ? url : src.pathname.replace(/[^/]*$/, "") + url;
+    return { url: `${src.origin}${path}`.replace(/\/$/, ""), relative: false };
+  }
+  return { url: `{{host}}${url.startsWith("/") ? url : `/${url}`}`.replace(/\/$/, ""), relative: true };
 }
 
 function serverVariables(doc: Obj): Variable[] {
@@ -634,7 +652,7 @@ function serverVariables(doc: Obj): Variable[] {
 
 /** Imports an OpenAPI 3.x or Swagger 2.0 document given as JSON or YAML text. */
 /** `text` is the spec, or a spec already parsed by `bundleExternalRefs` with its other files. */
-export function importOpenApi(text: string | { doc: unknown; externals: Record<string, unknown> }): YamletCollection {
+export function importOpenApi(text: string | { doc: unknown; externals: Record<string, unknown> }, opts: { sourceUrl?: string } = {}): YamletCollection {
   const parsed = typeof text === "string" ? parseStructured(text) : text.doc;
   if (!isObj(parsed)) throw new Error("Not a JSON or YAML document");
   const doc = parsed;
@@ -644,14 +662,23 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
   const info = asObj(doc.info);
   const c = newCollection({ name: str(info.title) || "Imported API" });
   if (info.description) c.description = str(info.description);
-  c.variables = [{ key: "baseUrl", value: serverUrl(doc), enabled: true }, ...(isSwagger2 ? [] : serverVariables(doc))];
+  const base = serverUrl(doc, opts.sourceUrl);
+  c.variables = [{ key: "baseUrl", value: base.url, enabled: true }, ...(isSwagger2 ? [] : serverVariables(doc))];
 
   const schemes = isSwagger2 ? asObj(doc.securityDefinitions) : asObj(asObj(doc.components).securitySchemes);
+  // Schemes Yamlet can't apply, and requirements that combine several, end up in a note.
+  const notes = new Set<string>();
   const schemeAuth = (requirements: unknown): SchemeAuth | undefined => {
     for (const req of arr(requirements).filter(isObj)) {
-      for (const name of Object.keys(req)) {
-        const hit = securityAuth(r.deref(schemes[name]), name);
-        if (hit) return hit;
+      const names = Object.keys(req);
+      for (const name of names) {
+        const scheme = r.deref(schemes[name]);
+        const hit = securityAuth(scheme, name);
+        if (hit) {
+          if (names.length > 1) notes.add(`"${names.join('" and "')}" are required together; only "${name}" is set as auth, so add the others as headers or params.`);
+          return hit;
+        }
+        notes.add(`"${name}" (${[str(scheme.type), str(scheme.scheme)].filter(Boolean).join(" ") || "unknown type"}) isn't supported; set up its auth by hand.`);
       }
     }
     return undefined;
@@ -754,6 +781,8 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
         if (!op.security.length) req.auth = defaultAuth("none");
         else {
           const opAuth = schemeAuth(op.security);
+          // Only unsupported schemes: no auth rather than another scheme's credentials.
+          if (!opAuth && op.security.some((s) => isObj(s) && Object.keys(s).length)) req.auth = defaultAuth("none");
           // Set on the operation itself: with no global security, operations without their
           // own stay public instead of inheriting another operation's scheme.
           if (opAuth && JSON.stringify(opAuth.auth) !== JSON.stringify(c.auth)) {
@@ -781,6 +810,11 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
       }
     }
   }
+  const extra = [
+    ...(base.relative ? ["The document gives its server relative to where it is hosted: set {{host}} (e.g. https://api.example.com) in an environment."] : []),
+    ...[...notes].map((n) => `Security scheme ${n}`),
+  ];
+  if (extra.length) c.description = [c.description, "Import notes:", ...extra.map((n) => `- ${n}`)].filter(Boolean).join("\n\n");
   return c;
 }
 

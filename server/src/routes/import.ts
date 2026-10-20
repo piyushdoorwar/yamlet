@@ -79,7 +79,7 @@ export function importRoutes(app: FastifyInstance, { workspaces, dispatcher }: D
         case "openapi": {
           // From a link, refs into other files are fetched next to it.
           const source = link ? await bundleExternalRefs(text, link, async (u) => (await fetchLink(u, dispatcher())).text) : text;
-          const c = await store.importCollection(importOpenApi(source));
+          const c = await store.importCollection(importOpenApi(source, { sourceUrl: link }));
           return { kind: "collection", workspace: store.workspace, collectionId: c.id };
         }
         default:

@@ -206,6 +206,32 @@ describe("OpenAPI parameter examples", () => {
   });
 });
 
+describe("OpenAPI servers and unsupported schemes", () => {
+  const doc = (extra: object) =>
+    JSON.stringify({ openapi: "3.0.0", info: { title: "R", version: "1" }, paths: { "/a": { get: { responses: {} } } }, ...extra });
+  it("resolves a relative server against the import link, or asks for {{host}}", () => {
+    expect(importOpenApi(doc({ servers: [{ url: "/v1" }] }), { sourceUrl: "https://api.test/docs/openapi.json" }).variables[0].value).toBe("https://api.test/v1");
+    expect(importOpenApi(doc({ servers: [{ url: "v2" }] }), { sourceUrl: "https://api.test/docs/openapi.json" }).variables[0].value).toBe("https://api.test/docs/v2");
+    const c = importOpenApi(doc({ servers: [{ url: "/v1" }] }));
+    expect(c.variables[0].value).toBe("{{host}}/v1");
+    expect(c.description).toMatch(/set \{\{host\}\}/);
+    expect(importOpenApi(doc({})).variables[0].value).toBe("{{host}}");
+  });
+
+  it("maps digest, notes unsupported schemes, and leaves their operations without auth", () => {
+    const c = importOpenApi(doc({
+      servers: [{ url: "https://h" }],
+      security: [{ key: [] }],
+      components: { securitySchemes: { key: { type: "apiKey", in: "header", name: "X-Key" }, tls: { type: "mutualTLS" }, dig: { type: "http", scheme: "digest" } } },
+      paths: { "/m": { get: { security: [{ tls: [] }], responses: {} } }, "/d": { get: { security: [{ dig: [] }], responses: {} } } },
+    }));
+    const [m, d] = c.requests;
+    expect(m.auth.type).toBe("none");
+    expect(d.auth.type).toBe("digest");
+    expect(c.description).toMatch(/"tls" \(mutualTLS\) isn't supported/);
+  });
+});
+
 describe("OpenAPI operation security", () => {
   it("leaves operations without security public when there is no global security", () => {
     const c = importOpenApi(JSON.stringify({
