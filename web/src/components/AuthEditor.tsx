@@ -214,6 +214,10 @@ export function AuthEditor({ auth, onChange, allowInherit, variables, collection
           <Field label="Session token" hint="Only for temporary credentials.">
             <VarInput label="Session token" secret value={auth.aws.sessionToken} onChange={(sessionToken) => setAws({ sessionToken })} variables={variables} />
           </Field>
+          <label className="flex items-center gap-2 text-13 text-body md:col-span-2">
+            <input type="checkbox" className="check" checked={!!auth.aws.addToQuery} onChange={(e) => setAws({ addToQuery: e.target.checked || undefined })} />
+            Sign in the query string (presigned URL) instead of headers
+          </label>
         </>
       )}
 

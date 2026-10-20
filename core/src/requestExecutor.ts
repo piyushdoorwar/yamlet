@@ -10,7 +10,7 @@ import { request, type Dispatcher } from "undici";
 import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletFolder, type YamletRequest, type YamletResponse } from "./models.js";
-import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
+import { digestAuthorization, parseDigestChallenge, presignAwsV4, signAwsV4 } from "./authSigning.js";
 import { canFetchAutomatically, forgetCachedToken, getCachedToken, isExpired, refreshAndRemember, refreshedTokenFor, type TokenResponse } from "./oauth2.js";
 import { encodeMultipart } from "./multipart.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, mimeForFile, type BuiltRequest } from "./requestBuilder.js";
@@ -677,7 +677,12 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     const withBodyType = (list: KeyValue[]) =>
       prepared.contentType ? [...list.filter((h) => h.key.toLowerCase() !== "content-type"), { key: "Content-Type", value: prepared.contentType, enabled: true }] : list;
     let headers = withBodyType(built.headers);
-    if (auth.type === "awsv4") {
+    if (auth.type === "awsv4" && auth.aws.addToQuery) {
+      const a = auth.aws;
+      const aws = { accessKey: resolve(a.accessKey), secretKey: resolve(a.secretKey), sessionToken: resolve(a.sessionToken), region: resolve(a.region), service: resolve(a.service) };
+      built = { ...built, url: presignAwsV4({ method: built.method, url: built.url, aws, body: prepared.body }) };
+      headers = headers.filter((h) => h.key.toLowerCase() !== "authorization");
+    } else if (auth.type === "awsv4") {
       const a = auth.aws;
       headers = [
         ...headers.filter((h) => h.key.toLowerCase() !== "authorization"),

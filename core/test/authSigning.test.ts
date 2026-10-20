@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { awsScopeFromHost, digestAuthorization, parseDigestChallenge, signAwsV4 } from "../src/authSigning.js";
+import { awsScopeFromHost, digestAuthorization, parseDigestChallenge, presignAwsV4, signAwsV4 } from "../src/authSigning.js";
 import { defaultAuth, newRequest } from "../src/models.js";
 import { execute } from "../src/requestExecutor.js";
 import { readAuth, writeAuth } from "../src/yamlDtos.js";
@@ -40,6 +40,20 @@ describe("AWS Signature Version 4", () => {
     expect(raw).toBe(sign("https://bucket.s3.amazonaws.com/a%2Bb/2024-01-01T10%3A00%3A00.json"));
     // Not the signature of the path left as the URL parser keeps it.
     expect(raw).not.toBe(sign("https://bucket.s3.amazonaws.com/ab/2024-01-01T10-00-00.json"));
+  });
+
+  it("presigns a URL like AWS's published S3 example", () => {
+    const url = presignAwsV4({
+      method: "GET",
+      url: "https://examplebucket.s3.amazonaws.com/test.txt",
+      aws: { accessKey: "AKIAIOSFODNN7EXAMPLE", secretKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", sessionToken: "", region: "us-east-1", service: "s3" },
+      now: new Date(Date.UTC(2013, 4, 24)),
+      expiresSeconds: 86400,
+    });
+    expect(url).toContain("X-Amz-Credential=AKIAIOSFODNN7EXAMPLE%2F20130524%2Fus-east-1%2Fs3%2Faws4_request");
+    expect(url).toMatch(/&X-Amz-Signature=aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404$/);
+    const a = { ...defaultAuth("awsv4"), aws: { ...aws, addToQuery: true } };
+    expect(readAuth(writeAuth(a)).aws.addToQuery).toBe(true);
   });
 
   it("is stored and read back in the workspace YAML shape", () => {

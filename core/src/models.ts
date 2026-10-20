@@ -45,6 +45,8 @@ export interface AwsSigV4Config {
   sessionToken: string;
   region: string;
   service: string;
+  /** Sign in the query string (a presigned URL) instead of headers. */
+  addToQuery?: boolean;
 }
 export type ApiKeyLocation = "header" | "query";
 export type OAuth2GrantType = "client_credentials" | "authorization_code" | "implicit" | "password";

@@ -118,25 +118,62 @@ export function signAwsV4(opts: {
   const canonicalHeaders = names.map((k) => `${k}:${signed.get(k)}\n`).join("");
   const signedHeaders = names.join(";");
 
-  // Each segment is URI-encoded per the SigV4 rules (WHATWG URLs leave + ( ) : = , @ $ ! '
-  // as they are): once for S3, twice for other services.
-  const path = url.pathname || "/";
-  const once = path.split("/").map((seg) => awsEncode(decodeSafe(seg)));
-  const canonicalPath = (service === "s3" ? once : once.map((seg) => awsEncode(seg))).join("/");
-  const canonicalQuery = [...url.searchParams.entries()]
+  const canonicalRequest = [opts.method.toUpperCase(), canonicalPath(url, service), canonicalQuery([...url.searchParams.entries()]), canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const scope = `${date}/${region}/${service}/aws4_request`;
+  const signature = sign(canonicalRequest, { amzDate, date, region, service, scope, secretKey: opts.aws.secretKey });
+  added.push({ key: "Authorization", value: `AWS4-HMAC-SHA256 Credential=${opts.aws.accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`, enabled: true });
+  return added;
+}
+
+// Each segment is URI-encoded per the SigV4 rules (WHATWG URLs leave + ( ) : = , @ $ ! '
+// as they are): once for S3, twice for other services.
+function canonicalPath(url: URL, service: string): string {
+  const once = (url.pathname || "/").split("/").map((seg) => awsEncode(decodeSafe(seg)));
+  return (service === "s3" ? once : once.map((seg) => awsEncode(seg))).join("/");
+}
+
+function canonicalQuery(entries: [string, string][]): string {
+  return entries
     .map(([k, v]) => [awsEncode(k), awsEncode(v)])
     .sort(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0))
     .map(([k, v]) => `${k}=${v}`)
     .join("&");
+}
 
-  const canonicalRequest = [opts.method.toUpperCase(), canonicalPath, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join("\n");
+function sign(canonicalRequest: string, s: { amzDate: string; date: string; region: string; service: string; scope: string; secretKey: string }): string {
+  const stringToSign = ["AWS4-HMAC-SHA256", s.amzDate, s.scope, sha256(canonicalRequest)].join("\n");
+  const kDate = hmac(`AWS4${s.secretKey}`, s.date);
+  const kSigning = hmac(hmac(hmac(kDate, s.region), s.service), "aws4_request");
+  return createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+}
+
+/**
+ * The URL signed in its query string instead of headers (a presigned URL), valid for
+ * `expiresSeconds`. Only the host header is signed; S3 takes UNSIGNED-PAYLOAD, other
+ * services the body's hash.
+ */
+export function presignAwsV4(opts: { method: string; url: string; aws: AwsSigV4Config; body?: string | Buffer; now?: Date; expiresSeconds?: number }): string {
+  const url = new URL(opts.url);
+  const guessed = awsScopeFromHost(url.hostname);
+  const region = opts.aws.region.trim() || guessed.region || "us-east-1";
+  const service = opts.aws.service.trim() || guessed.service || "execute-api";
+  const amzDate = (opts.now ?? new Date()).toISOString().replace(/[:-]|\.\d{3}/g, "");
+  const date = amzDate.slice(0, 8);
   const scope = `${date}/${region}/${service}/aws4_request`;
-  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256(canonicalRequest)].join("\n");
-  const kDate = hmac(`AWS4${opts.aws.secretKey}`, date);
-  const kSigning = hmac(hmac(hmac(kDate, region), service), "aws4_request");
-  const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
-  added.push({ key: "Authorization", value: `AWS4-HMAC-SHA256 Credential=${opts.aws.accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`, enabled: true });
-  return added;
+  const entries: [string, string][] = [
+    ...[...url.searchParams.entries()].filter(([k]) => !k.toLowerCase().startsWith("x-amz-")),
+    ["X-Amz-Algorithm", "AWS4-HMAC-SHA256"],
+    ["X-Amz-Credential", `${opts.aws.accessKey}/${scope}`],
+    ["X-Amz-Date", amzDate],
+    ["X-Amz-Expires", String(opts.expiresSeconds ?? 3600)],
+    ["X-Amz-SignedHeaders", "host"],
+  ];
+  if (opts.aws.sessionToken.trim()) entries.push(["X-Amz-Security-Token", opts.aws.sessionToken.trim()]);
+  const query = canonicalQuery(entries);
+  const canonicalRequest = [opts.method.toUpperCase(), canonicalPath(url, service), query, `host:${url.host}\n`, "host", service === "s3" ? "UNSIGNED-PAYLOAD" : sha256(opts.body ?? "")].join("\n");
+  const signature = sign(canonicalRequest, { amzDate, date, region, service, scope, secretKey: opts.aws.secretKey });
+  // The canonical (sorted, encoded) query is sent as is, so the server reads what was signed.
+  return `${url.origin}${url.pathname}?${query}&X-Amz-Signature=${signature}${url.hash}`;
 }
 
 function decodeSafe(s: string): string {

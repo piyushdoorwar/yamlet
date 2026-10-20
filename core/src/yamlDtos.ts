@@ -380,6 +380,7 @@ export function readAuth(raw: unknown, fallback: AuthType = "none"): Auth {
     sessionToken: aws("sessionToken"),
     region: aws("region") || a.aws.region,
     service: aws("service"),
+    ...(["true", "1"].includes((aws("addAuthDataToQuery") || aws("addToQuery")).toLowerCase()) ? { addToQuery: true } : {}),
   };
   a.apiKeyName = credential(raw.apikey, "key") ?? (type === "apikey" ? credential(raw.credentials, "key") : undefined) ?? str(raw.key);
   a.apiKeyValue = credential(raw.apikey, "value") ?? (type === "apikey" ? credential(raw.credentials, "value") : undefined) ?? str(raw.value);
@@ -425,7 +426,7 @@ const MODELED_CREDENTIALS = new Set(
     "accessTokenUrl", "tokenUrl", "access_token_url", "refreshTokenUrl", "refresh_token_url", "authUrl", "authorizationUrl", "auth_url", "clientId", "client_id",
     "clientSecret", "client_secret", "scope", "redirect_uri", "redirectUri", "redirect_url", "callbackUrl", "addTokenTo",
     "client_authentication", "clientAuthentication", "challengeAlgorithm", "audience", "resource",
-    "accessKey", "secretKey", "sessionToken", "region", "service",
+    "accessKey", "secretKey", "sessionToken", "region", "service", "addAuthDataToQuery", "addToQuery",
   ].map((k) => k.toLowerCase()),
 );
 
@@ -477,6 +478,7 @@ export function writeAuth(a: Auth): Obj {
       put("sessionToken", a.aws.sessionToken);
       put("region", a.aws.region);
       put("service", a.aws.service);
+      if (a.aws.addToQuery) creds.addAuthDataToQuery = true;
       break;
     case "apikey":
       put("key", a.apiKeyName);
