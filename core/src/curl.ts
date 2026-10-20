@@ -7,7 +7,9 @@ export function tokenizeShell(input: string): string[] {
   let cur = "";
   let has = false;
   let i = 0;
-  const s = input.replace(/\^\r?\n/g, " "); // Windows cmd continuation
+  let s = input.replace(/\^\r?\n/g, " "); // Windows cmd continuation
+  // Windows cmd quoting (`^"...^"`, `^&`, `^%`): ^ escapes the next character.
+  if (/\^"/.test(s)) s = s.replace(/\^([\s\S])/g, "$1");
   const push = () => {
     if (has) tokens.push(cur);
     cur = "";
@@ -101,7 +103,30 @@ const NO_VALUE_FLAGS = new Set([
 const VALUE_FLAGS_IGNORED = new Set([
   "-o", "--output", "-w", "--write-out", "--retry", "-x", "--proxy", "--cacert", "--cert", "-E", "--key", "--resolve",
   "--connect-timeout", "-c", "--cookie-jar", "-r", "--range", "--limit-rate", "-y", "--speed-time", "-Y", "--speed-limit",
+  "--max-redirs", "--retry-delay", "--retry-max-time", "--cert-type", "--key-type", "--noproxy", "-K", "--config",
+  "--interface", "--dns-servers", "--max-filesize", "--proto", "--proto-redir", "--tls-max", "--ciphers", "--pass",
+  "--unix-socket", "--abstract-unix-socket", "--capath", "--crlfile", "--pinnedpubkey", "--local-port", "--keepalive-time",
+  "--expect100-timeout", "--happy-eyeballs-timeout-ms", "-U", "--proxy-user", "--proxy-header", "--preproxy", "--socks5",
+  "--socks5-hostname", "-z", "--time-cond", "--trace", "--trace-ascii", "--stderr", "--variable", "--connect-to",
+  "--proxy-cacert", "--proxy-cert", "--proxy-key", "--hostpubmd5", "--pubkey", "--create-file-mode", "--parallel-max",
 ]);
+
+/** Short flags that take a value; the others in a cluster such as `-sSLk` are switches. */
+const SHORT_WITH_VALUE = new Set("XHdFubeTmAowxEcryYKUz");
+
+/** `-sSLk` as `-s -S -L -k`; a value flag in the cluster takes the rest (`-sXPOST`). */
+function expandCluster(tok: string): string[] {
+  if (!/^-[A-Za-z#]{2,}$/.test(tok) || SHORT_WITH_VALUE.has(tok[1])) return [tok];
+  const out: string[] = [];
+  for (let j = 1; j < tok.length; j++) {
+    if (SHORT_WITH_VALUE.has(tok[j])) {
+      out.push(`-${tok.slice(j)}`);
+      break;
+    }
+    out.push(`-${tok[j]}`);
+  }
+  return out;
+}
 
 function decode(s: string): string {
   try {
@@ -122,11 +147,8 @@ function splitQuery(url: string): { base: string; params: KeyValue[] } {
     .filter(Boolean)
     .map((pair) => {
       const eq = pair.indexOf("=");
-      return {
-        key: decode(eq >= 0 ? pair.slice(0, eq) : pair),
-        value: eq >= 0 ? decode(pair.slice(eq + 1)) : "",
-        enabled: true,
-      };
+      // Kept as written: params are sent as typed, so %2B and + arrive unchanged.
+      return { key: eq >= 0 ? pair.slice(0, eq) : pair, value: eq >= 0 ? pair.slice(eq + 1) : "", enabled: true };
     });
   return { base: noHash.slice(0, qAt), params };
 }
@@ -178,6 +200,8 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
   let timeoutMs = 0;
 
   for (let i = start + 1; i < tokens.length; i++) {
+    const cluster = expandCluster(tokens[i]);
+    if (cluster.length > 1) tokens.splice(i, 1, ...cluster);
     let tok = tokens[i];
     let inline: string | undefined;
     if (tok.startsWith("--") && tok.includes("=")) {
@@ -234,10 +258,25 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
         const eq = pair.indexOf("=");
         if (eq > 0) {
           let v = pair.slice(eq + 1);
+          let contentType = "";
+          if (tok !== "--form-string") {
+            // name=value;type=...;filename=..., with the value optionally in double quotes.
+            let rest = "";
+            if (v.startsWith('"') && v.indexOf('"', 1) > 0) {
+              const close = v.indexOf('"', 1);
+              rest = v.slice(close + 1);
+              v = v.slice(1, close);
+            } else {
+              const at = v.search(/;\s*(type|filename|headers|encoder)=/);
+              if (at >= 0) [v, rest] = [v.slice(0, at), v.slice(at)];
+            }
+            contentType = /;\s*type=([^;]*)/.exec(rest)?.[1].trim() ?? "";
+          }
           const isFile = tok !== "--form-string" && v.startsWith("@");
-          if (isFile) v = v.slice(1).replace(/;type=[^;]*$/, "");
-          else if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1);
-          form.push({ key: pair.slice(0, eq), value: v, enabled: true, isFile });
+          if (isFile) v = v.slice(1);
+          const field: BodyField = { key: pair.slice(0, eq), value: v, enabled: true, isFile };
+          if (contentType) field.contentType = contentType;
+          form.push(field);
         }
         break;
       }

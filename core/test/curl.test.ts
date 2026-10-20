@@ -17,7 +17,7 @@ describe("parseCurl", () => {
     expect(r.url).toBe("https://api.test/users");
     expect(r.queryParams).toEqual([
       { key: "page", value: "2", enabled: true },
-      { key: "q", value: "a b", enabled: true },
+      { key: "q", value: "a%20b", enabled: true },
     ]);
     expect(r.headers).toContainEqual({ key: "Accept", value: "*/*", enabled: true });
     expect(r.body).toMatchObject({ type: "json", raw: '{"name":"x"}' });
@@ -45,9 +45,32 @@ describe("parseCurl", () => {
     expect(r.method).toBe("POST");
     expect(r.body.type).toBe("form-data");
     expect(r.body.fields).toEqual([
-      { key: "file", value: "/tmp/a.txt", enabled: true, isFile: true },
+      { key: "file", value: "/tmp/a.txt", enabled: true, isFile: true, contentType: "text/plain" },
       { key: "name", value: "doc", enabled: true, isFile: false },
     ]);
+    const typed = parseCurl(`curl https://h/u -F 'meta={"a":1};type=application/json' -F 'g=@a.png;filename=b.png' -F 'q="x;y";type=text/plain'`);
+    expect(typed.body.fields).toEqual([
+      { key: "meta", value: '{"a":1}', enabled: true, isFile: false, contentType: "application/json" },
+      { key: "g", value: "a.png", enabled: true, isFile: true },
+      { key: "q", value: "x;y", enabled: true, isFile: false, contentType: "text/plain" },
+    ]);
+  });
+
+  it("keeps query values as written, so encoded + and % survive", () => {
+    const r = parseCurl(`curl 'https://h/x?ts=00%2B05:30&sig=ab%2Bcd%3D%3D&p=50%2541'`);
+    expect(buildRequest(r, { ctx: {} }).url).toBe("https://h/x?ts=00%2B05:30&sig=ab%2Bcd%3D%3D&p=50%2541");
+  });
+
+  it("handles flag clusters, value flags before the URL and Windows cmd quoting", () => {
+    const r = parseCurl(`curl -sSLk --max-redirs 3 https://api.test/a -d '-xyz'`);
+    expect(r).toMatchObject({ url: "https://api.test/a", method: "POST", body: { raw: "-xyz" } });
+    expect(r.settings.skipSslVerification).toBe(true);
+    expect(parseCurl("curl -sXPUT https://api.test/a").method).toBe("PUT");
+    const cmd = parseCurl('curl ^"https://api.test/a?x=1^&y=2^" ^\n  -H ^"accept: application/json^" ^\n  --data-raw ^"^{^\\^"a^\\^":1^}^"');
+    expect(cmd.url).toBe("https://api.test/a");
+    expect(cmd.queryParams.map((q) => `${q.key}=${q.value}`)).toEqual(["x=1", "y=2"]);
+    expect(cmd.headers).toEqual([{ key: "accept", value: "application/json", enabled: true }]);
+    expect(cmd.body.raw).toBe('{"a":1}');
   });
 
   it("maps -u, bearer headers, cookies and flags", () => {
