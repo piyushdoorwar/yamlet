@@ -67,11 +67,12 @@ export function itemRoutes(app: FastifyInstance, { workspaces }: Deps): void {
       return result(s, await s.createRequest(collectionId, parentFolderId ?? null, init));
     },
   );
-  app.put<IdParams & { Body: { request: YamletRequest } }>("/api/requests/:id", async (req) => {
+  app.put<IdParams & { Body: { request: YamletRequest; force?: boolean } }>("/api/requests/:id", async (req) => {
     const s = await store(req);
     const request = req.body?.request;
     if (!request || request.id !== req.params.id) throw new HttpError(400, "Request id mismatch");
-    return result(s, await s.saveRequest(request));
+    // force: overwrite a file that changed on disk since it was read (the user chose to).
+    return result(s, await s.saveRequest(request, { force: req.body.force === true }));
   });
   app.delete<IdParams>("/api/requests/:id", async (req) => {
     const s = await store(req);

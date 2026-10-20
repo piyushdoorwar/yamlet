@@ -216,6 +216,8 @@ export interface YamletWorkspace {
   collections: YamletCollection[];
   environments: YamletEnvironment[];
   globals: Variable[];
+  /** Files that couldn't be read (e.g. Git conflict markers); Yamlet leaves them untouched. */
+  problems?: { path: string; message: string }[];
 }
 
 export interface ScriptTestResult {

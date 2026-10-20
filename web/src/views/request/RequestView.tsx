@@ -16,10 +16,13 @@ import { UrlBar } from "./UrlBar";
 function SaveIndicator({ id }: { id: string }) {
   const state = useStore((s) => s.saveState[id]);
   const error = useStore((s) => s.saveErrors[id]);
+  const conflict = useStore((s) => !!s.saveConflicts[id]);
   const toast = useToast();
   useEffect(() => {
-    if (error) toast.error("Changes not saved", `${error}. Your edits are kept here; use Retry to save them again.`);
-  }, [error, toast]);
+    if (!error) return;
+    if (conflict) toast.error("Changes not saved", `${error} Your edits are kept here: choose Overwrite or Use disk version.`);
+    else toast.error("Changes not saved", `${error}. Your edits are kept here; use Retry to save them again.`);
+  }, [error, conflict, toast]);
   if (state === "saving") {
     return (
       <span className="flex items-center gap-1 text-11 text-muted">
@@ -33,9 +36,30 @@ function SaveIndicator({ id }: { id: string }) {
         <span className="flex items-center gap-1">
           <CircleAlert size={12} aria-hidden /> Not saved
         </span>
-        <button type="button" className="rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft" onClick={() => void useStore.getState().saveNow(id)}>
-          Retry
-        </button>
+        {conflict ? (
+          <>
+            <button
+              type="button"
+              className="rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft"
+              title="Write your version over the file's newer content"
+              onClick={() => void useStore.getState().overwrite(id)}
+            >
+              Overwrite
+            </button>
+            <button
+              type="button"
+              className="rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft"
+              title="Drop your unsaved edits and load what is on disk"
+              onClick={() => void useStore.getState().useDiskVersion(id)}
+            >
+              Use disk version
+            </button>
+          </>
+        ) : (
+          <button type="button" className="rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft" onClick={() => void useStore.getState().saveNow(id)}>
+            Retry
+          </button>
+        )}
       </span>
     );
   }

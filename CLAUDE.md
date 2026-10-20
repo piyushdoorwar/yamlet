@@ -121,6 +121,11 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   per-row `type: secret` / `local: true`, and `variableSettings` for collection-variable flags.
 - **Tree order is persisted per file** via `order`, spaced by 1000 (`ORDER_STEP`); ties
   fall back to filename. After structural changes the store renumbers the affected container.
+- **Files changed or broken on disk are never overwritten unseen.** The store keeps each
+  file's text as it last read or wrote it. A write over a file changed since (a `git pull`)
+  is refused with 409 (the request view offers Overwrite / Use disk version); a reorder
+  re-reads such a sibling and changes only its order. Files that don't parse (Git conflict
+  markers) are listed in `workspace.problems`, shown in the sidebar, and never written.
 - **Backward compatibility: old and imported formats are read, never written.**
   `yamlDtos.ts` and the store read older Yamlet files (`collection.yaml` incl. the
   info/variable/event shape, `folder.yaml`, `<slug>.yaml`, `raw:` bodies, `enabled: false`,

@@ -104,7 +104,8 @@ export const api = {
 
   createRequest: (collectionId: string, parentFolderId: string | null, init?: Partial<YamletRequest>) =>
     request<MutationResult<YamletRequest>>("POST", "/api/requests", { collectionId, parentFolderId, init }),
-  saveRequest: (req: YamletRequest) => request<MutationResult<YamletRequest>>("PUT", `/api/requests/${enc(req.id)}`, { request: req }),
+  saveRequest: (req: YamletRequest, force = false) =>
+    request<MutationResult<YamletRequest>>("PUT", `/api/requests/${enc(req.id)}`, force ? { request: req, force } : { request: req }),
   deleteRequest: (id: string) => request<MutationResult<{ id: string }>>("DELETE", `/api/requests/${enc(id)}`),
   duplicateRequest: (id: string) => request<MutationResult<YamletRequest>>("POST", `/api/requests/${enc(id)}/duplicate`),
   move: (body: MoveBody) => request<MutationResult<{ id: string }>>("POST", "/api/move", body),

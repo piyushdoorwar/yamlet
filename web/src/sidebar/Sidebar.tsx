@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Download, FilePlus, FolderOpen, Layers, Plus, RefreshCw, Search, X } from "lucide-react";
+import { ChevronsUpDown, Download, TriangleAlert, FilePlus, FolderOpen, Layers, Plus, RefreshCw, Search, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { IconButton } from "../components/Button";
 import { Wordmark } from "../components/Logo";
@@ -56,6 +56,7 @@ export function Sidebar() {
           </span>
           <ChevronsUpDown size={15} className="shrink-0 text-muted" aria-hidden />
         </button>
+        {workspace.problems?.length ? <LoadProblems problems={workspace.problems} onReload={() => void actions.reload()} /> : null}
       </div>
 
       <div className="mt-4 px-4">
@@ -109,5 +110,29 @@ export function Sidebar() {
       {wsMenu.node}
       {newMenu.node}
     </aside>
+  );
+}
+
+/** Files that didn't load (e.g. Git conflict markers). Yamlet leaves them untouched until fixed. */
+function LoadProblems({ problems, onReload }: { problems: { path: string; message: string }[]; onReload: () => void }) {
+  return (
+    <details className="mt-2 rounded-lg bg-s-client px-3 py-2 text-12 text-s-client-ink">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium">
+        <TriangleAlert size={13} className="shrink-0" aria-hidden />
+        {problems.length === 1 ? "1 file couldn't be read" : `${problems.length} files couldn't be read`}
+      </summary>
+      <ul className="mt-1.5 space-y-1">
+        {problems.map((p) => (
+          <li key={p.path} className="break-all">
+            <span className="font-mono">{p.path}</span>
+            <span className="block opacity-80">{p.message}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1.5 opacity-80">Yamlet won't change these files. Fix them (a Git merge conflict?), then reload.</p>
+      <button type="button" className="mt-1 font-medium underline" onClick={onReload}>
+        Reload from disk
+      </button>
+    </details>
   );
 }

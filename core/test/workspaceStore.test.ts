@@ -122,6 +122,7 @@ describe("WorkspaceStore", () => {
     const c = await store.createCollection("API");
     const r = await store.createRequest(c.id, null, { name: "First" });
     await fs.appendFile(r.sourceFilePath!, "team: core\n");
+    await store.reload(); // another tool changed the file: Yamlet picks it up before saving
     const saved = await store.saveRequest({ ...r, name: "Renamed Thing", url: "https://x.test" });
     expect(path.basename(saved.sourceFilePath!)).toBe("Renamed Thing.request.yaml");
     expect(existsSync(r.sourceFilePath!)).toBe(false);
@@ -380,6 +381,7 @@ describe("WorkspaceStore", () => {
     expect((await open()).findEnvironment(env.id)!.variables[1]).toEqual({ key: "token", value: "s3cret", enabled: true, local: true });
 
     // Switching a variable back to the file moves its value into the YAML; deleting forgets the rest.
+    await re.reload();
     await re.saveEnvironment({ ...re.findEnvironment(env.id)!, variables: [{ key: "token", value: "s3cret", enabled: true }] });
     expect(await read(re.findEnvironment(env.id)!.filePath!)).toContain("s3cret");
     await re.deleteCollection(c.id);
@@ -415,10 +417,47 @@ describe("WorkspaceStore", () => {
     await fs.writeFile(file, (await read(file)).replace("http://shared", "http://shared2"));
     expect((await open()).findEnvironment(env.id)!.variables[0]).toMatchObject({ value: "http://mine", initialValue: "http://shared2" });
     // Save to file: no initial value, so the current one is written.
+    await re.reload();
     await re.saveEnvironment({ ...re.findEnvironment(env.id)!, variables: [{ key: "baseUrl", value: "http://mine", enabled: true }] });
     expect(await read(file)).toContain("http://mine");
     await re.deleteEnvironment(env.id);
     expect(JSON.parse(await read(path.join(data, "local-values.json"))).workspaces).toEqual({});
+  });
+
+  it("never overwrites a file changed on disk or one it couldn't read", async () => {
+    const store = await WorkspaceStore.create(tmp);
+    const c = await store.createCollection("API");
+    const a = await store.createRequest(c.id, null, { name: "A", url: "https://a" });
+    const b = await store.createRequest(c.id, null, { name: "B", url: "https://b" });
+    // A git pull changes B; reordering rewrites B's order but keeps the pulled URL.
+    await fs.writeFile(b.sourceFilePath!, (await read(b.sourceFilePath!)).replace("https://b", "https://pulled"));
+    await store.move("request", a.id, c.id, null, 1);
+    expect(await read(b.sourceFilePath!)).toContain("https://pulled");
+    expect(store.findRequest(b.id)!.request.url).toBe("https://pulled");
+    // Saving A from a stale copy after A changed on disk is refused, unless forced.
+    await fs.writeFile(a.sourceFilePath!, (await read(a.sourceFilePath!)).replace("https://a", "https://theirs"));
+    await expect(store.saveRequest({ ...a, url: "https://mine" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await read(a.sourceFilePath!)).toContain("https://theirs");
+    await store.saveRequest({ ...a, url: "https://mine" }, { force: true });
+    expect(await read(a.sourceFilePath!)).toContain("https://mine");
+
+    // A folder definition with conflict markers: listed, kept, never rewritten.
+    const f = await store.createFolder(c.id, null, "F");
+    const def = path.join(f.directoryPath!, ".resources", "definition.yaml");
+    const broken = `$kind: folder\n<<<<<<< HEAD\nauth: {type: bearer}\n=======\nauth: {type: basic}\n>>>>>>> theirs\n`;
+    await fs.writeFile(def, broken);
+    const re = await WorkspaceStore.open(tmp);
+    expect(re.workspace.problems).toEqual([{ path: "collections/API/F/.resources/definition.yaml", message: expect.any(String) }]);
+    await re.createFolder(c.id, null, "G"); // a sibling change renumbers folders
+    await re.move("folder", re.findCollection(c.id)!.folders.find((x) => x.name === "G")!.id, c.id, null, 0);
+    expect(await read(def)).toBe(broken);
+    await expect(re.updateFolder(re.findCollection(c.id)!.folders.find((x) => x.name === "F")!.id, { name: "F2" })).rejects.toMatchObject({ statusCode: 409 });
+
+    // A collection definition that doesn't parse still shows its requests.
+    await fs.writeFile(path.join(c.directoryPath!, ".resources", "definition.yaml"), "<<<<<<< HEAD\n: :\n");
+    const re2 = await WorkspaceStore.open(tmp);
+    expect(re2.findCollection(c.id) ?? re2.workspace.collections.find((x) => x.name === "API")).toBeDefined();
+    expect(re2.workspace.collections.find((x) => x.name === "API")!.requests.map((r) => r.name).sort()).toEqual(["A", "B"]);
   });
 
   it("opens the sample workspace", async () => {

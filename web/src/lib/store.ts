@@ -2,7 +2,7 @@ import type { ServerInfo } from "../../../shared/api";
 import type { KeyValue, YamletRequest, YamletResponse, YamletWorkspace } from "@core/models";
 import { isEventStream, SseParser, type SseEvent } from "@core/sse";
 import { create } from "zustand";
-import { api, errorMessage, setApiWorkspace } from "./api";
+import { api, ApiError, errorMessage, setApiWorkspace } from "./api";
 import { entryFromResponse, useConsole } from "./consoleLog";
 import { forgetResponse, loadResponse, saveResponse } from "./responseCache";
 import { keys, readJson, writeJson } from "./storage";
@@ -83,6 +83,8 @@ interface State {
   saveState: Record<string, SaveState>;
   /** Why the last save of a request failed; cleared by the next successful save. */
   saveErrors: Record<string, string>;
+  /** Requests whose save was refused because the file changed on disk (or can't be read). */
+  saveConflicts: Record<string, boolean>;
   responses: Record<string, ResponseState>;
   history: HistoryEntry[];
   layout: ResponseLayout;
@@ -109,6 +111,10 @@ interface State {
   updateDraft: (id: string, update: (r: YamletRequest) => YamletRequest) => void;
   /** Writes pending (or previously failed) edits now; saves of one request run in order. */
   saveNow: (id: string) => Promise<void>;
+  /** After a conflict: write this draft over the file's newer content. */
+  overwrite: (id: string) => Promise<void>;
+  /** After a conflict: drop this draft and load what is on disk now. */
+  useDiskVersion: (id: string) => Promise<void>;
 
   send: (id: string) => Promise<void>;
   cancel: (id: string) => void;
@@ -129,6 +135,8 @@ const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const savesInFlight = new Map<string, Promise<void>>();
 // Requests whose last save failed; their drafts are kept until a save succeeds.
 const unsaved = new Set<string>();
+// Requests the user chose to overwrite after a conflict; their next save forces the write.
+const forceNext = new Set<string>();
 const inflight = new Map<string, AbortController>();
 // Recently closed tabs, newest last, for "reopen closed tab".
 const closedTabs: Tab[] = [];
@@ -206,6 +214,7 @@ export const useStore = create<State>((set, get) => ({
   drafts: {},
   saveState: {},
   saveErrors: {},
+  saveConflicts: {},
   responses: {},
   history: [],
   layout: prefs.layout,
@@ -230,6 +239,7 @@ export const useStore = create<State>((set, get) => ({
       drafts: {},
       saveState: {},
       saveErrors: {},
+      saveConflicts: {},
       responses: {},
       history: readJson<HistoryEntry[]>(keys.history(ws.rootPath), []),
     });
@@ -378,14 +388,21 @@ export const useStore = create<State>((set, get) => ({
       if (!draft) return;
       set({ saveState: { ...get().saveState, [id]: "saving" } });
       try {
-        const { workspace } = await api.saveRequest(draft);
+        const force = forceNext.delete(id);
+        const { workspace } = await api.saveRequest(draft, force);
         const { [id]: _, ...saveErrors } = get().saveErrors;
-        set({ saveState: { ...get().saveState, [id]: "saved" }, saveErrors });
+        const { [id]: _c, ...saveConflicts } = get().saveConflicts;
+        set({ saveState: { ...get().saveState, [id]: "saved" }, saveErrors, saveConflicts });
         if (savesInFlight.get(id) === queued) savesInFlight.delete(id);
         get().applyWorkspace(workspace);
       } catch (err) {
         unsaved.add(id);
-        set({ saveState: { ...get().saveState, [id]: "error" }, saveErrors: { ...get().saveErrors, [id]: errorMessage(err) } });
+        const conflict = err instanceof ApiError && err.status === 409;
+        set({
+          saveState: { ...get().saveState, [id]: "error" },
+          saveErrors: { ...get().saveErrors, [id]: errorMessage(err) },
+          saveConflicts: { ...get().saveConflicts, [id]: conflict },
+        });
       }
     };
     const queued: Promise<void> = (savesInFlight.get(id) ?? Promise.resolve()).then(run);
@@ -395,6 +412,27 @@ export const useStore = create<State>((set, get) => ({
     } finally {
       if (savesInFlight.get(id) === queued) savesInFlight.delete(id);
     }
+  },
+
+  overwrite: async (id) => {
+    forceNext.add(id);
+    unsaved.add(id);
+    await get().saveNow(id);
+  },
+
+  useDiskVersion: async (id) => {
+    const timer = saveTimers.get(id);
+    if (timer) clearTimeout(timer);
+    saveTimers.delete(id);
+    unsaved.delete(id);
+    forceNext.delete(id);
+    const { [id]: _d, ...drafts } = get().drafts;
+    const { [id]: _e, ...saveErrors } = get().saveErrors;
+    const { [id]: _c, ...saveConflicts } = get().saveConflicts;
+    const { [id]: _s, ...saveState } = get().saveState;
+    set({ drafts, saveErrors, saveConflicts, saveState });
+    const { workspace } = await api.reloadWorkspace();
+    get().applyWorkspace(workspace);
   },
 
   send: async (id) => {

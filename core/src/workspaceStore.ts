@@ -164,9 +164,15 @@ export class WorkspaceStore {
   workspace: YamletWorkspace;
   private queue: Promise<unknown> = Promise.resolve();
   private readonly local?: LocalValues;
+  /**
+   * Each file's text as Yamlet last read or wrote it, so a change made on disk since
+   * (a git pull, another editor) is never overwritten unseen; and files that didn't parse.
+   */
+  private track: LoadTrack;
 
-  private constructor(workspace: YamletWorkspace, options: StoreOptions) {
+  private constructor(workspace: YamletWorkspace, track: LoadTrack, options: StoreOptions) {
     this.workspace = workspace;
+    this.track = track;
     this.local = options.localValues;
     if (this.local) applyLocalValues(workspace, this.local);
   }
@@ -189,7 +195,8 @@ export class WorkspaceStore {
   static async open(dir: string, options: StoreOptions = {}): Promise<WorkspaceStore> {
     const root = WorkspaceStore.resolveRoot(dir);
     if (!isDir(root)) throw new Error(`No Yamlet workspace found at ${dir}`);
-    return new WorkspaceStore(await loadWorkspace(root), options);
+    const track: LoadTrack = { seen: new Map(), broken: new Map() };
+    return new WorkspaceStore(await loadWorkspace(root, track), track, options);
   }
 
   /** Creates the workspace skeleton (seeding globals) where missing, then opens it. */
@@ -211,7 +218,8 @@ export class WorkspaceStore {
 
   async reload(): Promise<YamletWorkspace> {
     return this.enqueue(async () => {
-      this.workspace = await loadWorkspace(this.workspace.rootPath);
+      this.track = { seen: new Map(), broken: new Map() };
+      this.workspace = await loadWorkspace(this.workspace.rootPath, this.track);
       if (this.local) applyLocalValues(this.workspace, this.local);
       return this.workspace;
     });
@@ -373,19 +381,19 @@ export class WorkspaceStore {
         for (const [i, r] of node.requests.entries()) {
           r.order = (i + 1) * ORDER_STEP;
           r.sourceFilePath = uniqueFilePath(nodeDir, fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
-          await writeFileAtomic(r.sourceFilePath, requestToYaml(r, undefined, r.sourceFilePath));
+          await this.writeFile(r.sourceFilePath, requestToYaml(r, undefined, r.sourceFilePath));
         }
         for (const [i, f] of node.folders.entries()) {
           f.order = (i + 1) * ORDER_STEP;
           f.directoryPath = uniqueDirectoryPath(nodeDir, fileSafeName(f.name, "New Folder"));
           await fs.mkdir(f.directoryPath, { recursive: true });
-          await writeFileAtomic(path.join(f.directoryPath, DEFINITION_FILE), folderToYaml(f, undefined, path.basename(f.directoryPath)));
+          await this.writeFile(path.join(f.directoryPath, DEFINITION_FILE), folderToYaml(f, undefined, path.basename(f.directoryPath)));
           await placeAndWrite(f, f.directoryPath);
         }
       };
       await placeAndWrite(c, dir);
       await this.saveLocal(collectionScope(c.id), c.variables);
-      await writeFileAtomic(c.filePath, collectionToYaml(c));
+      await this.writeFile(c.filePath, collectionToYaml(c));
       ws.collections.push(c);
       return c;
     });
@@ -461,14 +469,17 @@ export class WorkspaceStore {
       const id = init?.id && !this.idInUse(init.id) ? init.id : newId();
       const r = newRequest({ ...init, id, name, sourceFilePath: file, order: nextOrder(node.requests) });
       r.method = (r.method || "GET").toUpperCase();
-      await writeFileAtomic(file, requestToYaml(r, undefined, file));
+      await this.writeFile(file, requestToYaml(r, undefined, file));
       node.requests.push(r);
       return r;
     });
   }
 
-  /** Replaces a request by id and rewrites its file, renaming the file to match the name. */
-  async saveRequest(request: YamletRequest): Promise<YamletRequest> {
+  /**
+   * Replaces a request by id and rewrites its file, renaming the file to match the name.
+   * `force` overwrites a file that changed on disk since it was read.
+   */
+  async saveRequest(request: YamletRequest, opts: { force?: boolean } = {}): Promise<YamletRequest> {
     return this.enqueue(async () => {
       const hit = this.locateRequest(request.id);
       if (!hit) throw new Error(`Request not found: ${request.id}`);
@@ -481,7 +492,7 @@ export class WorkspaceStore {
       };
       if (!existing.sourceFilePath) throw new Error("Request has no file path");
       if (!updated.name.trim()) updated.name = existing.name;
-      await this.writeRequest(updated);
+      await this.writeRequest(updated, opts.force);
       hit.list[hit.list.indexOf(existing)] = updated;
       return updated;
     });
@@ -507,7 +518,7 @@ export class WorkspaceStore {
       for (const e of r.examples ?? []) e.id = newId();
       r.name = copyName(src.name);
       r.sourceFilePath = uniqueFilePath(path.dirname(src.sourceFilePath!), fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
-      await writeFileAtomic(r.sourceFilePath, requestToYaml(r, await readIfExists(src.sourceFilePath), r.sourceFilePath));
+      await this.writeFile(r.sourceFilePath, requestToYaml(r, await readIfExists(src.sourceFilePath), r.sourceFilePath));
       hit.list.splice(hit.list.indexOf(src) + 1, 0, r);
       await this.saveContainerOrder(hit.collection, hit.folders.at(-1) ?? null);
       return r;
@@ -540,6 +551,7 @@ export class WorkspaceStore {
         if (r.sourceFilePath && path.dirname(r.sourceFilePath) !== target.dir) {
           const dest = uniqueFilePath(target.dir, fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
           await fs.rename(r.sourceFilePath, dest);
+          this.moved(r.sourceFilePath, dest);
           r.sourceFilePath = dest;
         }
         clampInsert(target.node.requests, r);
@@ -561,6 +573,7 @@ export class WorkspaceStore {
         const dest = uniqueDirectoryPath(target.dir, path.basename(from));
         await fs.rename(from, dest);
         repathTree(f, from, dest);
+        this.moved(from, dest);
       }
       clampInsert(target.node.folders, f);
       await this.saveContainerOrder(target.collection, target.folder);
@@ -573,15 +586,41 @@ export class WorkspaceStore {
   /** Renumbers a container's direct children to their list order; rewrites only changed files. */
   private async saveContainerOrder(collection: YamletCollection, folder: YamletFolder | null): Promise<void> {
     const node = folder ?? collection;
-    for (const [i, r] of node.requests.entries()) {
+    // Only the order changes here: a sibling edited on disk since (a git pull) is re-read
+    // first so its new content is kept, and one that doesn't parse is left as it is.
+    for (const [i, r0] of node.requests.entries()) {
+      let r = r0;
       const order = (i + 1) * ORDER_STEP;
       if (r.order === order && existsSync(r.sourceFilePath ?? "")) continue;
+      const file = r.sourceFilePath;
+      if (!file || this.track.broken.has(file)) continue;
+      const fresh = await this.changedOnDisk(file);
+      if (fresh !== undefined) {
+        try {
+          r = { ...requestFromDto(loadYaml(fresh), file), id: r.id };
+          node.requests[i] = r;
+        } catch (e) {
+          this.track.broken.set(file, parseMessage(e));
+          continue;
+        }
+      }
       r.order = order;
-      if (r.sourceFilePath) await this.writeRequest(r);
+      await this.writeRequest(r);
     }
     for (const [i, f] of node.folders.entries()) {
       const order = (i + 1) * ORDER_STEP;
-      if (f.order === order && existsSync(path.join(f.directoryPath ?? "", DEFINITION_FILE))) continue;
+      const file = path.join(f.directoryPath ?? "", DEFINITION_FILE);
+      if (f.order === order && existsSync(file)) continue;
+      if (this.track.broken.has(file) || this.track.broken.has(path.join(f.directoryPath ?? "", LEGACY_FOLDER_FILE))) continue;
+      const fresh = await this.changedOnDisk(file);
+      if (fresh !== undefined) {
+        try {
+          applyFolderMetadata(f, loadYaml(fresh));
+        } catch (e) {
+          this.track.broken.set(file, parseMessage(e));
+          continue;
+        }
+      }
       f.order = order;
       await this.writeFolder(f);
     }
@@ -595,7 +634,7 @@ export class WorkspaceStore {
       const display = name.trim() || "New Environment";
       const file = uniqueFilePath(ws.environmentsPath, fileSafeName(display, "New Environment"), ENVIRONMENT_SUFFIX);
       const env = newEnvironment({ name: display, filePath: file });
-      await writeFileAtomic(file, environmentToYaml(env));
+      await this.writeFile(file, environmentToYaml(env));
       ws.environments.push(env);
       return env;
     });
@@ -607,7 +646,7 @@ export class WorkspaceStore {
       const env = { ...structuredClone(imported), id: newId(), name: imported.name?.trim() || "Imported Environment" };
       env.filePath = uniqueFilePath(ws.environmentsPath, fileSafeName(env.name, "Imported Environment"), ENVIRONMENT_SUFFIX);
       await this.saveLocal(environmentScope(env.id), env.variables);
-      await writeFileAtomic(env.filePath, environmentToYaml(env));
+      await this.writeFile(env.filePath, environmentToYaml(env));
       ws.environments.push(env);
       return env;
     });
@@ -622,11 +661,15 @@ export class WorkspaceStore {
       const name = env.name.trim() ? env.name : existing.name;
       const dir = existing.filePath ? path.dirname(existing.filePath) : this.workspace.environmentsPath;
       const target = uniqueFilePath(dir, fileSafeName(name, "New Environment"), ENVIRONMENT_SUFFIX, existing.filePath);
+      if (existing.filePath) await this.assertWritable(existing.filePath);
       const original = await readIfExists(existing.filePath);
-      if (existing.filePath && target !== existing.filePath && existsSync(existing.filePath)) await fs.rename(existing.filePath, target);
+      if (existing.filePath && target !== existing.filePath && existsSync(existing.filePath)) {
+        await fs.rename(existing.filePath, target);
+        this.moved(existing.filePath, target);
+      }
       const updated: YamletEnvironment = { ...structuredClone(env), name, filePath: target };
       await this.saveLocal(environmentScope(updated.id), updated.variables);
-      await writeFileAtomic(target, environmentToYaml(updated, original));
+      await this.writeFile(target, environmentToYaml(updated, original));
       list[idx] = updated;
       return updated;
     });
@@ -652,7 +695,7 @@ export class WorkspaceStore {
       const env: YamletEnvironment = { ...structuredClone(src), id: newId(), name: copyName(src.name) };
       env.filePath = uniqueFilePath(this.workspace.environmentsPath, fileSafeName(env.name, "Environment"), ENVIRONMENT_SUFFIX);
       await this.saveLocal(environmentScope(env.id), env.variables);
-      await writeFileAtomic(env.filePath, environmentToYaml(env, await readIfExists(src.filePath)));
+      await this.writeFile(env.filePath, environmentToYaml(env, await readIfExists(src.filePath)));
       list.splice(list.indexOf(src) + 1, 0, env);
       return env;
     });
@@ -663,7 +706,7 @@ export class WorkspaceStore {
       const file = path.join(this.workspace.globalsPath, GLOBALS_FILE);
       const legacy = path.join(this.workspace.globalsPath, LEGACY_GLOBALS_FILE);
       await this.saveLocal(GLOBALS_SCOPE, vars);
-      await writeFileAtomic(file, globalsToYaml(vars, (await readIfExists(file)) ?? (await readIfExists(legacy))));
+      await this.writeFile(file, globalsToYaml(vars, (await readIfExists(file)) ?? (await readIfExists(legacy))));
       await fs.rm(legacy, { force: true });
       this.workspace.globals = structuredClone(vars);
       return this.workspace.globals;
@@ -689,6 +732,7 @@ export class WorkspaceStore {
     if (to === from) return;
     await fs.rename(from, to);
     repathTree(node, from, to);
+    this.moved(from, to);
   }
 
   /**
@@ -714,38 +758,103 @@ export class WorkspaceStore {
     await this.local?.set(currentScope(scope), undefined);
   }
 
+  // ---- Guarded writes ---------------------------------------------------------
+
+  private relPath(file: string): string {
+    return path.relative(this.workspace.rootPath, file).split(path.sep).join("/");
+  }
+
+  /**
+   * Refuses to write over a file that didn't parse, or that changed on disk since Yamlet
+   * read or wrote it (unless `force`). Errors carry status 409 for the API.
+   */
+  private async assertWritable(file: string, force = false): Promise<void> {
+    const broken = this.track.broken.get(file);
+    if (broken !== undefined && !force) {
+      throw conflict(`${this.relPath(file)} couldn't be read (${broken}), so Yamlet won't overwrite it. Fix the file, for example a Git merge conflict, then reload the workspace.`, "broken");
+    }
+    const known = this.track.seen.get(file);
+    if (known === undefined || force) return;
+    const now = await readIfExists(file);
+    if (now !== undefined && now !== known) {
+      throw conflict(`${this.relPath(file)} changed on disk since Yamlet loaded it (a git pull or another editor?). Reload the workspace to use that version, or overwrite it.`, "changed");
+    }
+  }
+
+  private async writeFile(file: string, content: string, force = false): Promise<void> {
+    await this.assertWritable(file, force);
+    await writeFileAtomic(file, content);
+    this.track.seen.set(file, content);
+    this.track.broken.delete(file);
+    if (this.workspace.problems) {
+      const rel = this.relPath(file);
+      this.workspace.problems = this.workspace.problems.filter((p) => p.path !== rel);
+      if (!this.workspace.problems.length) delete this.workspace.problems;
+    }
+  }
+
+  /** Keeps what was read under a file or directory's new path after a rename. */
+  private moved(from: string, to: string): void {
+    for (const map of [this.track.seen, this.track.broken]) {
+      for (const [file, value] of [...map]) {
+        if (file !== from && !file.startsWith(from + path.sep)) continue;
+        map.delete(file);
+        map.set(to + file.slice(from.length), value);
+      }
+    }
+  }
+
+  /** The file's text if it changed on disk since Yamlet read it (it is then taken as read). */
+  private async changedOnDisk(file: string): Promise<string | undefined> {
+    const known = this.track.seen.get(file);
+    if (known === undefined) return undefined;
+    const now = await readIfExists(file);
+    if (now === undefined || now === known) return undefined;
+    this.track.seen.set(file, now);
+    return now;
+  }
+
   /** Writes a request, first renaming its file to `<name>.request.yaml` (older names move over). */
-  private async writeRequest(r: YamletRequest): Promise<void> {
+  private async writeRequest(r: YamletRequest, force = false): Promise<void> {
     const file = r.sourceFilePath;
     if (!file) return;
+    await this.assertWritable(file, force);
     const original = await readIfExists(file);
     const target = uniqueFilePath(path.dirname(file), fileSafeName(r.name, "New Request"), REQUEST_SUFFIX, file);
-    if (target !== file && existsSync(file)) await fs.rename(file, target);
+    if (target !== file && existsSync(file)) {
+      await fs.rename(file, target);
+      this.moved(file, target);
+    }
     r.sourceFilePath = target;
-    await writeFileAtomic(target, requestToYaml(r, original, target));
+    await this.writeFile(target, requestToYaml(r, original, target), force);
   }
 
   /** Writes `.resources/definition.yaml` (renaming the directory to match the name) and drops a legacy collection.yaml. */
   private async writeCollection(c: YamletCollection): Promise<void> {
     if (!c.directoryPath) throw new Error("Collection has no directory");
+    await this.assertWritable(path.join(c.directoryPath, DEFINITION_FILE));
     await this.renameNodeDir(c, this.workspace.collectionsPath, fileSafeName(c.name, "New Collection"));
     const file = path.join(c.directoryPath, DEFINITION_FILE);
     const legacy = path.join(c.directoryPath, LEGACY_COLLECTION_FILE);
+    await this.assertWritable(file);
+    await this.assertWritable(legacy);
     const original = (await readIfExists(file)) ?? (await readIfExists(legacy));
     c.filePath = file;
     await this.saveLocal(collectionScope(c.id), c.variables);
-    await writeFileAtomic(file, collectionToYaml(c, original));
+    await this.writeFile(file, collectionToYaml(c, original));
     await fs.rm(legacy, { force: true });
   }
 
   private async writeFolder(f: YamletFolder): Promise<void> {
     if (!f.directoryPath) return;
+    await this.assertWritable(path.join(f.directoryPath, DEFINITION_FILE));
+    await this.assertWritable(path.join(f.directoryPath, LEGACY_FOLDER_FILE));
     await this.renameNodeDir(f, path.dirname(f.directoryPath), fileSafeName(f.name, "New Folder"));
     const dir = f.directoryPath;
     const file = path.join(dir, DEFINITION_FILE);
     const legacy = path.join(dir, LEGACY_FOLDER_FILE);
     const original = (await readIfExists(file)) ?? (await readIfExists(legacy));
-    await writeFileAtomic(file, folderToYaml(f, original, path.basename(dir)));
+    await this.writeFile(file, folderToYaml(f, original, path.basename(dir)));
     await fs.rm(legacy, { force: true });
   }
 
@@ -758,10 +867,23 @@ export class WorkspaceStore {
   }
 }
 
+/** A refused write; the API answers 409 with the message. */
+function conflict(message: string, reason: "broken" | "changed"): Error {
+  return Object.assign(new Error(message), { statusCode: 409, reason });
+}
+
 // ---------------------------------------------------------------------------
 // Loading
 
-async function loadWorkspace(root: string): Promise<YamletWorkspace> {
+/** What a load saw: each file's text as read, and the files that failed to parse. */
+interface LoadTrack {
+  seen: Map<string, string>;
+  broken: Map<string, string>;
+}
+
+const parseMessage = (e: unknown) => (e instanceof Error ? e.message.split("\n")[0] : String(e));
+
+async function loadWorkspace(root: string, track: LoadTrack): Promise<YamletWorkspace> {
   const base = path.basename(root);
   const ws: YamletWorkspace = {
     name: base.toLowerCase() === ROOT_DIR_NAME ? path.basename(path.dirname(root)) || base : base,
@@ -778,9 +900,10 @@ async function loadWorkspace(root: string): Promise<YamletWorkspace> {
   for (const entry of await listDir(ws.collectionsPath)) {
     if (!entry.dir || entry.name.startsWith(".")) continue;
     try {
-      ws.collections.push(await loadCollection(path.join(ws.collectionsPath, entry.name), rel));
-    } catch {
+      ws.collections.push(await loadCollection(path.join(ws.collectionsPath, entry.name), rel, track));
+    } catch (e) {
       // Skip unreadable collections rather than failing the whole open.
+      track.broken.set(path.join(ws.collectionsPath, entry.name), parseMessage(e));
     }
   }
   byOrder(ws.collections);
@@ -789,30 +912,41 @@ async function loadWorkspace(root: string): Promise<YamletWorkspace> {
     if (entry.dir || !isYamlFile(entry.name)) continue;
     const file = path.join(ws.environmentsPath, entry.name);
     try {
-      const raw = loadYaml(await fs.readFile(file, "utf8"));
+      const text = await fs.readFile(file, "utf8");
+      const raw = loadYaml(text);
       const env = environmentFromDto(raw, file);
       if (!isObj(raw) || !String(raw.id ?? "").trim()) env.id = stableId("e", rel(file));
       ws.environments.push(env);
-    } catch {
-      // Skip malformed environment files.
+      track.seen.set(file, text);
+    } catch (e) {
+      // Skipped, and listed as a problem.
+      track.broken.set(file, parseMessage(e));
     }
   }
 
-  const globalsText =
-    (await readIfExists(path.join(ws.globalsPath, GLOBALS_FILE))) ?? (await readIfExists(path.join(ws.globalsPath, LEGACY_GLOBALS_FILE)));
+  const globalsFile = path.join(ws.globalsPath, GLOBALS_FILE);
+  const legacyGlobals = path.join(ws.globalsPath, LEGACY_GLOBALS_FILE);
+  const current = await readIfExists(globalsFile);
+  const globalsText = current ?? (await readIfExists(legacyGlobals));
+  const globalsPath = current !== undefined ? globalsFile : legacyGlobals;
   if (globalsText) {
     try {
       ws.globals = globalsFromYaml(globalsText);
-    } catch {
+      track.seen.set(globalsPath, globalsText);
+    } catch (e) {
       ws.globals = [];
+      // Saving globals would replace a file Yamlet couldn't read: both paths are held back.
+      track.broken.set(globalsFile, parseMessage(e));
+      if (globalsPath !== globalsFile) track.broken.set(globalsPath, parseMessage(e));
     }
   }
 
   ensureUniqueIds(ws, rel);
+  if (track.broken.size) ws.problems = [...track.broken].map(([file, message]) => ({ path: rel(file), message }));
   return ws;
 }
 
-async function loadCollection(dir: string, rel: (p: string) => string): Promise<YamletCollection> {
+async function loadCollection(dir: string, rel: (p: string) => string, track: LoadTrack): Promise<YamletCollection> {
   const c = newCollection({
     id: stableId("c", rel(dir)),
     name: path.basename(dir),
@@ -820,16 +954,26 @@ async function loadCollection(dir: string, rel: (p: string) => string): Promise<
     filePath: path.join(dir, DEFINITION_FILE),
   });
   // A legacy collection.yaml (still there until the collection is saved) overrides the definition.
-  const definition = await readIfExists(c.filePath);
-  if (definition) applyCollectionDefinition(c, loadYaml(definition));
-  const metadata = await readIfExists(path.join(dir, LEGACY_COLLECTION_FILE));
-  if (metadata) applyCollectionMetadata(c, loadYaml(metadata));
-  c.requests = await loadRequests(dir, rel);
-  c.folders = await loadFolders(dir, rel);
+  // A definition that doesn't parse (say, Git conflict markers) still shows the requests,
+  // with the file held back from writes until it's fixed.
+  const read = async (file: string, apply: (raw: unknown) => void) => {
+    const text = await readIfExists(file);
+    if (!text) return;
+    try {
+      apply(loadYaml(text));
+      track.seen.set(file, text);
+    } catch (e) {
+      track.broken.set(file, parseMessage(e));
+    }
+  };
+  await read(c.filePath!, (raw) => applyCollectionDefinition(c, raw));
+  await read(path.join(dir, LEGACY_COLLECTION_FILE), (raw) => applyCollectionMetadata(c, raw));
+  c.requests = await loadRequests(dir, rel, track);
+  c.folders = await loadFolders(dir, rel, track);
   return c;
 }
 
-async function loadFolders(parentDir: string, rel: (p: string) => string): Promise<YamletFolder[]> {
+async function loadFolders(parentDir: string, rel: (p: string) => string, track: LoadTrack): Promise<YamletFolder[]> {
   const folders: YamletFolder[] = [];
   for (const entry of await listDir(parentDir)) {
     if (!entry.dir || entry.name.startsWith(".")) continue; // .resources, .git, ...
@@ -840,18 +984,20 @@ async function loadFolders(parentDir: string, rel: (p: string) => string): Promi
       if (!meta) continue;
       try {
         applyFolderMetadata(f, loadYaml(meta));
-      } catch {
-        // A malformed definition falls back to the directory name and order 0.
+        track.seen.set(path.join(dir, file), meta);
+      } catch (e) {
+        // Shown with the directory name and order 0; the file is held back from writes.
+        track.broken.set(path.join(dir, file), parseMessage(e));
       }
     }
-    f.requests = await loadRequests(dir, rel);
-    f.folders = await loadFolders(dir, rel);
+    f.requests = await loadRequests(dir, rel, track);
+    f.folders = await loadFolders(dir, rel, track);
     folders.push(f);
   }
   return byOrder(folders);
 }
 
-async function loadRequests(dir: string, rel: (p: string) => string): Promise<YamletRequest[]> {
+async function loadRequests(dir: string, rel: (p: string) => string, track: LoadTrack): Promise<YamletRequest[]> {
   const requests: YamletRequest[] = [];
   for (const entry of await listDir(dir)) {
     if (entry.dir || !isYamlFile(entry.name)) continue;
@@ -859,15 +1005,18 @@ async function loadRequests(dir: string, rel: (p: string) => string): Promise<Ya
     if (lower === LEGACY_COLLECTION_FILE || lower === LEGACY_FOLDER_FILE) continue;
     const file = path.join(dir, entry.name);
     try {
-      const raw = loadYaml(await fs.readFile(file, "utf8"));
+      const text = await fs.readFile(file, "utf8");
+      const raw = loadYaml(text);
       if (!isObj(raw)) continue;
       // Other kinds of item (other protocols) are left alone on disk.
       if (raw.$kind !== undefined && String(raw.$kind) !== REQUEST_KIND) continue;
       const r = requestFromDto(raw, file);
       if (!String(raw.id ?? "").trim()) r.id = stableId("r", rel(file));
       requests.push(r);
-    } catch {
-      // Skip malformed request files.
+      track.seen.set(file, text);
+    } catch (e) {
+      // Skipped, and listed as a problem.
+      track.broken.set(file, parseMessage(e));
     }
   }
   return byOrder(requests);
