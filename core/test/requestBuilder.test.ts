@@ -180,6 +180,17 @@ describe("codegen", () => {
     expect(post).toContain(`--header 'X-T: it'\\''s'`);
     expect(post).toContain(`--data-raw '{"a":"b"}'`);
     expect(generateSnippet("curl", samples[3])).toContain("--form 'f=@a.txt'");
+    expect(generateSnippet("curl", samples[3])).toContain("--form-string 't=x'");
+    expect(generateSnippet("curl", buildRequest(newRequest({ method: "HEAD", url: "https://api.test/h" }), { ctx: {} }))).toMatch(/^curl --location --head 'https:\/\/api.test\/h'/);
+  });
+
+  it("sends Python form-data as multipart even without files", () => {
+    const textOnly = buildRequest(newRequest({ method: "POST", url: "https://api.test/u", body: { ...body, type: "form-data", fields: [{ key: "t", value: "x", enabled: true }] } }), { ctx: {} });
+    const s = generateSnippet("python-requests", textOnly);
+    expect(s).toContain('("t", (None, "x")),');
+    expect(s).toContain("files=files");
+    expect(s).not.toContain("data=");
+    expect(generateSnippet("python-requests", samples[3])).toContain('("f", ("a.txt", open("a.txt", "rb"))),');
   });
 
   it("produces a raw HTTP message", () => {

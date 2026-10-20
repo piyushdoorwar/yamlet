@@ -44,7 +44,9 @@ function textBody(b: BuiltRequest): string | undefined {
 
 const curl: Gen = (b) => {
   const lines: string[] = [];
-  const first = `curl --location${b.method !== "GET" || b.body.kind !== "none" ? ` --request ${b.method}` : ""} ${shq(b.url)}`;
+  // --head, not --request HEAD: with the latter curl waits for a body that never comes.
+  const method = b.method === "HEAD" ? " --head" : b.method !== "GET" || b.body.kind !== "none" ? ` --request ${b.method}` : "";
+  const first = `curl --location${method} ${shq(b.url)}`;
   const s = b.signing;
   if (s?.kind === "digest") lines.push("--digest", `--user ${shq(`${s.username}:${s.password}`)}`);
   if (s?.kind === "awsv4") {
@@ -60,7 +62,11 @@ const curl: Gen = (b) => {
       for (const f of b.body.fields) lines.push(`--data-urlencode ${shq(`${f.key}=${f.value}`)}`);
       break;
     case "form-data":
-      for (const f of b.body.fields) lines.push(`--form ${shq(`${f.key}=${f.isFile ? "@" + f.value : f.value}${f.contentType ? `;type=${f.contentType}` : ""}`)}`);
+      for (const f of b.body.fields) {
+        // --form-string keeps a text value that starts with @ or < from being read as a file.
+        if (!f.isFile && !f.contentType) lines.push(`--form-string ${shq(`${f.key}=${f.value}`)}`);
+        else lines.push(`--form ${shq(`${f.key}=${f.isFile ? "@" + f.value : f.value}${f.contentType ? `;type=${f.contentType}` : ""}`)}`);
+      }
       break;
     case "binary":
       lines.push(`--data-binary ${shq("@" + b.body.file)}`);
@@ -210,14 +216,14 @@ const pythonRequests: Gen = (b) => {
       args.push("data=payload");
       break;
     case "form-data": {
-      const text = b.body.fields.filter((f) => !f.isFile);
-      const files = b.body.fields.filter((f) => f.isFile);
-      out.push(`payload = [\n${text.map((f) => `    (${q(f.key)}, ${q(f.value)}),`).join("\n")}\n]`);
-      args.push("data=payload");
-      if (files.length) {
-        out.push(`files = [\n${files.map((f) => `    (${q(f.key)}, (${q(basename(f.value))}, open(${q(f.value)}, "rb"))),`).join("\n")}\n]`);
-        args.push("files=files");
-      }
+      // Every part goes in files=, text ones with no file name: with data= alone requests
+      // would send x-www-form-urlencoded instead of multipart.
+      const part = (f: (typeof b.body.fields)[number]) => {
+        const type = f.contentType ? `, ${q(f.contentType)}` : "";
+        return f.isFile ? `(${q(basename(f.value))}, open(${q(f.value)}, "rb")${type})` : `(None, ${q(f.value)}${type})`;
+      };
+      out.push(`files = [\n${b.body.fields.map((f) => `    (${q(f.key)}, ${part(f)}),`).join("\n")}\n]`);
+      args.push("files=files");
       break;
     }
     case "binary":
