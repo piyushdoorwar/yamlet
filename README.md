@@ -85,8 +85,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   `pm.response.json()`, `pm.response.to.have.jsonSchema()` and more), with built-in
   snippets. `_` (lodash), `CryptoJS`, `Buffer`, `xml2Json()`, and `require()` of `lodash`,
   `crypto-js`, `moment`, `xml2js`, `ajv`, `tv4`, `chai`, `uuid`, `url`, `querystring`, `path`, `util` and
-  `events` are available. Older scripts that use `tests["name"] = ...`, `postman.*`,
-  `responseBody` and `responseCode` still run. In the runner, `pm.execution.setNextRequest()`
+  `events` are available. Older scripts written for the legacy global script API
+  (`tests["name"] = ...`, `responseBody`, `responseCode` and its global helper object) still run. In the runner, `pm.execution.setNextRequest()`
   picks what runs next and `pm.execution.skipRequest()` skips a request.
   `pm.cookies.jar()` reads and sets cookies in the workspace jar.
 - **Responses.** Pretty, raw and preview (HTML or images), headers, cookies and test
@@ -159,8 +159,9 @@ Try [samples/demo](samples/demo): mount it with `-v ./samples/demo:/workspace`.
 ## CLI for CI
 
 The `yamlet` CLI runs a workspace headlessly. It fails the build when a request errors,
-a `pm.test` assertion fails, or a request without tests returns a non-2xx/3xx status
-(a request with tests is judged by them, so a test can expect a 404).
+a `pm.test` assertion fails, or a request without tests in its own scripts returns a
+non-2xx/3xx status (a request that tests itself is judged by its tests, so a test can
+expect a 404; collection or folder tests don't excuse a failing status).
 
 ```bash
 npm install -g @piyushdoorwar/yamlet

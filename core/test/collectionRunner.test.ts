@@ -107,6 +107,14 @@ describe("runCollection", () => {
     expect(s.results[0].error).toBeUndefined();
   });
 
+  it("doesn't let a collection-wide test excuse a failing status", async () => {
+    serve(() => ({ status: 500 }));
+    const c = newCollection({ postResponseScript: "pm.test('fast', () => pm.expect(pm.response.responseTime).to.be.below(5000));" });
+    c.requests.push(newRequest({ name: "boom", url: "https://api.test/boom" }));
+    const s = await run(workspaceWith(c));
+    expect(s.results[0]).toMatchObject({ passed: false, error: expect.stringMatching(/500/) });
+  });
+
   it("keeps pm.variables.set values for later requests in the run", async () => {
     serve();
     const c = newCollection();

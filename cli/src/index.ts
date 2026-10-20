@@ -70,7 +70,7 @@ Options:
 HTTP_PROXY, HTTPS_PROXY and NO_PROXY are honored.
 
 A request fails on a network error or a failed pm.test assertion. One without
-tests also fails on a status outside 2xx/3xx. The exit code is 1 if anything
+tests in its own scripts also fails on a status outside 2xx/3xx. The exit code is 1 if anything
 failed, else 0.
 
 Example:

@@ -49,7 +49,7 @@ yamlet run ./my-workspace --env dev
 npx @piyushdoorwar/yamlet run ./my-workspace --reporter junit --out yamlet-results.xml
 ```
 
-Options include `--env`, `--globals`, `--collection`, `--iterations`, `--data`, `--delay`, `--bail`, `--reporter table|json|junit` and `--out`. Requires Node.js 22+. The exit code is `1` if any request errors or fails a `pm.test`, or a request without tests returns a status outside 2xx/3xx.
+Options include `--env`, `--globals`, `--collection`, `--iterations`, `--data`, `--delay`, `--bail`, `--reporter table|json|junit` and `--out`. Requires Node.js 22+. The exit code is `1` if any request errors or fails a `pm.test`, or a request without tests in its own scripts returns a status outside 2xx/3xx.
 
 ## Docs
 

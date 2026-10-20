@@ -2,8 +2,8 @@
 
 Run [Yamlet](https://github.com/piyushdoorwar/yamlet) API collections from the command
 line, for example in CI. It fails the build when a request errors, a `pm.test` assertion
-fails, or a request without tests returns a status outside 2xx/3xx (a request with tests
-is judged by them, so a test can expect a 404).
+fails, or a request without tests in its own scripts returns a status outside 2xx/3xx (a
+request that tests itself is judged by its tests, so a test can expect a 404).
 
 ## Install
 

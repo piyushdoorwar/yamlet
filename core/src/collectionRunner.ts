@@ -225,10 +225,11 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         continue;
       }
 
-      // A request with tests passes or fails by them, so "expect a 404" can pass; one
-      // without tests needs a 2xx or 3xx status.
+      // A request whose own scripts test it passes or fails by its tests, so "expect a 404"
+      // can pass; otherwise it needs a 2xx or 3xx status (a collection-wide timing test
+      // doesn't excuse a 500).
       const transportError = response.isError;
-      const hasTests = response.testResults.length > 0;
+      const hasTests = (executed.requestTests ?? 0) > 0;
       const statusOk = hasTests || (response.statusCode >= 200 && response.statusCode <= 399);
       const passed = !transportError && statusOk && response.testResults.every((t) => t.passed);
       const result: RunRequestResult = {

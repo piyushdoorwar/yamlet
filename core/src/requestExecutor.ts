@@ -67,6 +67,8 @@ export interface ExecuteResult {
   oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "folder" | "collection"; folderId?: string };
   /** Full new variable lists for scopes that scripts changed. */
   changes: { environment?: Variable[]; collectionVariables?: Variable[]; globals?: Variable[] };
+  /** How many of the tests came from the request's own scripts. */
+  requestTests?: number;
   /** pm.variables.set values after this send, for the runner to carry to the next request. */
   localVariables?: Variable[];
 }
@@ -542,6 +544,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     return { response: errorResponse(emptyResponse(req.method, req.url), errMessage(e)), changes: {} };
   }
   const execution: ExecutionControl = { skipRequest: false };
+  /** Tests from the request's own scripts (not its folders' or collection's). */
+  let requestTests = 0;
   const scriptBase = {
     execution,
     request: req,
@@ -570,6 +574,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     return {
       response: r,
       changes: vars.changes(),
+      requestTests,
       ...(vars.local.size || input.localVariables?.length ? { localVariables: [...vars.local.values()] } : {}),
       ...(oauthRefreshed ? { oauthRefreshed } : {}),
       ...(execution.nextRequest !== undefined ? { nextRequest: execution.nextRequest } : {}),
@@ -595,8 +600,10 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     }
   }
   if (req.preRequestScript?.trim()) {
+    const before = tests.length;
     try {
       await runScript({ ...scriptBase, script: req.preRequestScript, phase: "pre", throwOnFailure: input.throwOnTestFailure });
+      requestTests += tests.length - before;
     } catch (e) {
       return finish(errorResponse(emptyResponse(req.method, req.url), `Pre-request script error: ${errMessage(e)}`));
     }
@@ -757,6 +764,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       }
       logs.push(`[error] Post-response script: ${message}`);
     }
+    requestTests += tests.length - before;
   }
   for (const f of [...folders].reverse()) {
     if (!f.postResponseScript?.trim()) continue;
