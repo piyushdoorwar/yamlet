@@ -72,7 +72,12 @@ function eventScript(events: unknown, listen: string): string {
   const ev = arr(events).filter(isObj).find((e) => str(e.listen).toLowerCase() === listen);
   if (!ev) return "";
   const exec = asObj(ev.script).exec;
-  return Array.isArray(exec) ? exec.map(str).join("\n") : str(exec);
+  const code = Array.isArray(exec) ? exec.map(str).join("\n") : str(exec);
+  // A script switched off in the export comes in commented out: kept, but not run.
+  if ((ev.disabled === true || asObj(ev.script).disabled === true) && code.trim()) {
+    return ["// Disabled in the imported collection:", ...code.split("\n").map((l) => `// ${l}`)].join("\n");
+  }
+  return code;
 }
 
 function v2Auth(raw: unknown, fallback: Auth["type"]): Auth {
@@ -82,14 +87,6 @@ function v2Auth(raw: unknown, fallback: Auth["type"]): Auth {
   if (type === "inherit") return defaultAuth("inherit");
   // The per-type credential lists are read by the shared auth reader.
   return readAuth(raw, "none");
-}
-
-function decode(s: string): string {
-  try {
-    return decodeURIComponent(s.replace(/\+/g, " "));
-  } catch {
-    return s;
-  }
 }
 
 function splitRawUrl(raw: string): { base: string; query: KeyValue[] } {
@@ -102,7 +99,8 @@ function splitRawUrl(raw: string): { base: string; query: KeyValue[] } {
     .filter(Boolean)
     .map((pair) => {
       const eq = pair.indexOf("=");
-      return { key: decode(eq >= 0 ? pair.slice(0, eq) : pair), value: eq >= 0 ? decode(pair.slice(eq + 1)) : "", enabled: true };
+      // Kept as written: params are sent as typed, so %2B and + arrive unchanged.
+      return { key: eq >= 0 ? pair.slice(0, eq) : pair, value: eq >= 0 ? pair.slice(eq + 1) : "", enabled: true };
     });
   return { base: noHash.slice(0, q), query };
 }
@@ -150,6 +148,7 @@ function v2Url(url: unknown): { url: string; query: KeyValue[]; pathVariables: P
 
 function v2Body(raw: unknown, headers: KeyValue[], req: YamletRequest): void {
   const b = asObj(raw);
+  if (b.disabled === true) return; // the body is switched off: nothing is sent
   const mode = str(b.mode);
   const ct = headers.find((h) => h.key.toLowerCase() === "content-type")?.value.toLowerCase() ?? "";
   switch (mode) {
@@ -727,10 +726,10 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
         if (!op.security.length) req.auth = defaultAuth("none");
         else {
           const opAuth = schemeAuth(op.security);
+          // Set on the operation itself: with no global security, operations without their
+          // own stay public instead of inheriting another operation's scheme.
           if (opAuth && JSON.stringify(opAuth.auth) !== JSON.stringify(c.auth)) {
-            // The first secured operation sets the collection default; others override per request.
-            if (c.auth.type === "none" && !globalAuth) c.auth = opAuth.auth;
-            else req.auth = opAuth.auth;
+            req.auth = opAuth.auth;
             addVars(opAuth.vars);
           }
         }

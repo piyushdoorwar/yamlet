@@ -165,6 +165,39 @@ describe("importCollectionV2", () => {
   });
 });
 
+describe("disabled parts of a v2.1 collection", () => {
+  it("comments out disabled scripts and drops a disabled body", () => {
+    const c = importCollectionV2({
+      info: { name: "D" },
+      item: [
+        {
+          name: "r",
+          event: [{ listen: "prerequest", disabled: true, script: { exec: ["pm.environment.set('x', 1);"] } }],
+          request: { method: "POST", url: "https://h/r", body: { mode: "raw", raw: "{}", disabled: true } },
+        },
+      ],
+    });
+    expect(c.requests[0].preRequestScript).toBe("// Disabled in the imported collection:\n// pm.environment.set('x', 1);");
+    expect(c.requests[0].body.type).toBe("none");
+  });
+});
+
+describe("OpenAPI operation security", () => {
+  it("leaves operations without security public when there is no global security", () => {
+    const c = importOpenApi(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "S", version: "1" },
+      servers: [{ url: "https://h" }],
+      components: { securitySchemes: { key: { type: "apiKey", in: "header", name: "X-Key" } } },
+      paths: { "/secure": { get: { security: [{ key: [] }], responses: {} } }, "/public": { get: { responses: {} } } },
+    }));
+    const [secure, open] = c.requests.length ? c.requests : c.folders.flatMap((f) => f.requests);
+    expect(c.auth.type).toBe("none");
+    expect(secure.auth.type).toBe("apikey");
+    expect(effectiveAuth(open, c, []).type).toBe("none");
+  });
+});
+
 describe("importEnvironmentJson", () => {
   it("reads values with enabled flags and secrets", () => {
     const env = importEnvironmentJson({
@@ -406,7 +439,7 @@ describe("importHar", () => {
     expect(list.url).toBe("https://api.test/users");
     expect(list.queryParams).toEqual([
       { key: "page", value: "2", enabled: true },
-      { key: "q", value: "a b", enabled: true },
+      { key: "q", value: "a%20b", enabled: true },
     ]);
     expect(list.headers.map((h) => h.key)).toEqual(["Accept", "Authorization"]);
     expect(create.body).toMatchObject({ type: "json", raw: '{"name":"Ada"}' });
