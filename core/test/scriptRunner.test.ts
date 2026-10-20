@@ -314,9 +314,10 @@ describe("script libraries", () => {
       console.log(tv4.validate(1, withId), tv4.validate("a", withId));
       console.log(require("querystring").stringify({ a: 1, b: "x y" }), require("url").parse("https://h/p?q=1").pathname);
       console.log(require("path").join("a", "b"), require("node:util").format("%s=%d", "n", 2));
+      console.log(require("cheerio").load('<ul><li class="a">x</li><li>y</li></ul>')("li.a").text(), require("cheerio").load("<p>q</p>")("p").length);
       console.log(require("moment").utc("2026-01-02T03:04:05Z").add(1, "day").format("YYYY-MM-DD HH:mm"));
     `);
-    expect(logs).toEqual(["true false data must have required property 'id'", "true false", "a=1&b=x%20y /p", "a/b n=2", "2026-01-03 03:04"]);
+    expect(logs).toEqual(["true false data must have required property 'id'", "true false", "a=1&b=x%20y /p", "a/b n=2", "x 1", "2026-01-03 03:04"]);
   });
 
   it("parses XML with xml2Json", async () => {

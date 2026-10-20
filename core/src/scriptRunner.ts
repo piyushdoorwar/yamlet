@@ -12,6 +12,7 @@ import { Ajv } from "ajv";
 import * as chai from "chai";
 import CryptoJS from "crypto-js";
 import _ from "lodash";
+import * as cheerio from "cheerio/slim";
 import moment from "moment";
 import type { KeyValue, ScriptTestResult, Variable, YamletRequest, YamletResponse } from "./models.js";
 import type { CookieJar } from "./cookieJar.js";
@@ -878,6 +879,8 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     ajv: Ajv,
     tv4: tv4Shim(),
     moment,
+    // The htmlparser2 build: `load(html)` and selectors, without the network and parse5 extras.
+    cheerio,
     xml2js: xml2jsShim(),
     atob: (s: string) => atob(s),
     btoa: (s: string) => btoa(s),

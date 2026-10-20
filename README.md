@@ -84,7 +84,7 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
   `pm.response.json()`, `pm.response.to.have.jsonSchema()` and more), with built-in
   snippets. `_` (lodash), `CryptoJS`, `Buffer`, `xml2Json()`, and `require()` of `lodash`,
-  `crypto-js`, `moment`, `xml2js`, `ajv`, `tv4`, `chai`, `uuid`, `url`, `querystring`, `path`, `util` and
+  `crypto-js`, `moment`, `cheerio`, `xml2js`, `ajv`, `tv4`, `chai`, `uuid`, `url`, `querystring`, `path`, `util` and
   `events` are available. Older scripts written for the legacy global script API
   (`tests["name"] = ...`, `responseBody`, `responseCode` and its global helper object) still run. In the runner, `pm.execution.setNextRequest()`
   picks what runs next and `pm.execution.skipRequest()` skips a request.
