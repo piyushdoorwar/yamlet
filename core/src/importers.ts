@@ -455,16 +455,38 @@ function sample(r: RefResolver, schemaNode: unknown, depth = 0): unknown {
 
 const scalarText = (v: unknown): string => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
 
-function paramExample(r: RefResolver, p: Obj): string {
-  if (p.example !== undefined) return scalarText(p.example);
+/** A parameter's example as given (an array stays an array). */
+function paramExampleValue(r: RefResolver, p: Obj): unknown {
+  if (p.example !== undefined) return p.example;
+  if (p["x-example"] !== undefined) return p["x-example"]; // Swagger 2 extension
   const examples = asObj(p.examples);
   const first = Object.values(examples)[0];
-  if (first !== undefined) return scalarText(r.deref(first).value);
+  if (first !== undefined) return r.deref(first).value;
+  // A parameter described by `content` (e.g. JSON in a query string).
+  const media = Object.values(asObj(p.content)).filter(isObj)[0];
+  if (media) return mediaExample(r, media);
   const schema = p.schema ? r.deref(p.schema) : p; // Swagger 2 puts type/default on the parameter
-  if (schema.example !== undefined) return scalarText(schema.example);
-  if (schema.default !== undefined) return scalarText(schema.default);
-  if (Array.isArray(schema.enum) && schema.enum.length) return scalarText(schema.enum[0]);
-  return "";
+  if (schema.example !== undefined) return schema.example;
+  if (schema.default !== undefined) return schema.default;
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  return undefined;
+}
+
+function paramExample(r: RefResolver, p: Obj): string {
+  return scalarText(paramExampleValue(r, p));
+}
+
+/**
+ * A query parameter's values: an array example is repeated (`ids=1&ids=2`) in the default
+ * form style, joined with commas when `explode` is false (or Swagger 2's `csv`).
+ */
+function queryValues(r: RefResolver, p: Obj): string[] {
+  const v = paramExampleValue(r, p);
+  if (!Array.isArray(v)) return [scalarText(v)];
+  const items = v.map(scalarText);
+  if (p.collectionFormat === "multi" || (p.collectionFormat === undefined && p.explode !== false && (p.style === undefined || p.style === "form"))) return items.length ? items : [""];
+  const sep = p.collectionFormat === "ssv" || p.style === "spaceDelimited" ? " " : p.collectionFormat === "pipes" || p.style === "pipeDelimited" ? "|" : p.collectionFormat === "tsv" ? "\t" : ",";
+  return [items.join(sep)];
 }
 
 function mediaExample(r: RefResolver, media: Obj): unknown {
@@ -599,9 +621,15 @@ function serverUrl(doc: Obj): string {
   }
   const server = arr(doc.servers).filter(isObj)[0];
   if (!server) return "";
+  // Server variables become {{placeholders}}, with their defaults as collection variables.
   let url = str(server.url);
-  for (const [k, v] of Object.entries(asObj(server.variables))) url = url.split(`{${k}}`).join(str(asObj(v).default));
+  for (const k of Object.keys(asObj(server.variables))) url = url.split(`{${k}}`).join(`{{${k}}}`);
   return url.replace(/\/$/, "");
+}
+
+function serverVariables(doc: Obj): Variable[] {
+  const server = arr(doc.servers).filter(isObj)[0];
+  return Object.entries(asObj(server?.variables)).map(([key, v]) => ({ key, value: str(asObj(v).default), enabled: true }));
 }
 
 /** Imports an OpenAPI 3.x or Swagger 2.0 document given as JSON or YAML text. */
@@ -616,7 +644,7 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
   const info = asObj(doc.info);
   const c = newCollection({ name: str(info.title) || "Imported API" });
   if (info.description) c.description = str(info.description);
-  c.variables = [{ key: "baseUrl", value: serverUrl(doc), enabled: true }];
+  c.variables = [{ key: "baseUrl", value: serverUrl(doc), enabled: true }, ...(isSwagger2 ? [] : serverVariables(doc))];
 
   const schemes = isSwagger2 ? asObj(doc.securityDefinitions) : asObj(asObj(doc.components).securitySchemes);
   const schemeAuth = (requirements: unknown): SchemeAuth | undefined => {
@@ -666,7 +694,7 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
             req.pathVariables.push(desc ? { key: name, value, description: desc } : { key: name, value });
             break;
           case "query":
-            req.queryParams.push({ key: name, value, enabled: p.required === true, ...(desc ? { description: desc } : {}) });
+            for (const v of queryValues(r, p)) req.queryParams.push({ key: name, value: v, enabled: p.required === true, ...(desc ? { description: desc } : {}) });
             break;
           case "header":
             req.headers.push({ key: name, value, enabled: p.required === true, ...(desc ? { description: desc } : {}) });
@@ -676,7 +704,7 @@ export function importOpenApi(text: string | { doc: unknown; externals: Record<s
             break;
           case "body":
             req.body.type = "json";
-            req.body.raw = pretty(sample(r, p.schema) ?? {});
+            req.body.raw = pretty(p["x-example"] ?? sample(r, p.schema) ?? {});
             break;
           case "formData":
             formParams.push(p);

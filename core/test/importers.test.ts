@@ -182,6 +182,30 @@ describe("disabled parts of a v2.1 collection", () => {
   });
 });
 
+describe("OpenAPI parameter examples", () => {
+  it("repeats exploded array params and reads x-example", () => {
+    const c = importOpenApi(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "P", version: "1" },
+      paths: {
+        "/a": {
+          get: {
+            parameters: [
+              { name: "ids", in: "query", required: true, example: [1, 2] },
+              { name: "tags", in: "query", required: true, explode: false, example: ["x", "y"] },
+              { name: "f", in: "query", required: true, content: { "application/json": { example: { a: 1 } } } },
+            ],
+            responses: {},
+          },
+        },
+      },
+    }));
+    expect(c.requests[0].queryParams.map((q) => `${q.key}=${q.value}`)).toEqual(["ids=1", "ids=2", "tags=x,y", 'f={"a":1}']);
+    const s2 = importOpenApi(JSON.stringify({ swagger: "2.0", info: { title: "S", version: "1" }, host: "h", paths: { "/b": { get: { parameters: [{ name: "q", in: "query", type: "string", "x-example": "hi" }], responses: {} } } } }));
+    expect(s2.requests[0].queryParams[0].value).toBe("hi");
+  });
+});
+
 describe("OpenAPI operation security", () => {
   it("leaves operations without security public when there is no global security", () => {
     const c = importOpenApi(JSON.stringify({
@@ -321,7 +345,8 @@ describe("importOpenApi", () => {
   it("imports OpenAPI 3 with servers, tags, params, bodies and security", () => {
     const c = importOpenApi(openApi3);
     expect(c.name).toBe("Pets");
-    expect(c.variables[0]).toEqual({ key: "baseUrl", value: "https://api.pets.test/v1", enabled: true });
+    expect(c.variables[0]).toEqual({ key: "baseUrl", value: "https://{{env}}.pets.test/v1", enabled: true });
+    expect(c.variables[1]).toEqual({ key: "env", value: "api", enabled: true });
     expect(c.auth).toMatchObject({ type: "bearer", token: "{{bearerToken}}" });
     expect(c.variables.some((v) => v.key === "bearerToken" && v.secret)).toBe(true);
     expect(c.folders.map((f) => f.name)).toEqual(["pets"]);
