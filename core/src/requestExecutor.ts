@@ -320,8 +320,10 @@ async function exchange(opts: {
   maxRedirects?: number;
   /** Keep the method and body on 301/302. */
   keepMethod?: boolean;
-  /** Keep Authorization and Cookie headers across hosts. */
+  /** Keep Authorization, Cookie and API key headers when a redirect leaves the origin. */
   keepAuth?: boolean;
+  /** Extra headers that carry credentials (an API key's header), dropped like Authorization. */
+  credentialHeaders?: string[];
   jar?: CookieJar;
   onHead?: (status: number, headers: Record<string, string | string[] | undefined>, firstByteMs: number) => void;
   onChunk?: (chunk: Uint8Array) => void;
@@ -359,9 +361,11 @@ async function exchange(opts: {
       await res.body.dump();
       redirects.push({ statusCode: res.statusCode, url });
       const next = new URL(location, url);
-      if (next.host !== new URL(url).host && !opts.keepAuth) {
-        // Credentials set for one host are not forwarded to another.
-        headers = headers.filter((h) => !["authorization", "cookie", "x-amz-security-token", "x-amz-date", "x-amz-content-sha256"].includes(h.key.toLowerCase()));
+      // Credentials set for one origin are not forwarded to another: a different host or
+      // port, or a switch from https to http (where they would travel in clear text).
+      if (next.origin !== new URL(url).origin && !opts.keepAuth) {
+        const drop = new Set(["authorization", "proxy-authorization", "cookie", "x-amz-security-token", "x-amz-date", "x-amz-content-sha256", ...(opts.credentialHeaders ?? []).map((h) => h.toLowerCase())]);
+        headers = headers.filter((h) => !drop.has(h.key.toLowerCase()));
         explicitCookie = undefined;
       }
       if (res.statusCode === 303 || ((res.statusCode === 301 || res.statusCode === 302) && method === "POST" && !opts.keepMethod)) {
@@ -700,6 +704,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
         maxRedirects: settings.maxRedirects,
         keepMethod: settings.followOriginalMethod,
         keepAuth: settings.followAuthorizationHeader,
+        credentialHeaders: auth.type === "apikey" && auth.apiKeyIn !== "query" && resolve(auth.apiKeyName).trim() ? [resolve(auth.apiKeyName).trim()] : undefined,
         jar: settings.disableCookieJar ? undefined : input.cookieJar,
         onHead: input.onHead && live
           ? (status, headers, firstByteMs) =>

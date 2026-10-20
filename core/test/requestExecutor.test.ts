@@ -418,6 +418,14 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     expect(jar.cookieHeaderFor("https://a.test/")).toBe("k=v");
   });
 
+  it("drops credentials, API key headers included, when a redirect leaves the origin", async () => {
+    route("https://c.test", () => ({ status: 302, headers: { location: "http://c.test/plain" } }));
+    route("http://c.test", (s) => ({ status: 200, body: `auth=${h(s, "authorization") ?? ""} key=${h(s, "x-key") ?? ""}` }));
+    const apikey = { ...defaultAuth("apikey"), apiKeyName: "X-Key", apiKeyValue: "k1", apiKeyIn: "header" as const };
+    const res = await send({ request: newRequest({ url: "https://c.test/start", auth: apikey, headers: [{ key: "Authorization", value: "Bearer t", enabled: true }] }) });
+    expect(res.response.body).toBe("auth= key=");
+  });
+
   it("runs folder scripts in order and inherits auth from the nearest folder that sets it", async () => {
     route("https://api.test", (x) => ({ status: 200, body: `auth=${h(x, "authorization") ?? ""}` }));
     const collection = newCollection({ auth: { ...defaultAuth("bearer"), token: "collection" }, preRequestScript: "console.log('c-pre')", postResponseScript: "console.log('c-post')" });
