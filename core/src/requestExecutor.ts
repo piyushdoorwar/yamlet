@@ -32,8 +32,6 @@ export interface ExecuteInput {
   defaultTimeoutMs?: number;
   signal?: AbortSignal;
   dispatcher?: Dispatcher;
-  /** When true a failed pm.test throws like the old app path; default false. */
-  throwOnTestFailure?: boolean;
   /** Runner context exposed to scripts as pm.info. */
   iteration?: number;
   iterationCount?: number;
@@ -606,7 +604,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   if (req.preRequestScript?.trim()) {
     const before = tests.length;
     try {
-      await runScript({ ...scriptBase, script: req.preRequestScript, phase: "pre", throwOnFailure: input.throwOnTestFailure });
+      await runScript({ ...scriptBase, script: req.preRequestScript, phase: "pre" });
       requestTests += tests.length - before;
     } catch (e) {
       return finish(errorResponse(emptyResponse(req.method, req.url), `Pre-request script error: ${errMessage(e)}`));
@@ -794,7 +792,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   if (req.postResponseScript?.trim()) {
     const before = tests.length;
     try {
-      await runScript({ ...scriptBase, script: req.postResponseScript, phase: "post", response, throwOnFailure: input.throwOnTestFailure });
+      await runScript({ ...scriptBase, script: req.postResponseScript, phase: "post", response });
     } catch (e) {
       const message = errMessage(e);
       const last = tests.at(-1);
