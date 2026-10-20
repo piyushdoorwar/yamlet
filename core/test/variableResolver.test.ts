@@ -19,7 +19,7 @@ describe("resolveVariables", () => {
     expect(resolveVariables("{{ token }}", { collection: vars(["token", "abc"]) })).toBe("abc");
   });
 
-  it("applies precedence request > data > collection > environment > globals", () => {
+  it("applies precedence request > data > environment > collection > globals", () => {
     const ctx = {
       globals: vars(["v", "globals"]),
       environment: vars(["v", "environment"]),
@@ -29,8 +29,15 @@ describe("resolveVariables", () => {
     };
     expect(resolveVariables("{{v}}", ctx)).toBe("request");
     expect(resolveVariables("{{v}}", { ...ctx, request: undefined })).toBe("data");
-    expect(resolveVariables("{{v}}", { ...ctx, request: undefined, iterationData: undefined })).toBe("collection");
+    expect(resolveVariables("{{v}}", { ...ctx, request: undefined, iterationData: undefined })).toBe("environment");
+    expect(resolveVariables("{{v}}", { ...ctx, request: undefined, iterationData: undefined, environment: undefined })).toBe("collection");
     expect(lookupVariable("v", { globals: ctx.globals, environment: ctx.environment })).toEqual({ value: "environment", scope: "environment" });
+    expect(mergedVariables({ collection: vars(["v", "collection"]), environment: vars(["v", "environment"]) })).toEqual({ v: "environment" });
+  });
+
+  it("resolves names with inner spaces", () => {
+    expect(resolveVariables("{{ Base URL }}/x", { environment: vars(["Base URL", "https://h"]) })).toBe("https://h/x");
+    expect(resolveVariables("{{ }}", { environment: vars(["x", "y"]) })).toBe("{{ }}");
   });
 
   it("falls through when higher layers lack the key", () => {

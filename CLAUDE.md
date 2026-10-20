@@ -136,8 +136,9 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   `~/.config/yamlet` otherwise. The CLI has no data folder, so local values are blank there.
   The UI's File / Local switch (`components/ValueStorage.tsx`) sets every row; new rows and
   script-created variables are local when the whole scope is (`inheritLocal`).
-- **Variable precedence** (highest first): request, runner data row, collection,
-  environment, globals. Values may contain placeholders, expanded up to 10 levels (cycles
+- **Variable precedence** (highest first): request, runner data row, environment,
+  collection, globals (as in v2.1-compatible clients: an environment overrides a
+  collection default). Values may contain placeholders, expanded up to 10 levels (cycles
   stay as written). Unknown `{{placeholders}}` are left untouched so missing
   variables stay visible; one left in the URL's host stops the send with its name. `{{$name}}` falls back to dynamic variables (user variables
   win; each occurrence is fresh).
@@ -232,7 +233,7 @@ reject replaced by `-` (`fileSafeName`); collisions get ` 2`, ` 3`, ....
   folding, `{{variable}}` coloring (green when it resolves to a value, amber when undefined
   or empty), a hover peek (`editor/VariablePeek.tsx`, a React root inside the tooltip)
   whose Edit/Add opens a pinned card to write the value to a chosen scope (request,
-  collection, environment, globals; views editing a local copy pass their own writer via
+  environment, collection, globals; views editing a local copy pass their own writer via
   `useVariableTargets`), `{{` and `{{$` autocomplete.
   Single-line mode is used for the URL bar and table cells.
 - Avoid `?? []` inside zustand selectors (a new array each call loops renders); use a

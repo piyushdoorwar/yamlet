@@ -36,7 +36,7 @@ export class OAuth2Error extends Error {
   }
 }
 
-const UNRESOLVED = /\{\{\s*([^{}\s]+)\s*\}\}/;
+const UNRESOLVED = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/;
 
 /** Resolves a URL field and checks it can be requested. */
 function resolveUrl(label: string, raw: string, resolve: Resolve): string {

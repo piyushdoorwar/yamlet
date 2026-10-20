@@ -58,8 +58,8 @@ async function setGlobalVariable(name: string, value: string): Promise<void> {
 type Writer = (name: string, value: string) => Promise<void> | void;
 
 /**
- * Where the hover peek can write variables, highest precedence first. Collection,
- * active environment and globals write through the API; a view that holds an unsaved
+ * Where the hover peek can write variables, highest precedence first. Active
+ * environment, collection and globals write through the API; a view that holds an unsaved
  * copy of a scope passes its own writer so the edit lands in that copy instead.
  */
 export function useVariableTargets(opts: { collectionId?: string; request?: Writer; collection?: Writer; environment?: { label: string; write: Writer } } = {}): VariableTarget[] {
@@ -70,16 +70,16 @@ export function useVariableTargets(opts: { collectionId?: string; request?: Writ
   return useMemo(() => {
     const out: VariableTarget[] = [];
     if (request) out.push({ scope: "request", label: "This request", write: request });
-    if (collection) out.push({ scope: "collection", label: "Collection", write: collection });
-    else if (collectionId && collectionName) out.push({ scope: "collection", label: `Collection: ${collectionName}`, write: (n, v) => setCollectionVariable(collectionId, n, v) });
     if (environment) out.push({ scope: "environment", label: environment.label, write: environment.write });
     else if (environmentId && envName) out.push({ scope: "environment", label: `Environment: ${envName}`, write: setEnvironmentVariable });
+    if (collection) out.push({ scope: "collection", label: "Collection", write: collection });
+    else if (collectionId && collectionName) out.push({ scope: "collection", label: `Collection: ${collectionName}`, write: (n, v) => setCollectionVariable(collectionId, n, v) });
     out.push({ scope: "globals", label: "Globals", write: setGlobalVariable });
     return out;
   }, [request, collection, collectionId, collectionName, environment, environmentId, envName]);
 }
 
-const SCOPES = ["request", "collection", "environment", "globals"] as const;
+const SCOPES = ["request", "environment", "collection", "globals"] as const;
 
 export function useVariableSource(ctx: VariableContext, targets?: VariableTarget[]): VariableSource {
   return useMemo(() => {

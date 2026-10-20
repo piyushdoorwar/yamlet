@@ -4,7 +4,7 @@ import { tryGenerate } from "./dynamicVariables.js";
 
 /**
  * The scopes available when resolving a request. Precedence, highest first:
- * request, iteration data, collection, environment, globals. Keys match case-insensitively.
+ * request, iteration data, environment, collection, globals. Keys match case-insensitively.
  */
 export interface VariableContext {
   request?: Variable[];
@@ -31,7 +31,7 @@ export interface Placeholder {
   end: number;
 }
 
-const PLACEHOLDER = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+const PLACEHOLDER = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/g;
 
 type Layer = { scope: Exclude<VariableScope, "dynamic">; values: Map<string, string> };
 
@@ -58,8 +58,8 @@ function layers(ctx: VariableContext): Layer[] {
   return [
     layerFromVariables("request", ctx.request),
     data,
-    layerFromVariables("collection", ctx.collection),
     layerFromVariables("environment", ctx.environment),
+    layerFromVariables("collection", ctx.collection),
     layerFromVariables("globals", ctx.globals),
   ].filter((l): l is Layer => !!l);
 }
@@ -100,8 +100,8 @@ export function mergedVariables(ctx: VariableContext): Record<string, string> {
   };
   addVars(ctx.request);
   if (ctx.iterationData) for (const [k, v] of Object.entries(ctx.iterationData)) add(k, dataText(v));
-  addVars(ctx.collection);
   addVars(ctx.environment);
+  addVars(ctx.collection);
   addVars(ctx.globals);
   return out;
 }

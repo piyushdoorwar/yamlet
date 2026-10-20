@@ -50,7 +50,7 @@ const SCOPE_LABEL: Record<string, string> = {
   dynamic: "Dynamic",
 };
 
-const PRECEDENCE = ["request", "data", "collection", "environment", "globals"];
+const PRECEDENCE = ["request", "data", "environment", "collection", "globals"];
 
 interface Props {
   name: string;
@@ -121,7 +121,7 @@ export function VariablePeek({ name, source, pinned, onEdit, onClose }: Props) {
       ) : (
         <p className="flex items-start gap-1.5 text-grey">
           <TriangleAlert size={14} className="mt-px shrink-0 text-warning" aria-hidden />
-          <span>Not defined in the request, collection, active environment or globals. It is sent as typed.</span>
+          <span>Not defined in the request, active environment, collection or globals. It is sent as typed.</span>
         </p>
       )}
       {info && !info.value && <p className="mt-2 text-11 text-muted">Defined but empty, so the request sends an empty string.</p>}

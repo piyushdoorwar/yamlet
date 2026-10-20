@@ -57,7 +57,7 @@ function Field({ label, children, hint, error, warning }: { label: string; child
   );
 }
 
-const PLACEHOLDERS = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+const PLACEHOLDERS = /\{\{\s*([^{}\s][^{}]*?)\s*\}\}/g;
 
 /** "{{a}} is not defined" for placeholders that resolve to nothing, so the problem shows before sending. */
 function unresolvedWarning(value: string, variables?: VariableSource): string | undefined {

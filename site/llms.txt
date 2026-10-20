@@ -30,7 +30,7 @@ Each request file is self-contained: method, URL, params, headers, path variable
 
 ## Features
 
-- Variables at request, collection, environment and global scope (highest precedence first: request, runner data row, collection, environment, globals), written as `{{name}}`. Unknown placeholders are left visible.
+- Variables at request, collection, environment and global scope (highest precedence first: request, runner data row, environment, collection, globals), written as `{{name}}`. Unknown placeholders are left visible.
 - Dynamic variables such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}`, fresh on every use.
 - Pre-request and post-response JavaScript at request and collection level, with a `pm` API for variables, requests and `pm.test` assertions.
 - Auth: Bearer, Basic, API key, cookie, and OAuth 2.0 (client credentials, password, authorization code with PKCE), inheritable from the collection.
