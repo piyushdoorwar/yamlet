@@ -103,7 +103,7 @@ export function CollectionView({ collectionId }: { collectionId: string }) {
       {section === "variables" && (
         <Card title="Collection variables" actions={<ValueStorageSwitch vars={value.variables} onChange={setVariables} {...storage} />}>
           <KeyValueTable<Variable> rows={value.variables} onChange={setVariables} blank={storage.blank} variables={vars} keyPlaceholder="Variable" secrets localValues />
-          <p className="mt-3 text-12 text-muted">Override environment and globals; overridden by request variables.</p>
+          <p className="mt-3 text-12 text-muted">Override globals; overridden by the active environment and request variables.</p>
           <p className="mt-1 text-12 text-muted">{LOCAL_VALUES_NOTE}</p>
         </Card>
       )}

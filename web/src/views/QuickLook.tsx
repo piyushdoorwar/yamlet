@@ -49,11 +49,11 @@ export function QuickLook({ anchor, onClose }: { anchor: HTMLElement; onClose: (
   const env = workspace?.environments.find((e) => e.id === environmentId);
   const collection = workspace?.collections.find((c) => c.id === collectionId);
   const scopes: Scope[] = [
-    ...(collection ? [{ title: `Collection: ${collection.name}`, tab: { kind: "collection", id: collection.id } as Tab, vars: collection.variables }] : []),
     { title: env ? `Environment: ${env.name}` : "Environment: none selected", tab: env ? ({ kind: "environment", id: env.id } as Tab) : undefined, vars: env?.variables ?? [] },
+    ...(collection ? [{ title: `Collection: ${collection.name}`, tab: { kind: "collection", id: collection.id } as Tab, vars: collection.variables }] : []),
     { title: "Globals", tab: { kind: "globals", id: "globals" }, vars: workspace?.globals ?? [] },
   ];
-  // Collection beats environment beats globals; a hidden duplicate shows as overridden.
+  // Environment beats collection beats globals; a hidden duplicate shows as overridden.
   const seen = new Set<string>();
   const needle = q.trim().toLowerCase();
 

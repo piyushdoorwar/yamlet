@@ -66,7 +66,7 @@ export function EnvironmentView({ environmentId }: { environmentId: string }) {
           </>
         }
       />
-      <VariablesCard name={env.name} variables={value} onChange={update} note="Override globals; overridden by collection and request variables." />
+      <VariablesCard name={env.name} variables={value} onChange={update} note="Override collection variables and globals; overridden by request variables." />
     </ScrollPage>
   );
 }
