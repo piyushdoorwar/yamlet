@@ -4,9 +4,9 @@ import { isEventStream, SseParser, type SseEvent } from "@core/sse";
 import { create } from "zustand";
 import { api, errorMessage, setApiWorkspace } from "./api";
 import { entryFromResponse, useConsole } from "./consoleLog";
-import { loadResponse, saveResponse } from "./responseCache";
+import { forgetResponse, loadResponse, saveResponse } from "./responseCache";
 import { keys, readJson, writeJson } from "./storage";
-import { findFolder, findRequest } from "./tree";
+import { allRequests, findFolder, findRequest } from "./tree";
 
 export type TabKind = "request" | "collection" | "folder" | "environment" | "globals" | "runner";
 
@@ -249,7 +249,22 @@ export const useStore = create<State>((set, get) => ({
       drafts[id] = pending ? { ...draft, sourceFilePath: loc.request.sourceFilePath } : loc.request;
     }
     const environmentId = ws.environments.some((e) => e.id === s.environmentId) ? s.environmentId : (ws.environments[0]?.id ?? null);
-    set({ workspace: ws, tabs, active, drafts, environmentId });
+    // A deleted request's last response goes with it, here and in the browser cache.
+    let responses = s.responses;
+    if (s.workspace?.rootPath === ws.rootPath) {
+      const live = new Set(ws.collections.flatMap((c) => allRequests(c).map((r) => r.request.id)));
+      for (const c of s.workspace.collections) {
+        for (const { request } of allRequests(c)) {
+          if (live.has(request.id)) continue;
+          void forgetResponse(ws.rootPath, request.id);
+          if (responses[request.id]) {
+            const { [request.id]: _gone, ...rest } = responses;
+            responses = rest;
+          }
+        }
+      }
+    }
+    set({ workspace: ws, tabs, active, drafts, environmentId, responses });
     persistSession({ ...get() });
   },
 
