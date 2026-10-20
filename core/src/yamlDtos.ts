@@ -216,11 +216,14 @@ function writeKeyValues(list: KeyValue[] | undefined): Obj[] | undefined {
   });
 }
 
+/** What the file holds for a variable: blank when local, the initial value when this machine overrides it. */
+const fileValue = (v: Variable): string => (v.local ? "" : (v.initialValue ?? v.value ?? ""));
+
 /** A variable list. Local values never reach the file: the key stays, with a blank value. */
 export function writeVariables(list: Variable[] | undefined): Obj[] | undefined {
   if (!list?.length) return undefined;
   return list.map((v) => {
-    const o: Obj = { key: v.key, value: v.local ? "" : (v.value ?? "") };
+    const o: Obj = { key: v.key, value: fileValue(v) };
     if (v.secret) o.type = "secret";
     if (v.enabled === false) o.enabled = false;
     if (v.local) o.local = true;
@@ -233,7 +236,7 @@ function writeVariableMap(list: Variable[]): { values: Obj; settings?: Obj } {
   const values: Obj = {};
   const settings: Obj = {};
   for (const v of list) {
-    values[v.key] = v.local ? "" : (v.value ?? "");
+    values[v.key] = fileValue(v);
     const flags: Obj = {};
     if (v.enabled === false) flags.enabled = false;
     if (v.secret) flags.secret = true;

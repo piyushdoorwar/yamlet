@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { inheritLocal, type Variable } from "../../../core/src/models.js";
+import { asCurrentValues, inheritLocal, type Variable } from "../../../core/src/models.js";
 import { execute, isTextualType, textDecoderFor, type ExecuteInput } from "../../../core/src/requestExecutor.js";
 import type { WorkspaceStore } from "../../../core/src/workspaceStore.js";
 import type { SendBody, SendEvent, SendResult } from "../../../shared/api.js";
@@ -22,8 +22,9 @@ export interface ScopeChanges {
 }
 
 /**
- * Write variable changes made by scripts back to their files (local ones to the data folder).
- * Variables a script creates are local when the scope is. Returns true if anything changed.
+ * Keep variable changes made by scripts as current values in the data folder; the files keep
+ * their initial values. Variables a script creates are local when the scope is. Returns true
+ * if anything changed.
  */
 export async function persistChanges(
   store: WorkspaceStore,
@@ -37,17 +38,17 @@ export async function persistChanges(
   if (changes.environment && environmentId) {
     const env = store.findEnvironment(environmentId);
     if (env && !same(env.variables, changes.environment)) {
-      await store.saveEnvironment({ ...env, variables: inheritLocal(env.variables, changes.environment) });
+      await store.saveEnvironment({ ...env, variables: asCurrentValues(env.variables, inheritLocal(env.variables, changes.environment)) });
       changed = true;
     }
   }
   const collection = collectionId ? store.findCollection(collectionId) : undefined;
   if (changes.collectionVariables && collection && !same(collection.variables, changes.collectionVariables)) {
-    await store.updateCollection(collection.id, { variables: inheritLocal(collection.variables, changes.collectionVariables) });
+    await store.updateCollection(collection.id, { variables: asCurrentValues(collection.variables, inheritLocal(collection.variables, changes.collectionVariables)) });
     changed = true;
   }
   if (changes.globals && !same(store.workspace.globals, changes.globals)) {
-    await store.saveGlobals(inheritLocal(store.workspace.globals, changes.globals));
+    await store.saveGlobals(asCurrentValues(store.workspace.globals, inheritLocal(store.workspace.globals, changes.globals)));
     changed = true;
   }
   return changed;

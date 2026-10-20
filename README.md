@@ -68,6 +68,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   Switch an environment, the collection variables or globals (or a single variable) to
   **Local** to keep values such as tokens on your machine only: the YAML keeps the key with
   a blank value, and the value survives restarts and upgrades in Yamlet's data folder.
+  Values that scripts set (a fresh token, say) are current values on your machine: the file
+  keeps its initial value, and the table shows both with Reset and Save to file.
   Dynamic values such as `{{$guid}}`, `{{$timestamp}}` and `{{$randomEmail}}` are built
   in; type `{{$` for the full list.
 - **Requests.** Every HTTP method, including the new `QUERY` (a safe method with a body), or

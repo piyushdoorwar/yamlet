@@ -6,10 +6,27 @@ import { useDialogs } from "./Dialogs";
 
 export type StorageMode = "file" | "local" | "mixed";
 
-/** `v` with `local` set or removed (a file-stored variable carries no flag). */
+/** `v` with `local` set or removed (a file-stored variable carries no flag). Either way its current value becomes the value. */
 export function withLocal(v: Variable, local: boolean): Variable {
-  const { local: _drop, ...rest } = v;
+  const { local: _drop, initialValue: _current, ...rest } = v;
   return local ? { ...rest, local: true } : rest;
+}
+
+/** Under a value that overrides the file's: what the file has, and ways to go back to it or save over it. */
+export function CurrentValueNote({ initial, masked, onReset, onSave }: { initial: string; masked: boolean; onReset: () => void; onSave: () => void }) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 px-2.5 pb-1 text-11 text-muted">
+      <span className="min-w-0 truncate" title={masked ? undefined : `In the file: ${initial || "(blank)"}`}>
+        Current value; file has <span className="font-mono">{masked ? "••••••" : initial || "(blank)"}</span>
+      </span>
+      <button type="button" className="shrink-0 font-medium text-primary hover:underline" title="Use the file's value again" onClick={onReset}>
+        Reset
+      </button>
+      <button type="button" className="shrink-0 font-medium text-primary hover:underline" title="Write the current value to the file (shared through Git)" onClick={onSave}>
+        Save to file
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -37,6 +54,15 @@ const OPTIONS = [
 export function ValueStorageSwitch({ vars, onChange, mode, setMode }: { vars: Variable[]; onChange: (vars: Variable[]) => void } & ReturnType<typeof useValueStorage>) {
   const { confirm } = useDialogs();
   const storedLocally = vars.filter((v) => v.local && v.value).length;
+  const overridden = vars.filter((v) => !v.local && v.initialValue !== undefined).length;
+  const resetAll = async () => {
+    const ok = await confirm({
+      title: "Reset current values",
+      message: `Go back to the file's value for ${overridden === 1 ? "the variable" : `${overridden} variables`} that this machine overrides?`,
+      action: "Reset",
+    });
+    if (ok) onChange(vars.map((v) => (!v.local && v.initialValue !== undefined ? withLocal({ ...v, value: v.initialValue }, false) : v)));
+  };
   const clear = async () => {
     const ok = await confirm({
       title: "Clear local values",
@@ -48,6 +74,11 @@ export function ValueStorageSwitch({ vars, onChange, mode, setMode }: { vars: Va
   };
   return (
     <div className="flex items-center gap-2">
+      {overridden > 0 && (
+        <button type="button" className="btn btn-ghost btn-sm" title="Values set on this machine (by you or by scripts) that differ from the file" onClick={() => void resetAll()}>
+          Reset current values
+        </button>
+      )}
       {storedLocally > 0 && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void clear()}>
           Clear local values
@@ -77,4 +108,4 @@ export function ValueStorageSwitch({ vars, onChange, mode, setMode }: { vars: Va
 }
 
 export const LOCAL_VALUES_NOTE =
-  "Local values stay in Yamlet's data folder on this machine (the /data volume in Docker), so they survive restarts and upgrades. The YAML file keeps the key with a blank value, so they never reach Git. Secret only masks a value on screen.";
+  "Local values stay in Yamlet's data folder on this machine (the /data volume in Docker), so they survive restarts and upgrades. The YAML file keeps the key with a blank value, so they never reach Git. Values that scripts set are current values on this machine too: the file keeps its value until you choose Save to file. Secret only masks a value on screen.";

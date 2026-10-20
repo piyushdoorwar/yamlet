@@ -11,6 +11,8 @@ export type LocalScope = string;
 export const environmentScope = (id: string): LocalScope => `environment:${id}`;
 export const collectionScope = (id: string): LocalScope => `collection:${id}`;
 export const GLOBALS_SCOPE: LocalScope = "globals";
+/** Where a scope's current values (overrides of file values) are kept. */
+export const currentScope = (scope: LocalScope): LocalScope => `current:${scope}`;
 
 /** One workspace's view of the local values. */
 export interface LocalValues {

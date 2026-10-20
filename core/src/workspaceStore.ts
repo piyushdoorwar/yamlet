@@ -27,7 +27,7 @@ import {
   type YamletRequest,
   type YamletWorkspace,
 } from "./models.js";
-import { collectionScope, environmentScope, GLOBALS_SCOPE, type LocalScope, type LocalValues } from "./localValues.js";
+import { collectionScope, currentScope, environmentScope, GLOBALS_SCOPE, type LocalScope, type LocalValues } from "./localValues.js";
 import { fileSafeName, uniqueDirectoryPath, uniqueFilePath } from "./pathNaming.js";
 import {
   applyCollectionDefinition,
@@ -330,7 +330,7 @@ export class WorkspaceStore {
     return this.enqueue(async () => {
       const c = this.requireCollection(id);
       if (c.directoryPath) await fs.rm(c.directoryPath, { recursive: true, force: true });
-      await this.local?.set(collectionScope(c.id), undefined);
+      await this.dropLocal(collectionScope(c.id));
       this.workspace.collections = this.workspace.collections.filter((x) => x !== c);
       return c;
     });
@@ -638,7 +638,7 @@ export class WorkspaceStore {
       const env = list.find((e) => e.id === id);
       if (!env) throw new Error(`Environment not found: ${id}`);
       if (env.filePath) await fs.rm(env.filePath, { force: true });
-      await this.local?.set(environmentScope(env.id), undefined);
+      await this.dropLocal(environmentScope(env.id));
       list.splice(list.indexOf(env), 1);
       return env;
     });
@@ -691,12 +691,27 @@ export class WorkspaceStore {
     repathTree(node, from, to);
   }
 
-  /** Stores a scope's local values (the YAML gets blanks for them). */
+  /**
+   * Stores a scope's local values (the YAML gets blanks for them) and current values (the
+   * YAML keeps the initial ones). An override equal to the file value is dropped.
+   */
   private async saveLocal(scope: LocalScope, vars: Variable[]): Promise<void> {
-    if (!this.local) return;
     const values: Record<string, string> = {};
-    for (const v of vars) if (v.local && v.key) values[v.key] = v.value ?? "";
+    const current: Record<string, string> = {};
+    for (const v of vars) {
+      if (v.local || v.initialValue === v.value) delete v.initialValue;
+      if (!v.key) continue;
+      if (v.local) values[v.key] = v.value ?? "";
+      else if (v.initialValue !== undefined) current[v.key] = v.value ?? "";
+    }
+    if (!this.local) return;
     await this.local.set(scope, values);
+    await this.local.set(currentScope(scope), current);
+  }
+
+  private async dropLocal(scope: LocalScope): Promise<void> {
+    await this.local?.set(scope, undefined);
+    await this.local?.set(currentScope(scope), undefined);
   }
 
   /** Writes a request, first renaming its file to `<name>.request.yaml` (older names move over). */
@@ -882,17 +897,23 @@ function ensureUniqueIds(ws: YamletWorkspace, rel: (p: string) => string): void 
 }
 
 /** Puts stored values into `local` variables. A blank file value with a stored one is local too
- * (another tool may have dropped the `local` flag when it saved the file). */
+ * (another tool may have dropped the `local` flag when it saved the file). Then current
+ * values go over the file values they override. */
 function applyLocalValues(ws: YamletWorkspace, local: LocalValues): void {
-  const overlay = (vars: Variable[], stored: Record<string, string> | undefined) => {
-    if (!stored) return;
+  const overlay = (vars: Variable[], scope: LocalScope) => {
+    const stored = local.get(scope);
+    const current = local.get(currentScope(scope));
     for (const v of vars) {
-      if (!Object.hasOwn(stored, v.key) || (!v.local && v.value)) continue;
-      v.value = stored[v.key];
-      v.local = true;
+      if (stored && Object.hasOwn(stored, v.key) && (v.local || !v.value)) {
+        v.value = stored[v.key];
+        v.local = true;
+      } else if (current && Object.hasOwn(current, v.key) && !v.local && current[v.key] !== v.value) {
+        v.initialValue = v.value;
+        v.value = current[v.key];
+      }
     }
   };
-  for (const e of ws.environments) overlay(e.variables, local.get(environmentScope(e.id)));
-  for (const c of ws.collections) overlay(c.variables, local.get(collectionScope(c.id)));
-  overlay(ws.globals, local.get(GLOBALS_SCOPE));
+  for (const e of ws.environments) overlay(e.variables, environmentScope(e.id));
+  for (const c of ws.collections) overlay(c.variables, collectionScope(c.id));
+  overlay(ws.globals, GLOBALS_SCOPE);
 }

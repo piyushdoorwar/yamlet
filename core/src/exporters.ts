@@ -135,7 +135,7 @@ function items(node: { folders: YamletFolder[]; requests: YamletRequest[] }): Ob
 }
 
 const vars = (list: Variable[]) =>
-  list.map((v) => ({ key: v.key, value: v.value, type: v.secret ? "secret" : "default", ...(v.enabled === false ? { disabled: true } : {}) }));
+  list.map((v) => ({ key: v.key, value: v.initialValue ?? v.value, type: v.secret ? "secret" : "default", ...(v.enabled === false ? { disabled: true } : {}) }));
 
 /** The v2.1 collection format's schema id; importers use it to recognise the file. */
 export const V21_COLLECTION_SCHEMA = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
@@ -158,7 +158,7 @@ export function exportEnvironmentJson(e: YamletEnvironment, opts: { includeLocal
   return {
     id: e.id,
     name: e.name,
-    values: e.variables.map((v) => ({ key: v.key, value: v.local && !opts.includeLocal ? "" : v.value, type: v.secret ? "secret" : "default", enabled: v.enabled !== false })),
+    values: e.variables.map((v) => ({ key: v.key, value: v.local && !opts.includeLocal ? "" : (v.initialValue ?? v.value), type: v.secret ? "secret" : "default", enabled: v.enabled !== false })),
   };
 }
 

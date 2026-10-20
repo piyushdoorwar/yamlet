@@ -1,6 +1,6 @@
 import type { Variable } from "@core/models";
 import clsx from "clsx";
-import { Eye, EyeOff, HardDrive, Search } from "lucide-react";
+import { Eye, EyeOff, HardDrive, Pencil, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { type Tab, tabKey, useStore } from "../lib/store";
@@ -99,6 +99,11 @@ export function QuickLook({ anchor, onClose }: { anchor: HTMLElement; onClose: (
                           {hidden ? "••••••••" : v.value || <span className="text-placeholder italic">empty</span>}
                         </span>
                         {v.local && <HardDrive size={12} className="shrink-0 text-muted" aria-label="Kept on this machine" />}
+                        {v.initialValue !== undefined && !v.local && (
+                          <span title={hidden ? "Current value on this machine; the file has another" : `Current value on this machine; the file has: ${v.initialValue || "(blank)"}`}>
+                            <Pencil size={12} className="shrink-0 text-muted" aria-label="Current value differs from the file" />
+                          </span>
+                        )}
                         {v.secret && (
                           <button
                             type="button"

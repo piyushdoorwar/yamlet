@@ -145,9 +145,12 @@ describe("send", () => {
     expect(body.response.statusCode).toBe(200);
     expect(body.response.resolvedUrl).toBe("https://api.test/users/1");
     expect(body.response.testResults).toEqual([expect.objectContaining({ name: "is 200", passed: true })]);
-    // The script's pm.environment.set was persisted.
+    // The script's pm.environment.set was kept as a current value; the file only gets the key.
     const env = body.workspace.environments.find((e: { id: string }) => e.id === environmentId);
-    expect(env.variables.find((v: { key: string }) => v.key === "userName").value).toBe("Ada");
+    expect(env.variables.find((v: { key: string }) => v.key === "userName")).toEqual({ key: "userName", value: "Ada", enabled: true, initialValue: "" });
+    const file = await readFile(env.filePath, "utf8");
+    expect(file).toContain("userName");
+    expect(file).not.toContain("Ada");
   });
 
   it("streams the head, body pieces and the result as NDJSON when asked", async () => {

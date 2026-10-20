@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { Eye, EyeOff, FileText, HardDrive, Lock, Trash2 } from "lucide-react";
+import { CurrentValueNote } from "./ValueStorage";
 import { type ReactNode, useId, useState } from "react";
 import { CodeEditor, type VariableSource } from "../editor/CodeEditor";
 
@@ -10,6 +11,8 @@ export interface Row {
   enabled?: boolean;
   secret?: boolean;
   local?: boolean;
+  /** The file's value when this row shows a current value that overrides it. */
+  initialValue?: string;
 }
 
 interface Props<T extends Row> {
@@ -170,6 +173,14 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                         />
                       </div>
                     ))}
+                  {localValues && !isBlank && !row.local && row.initialValue !== undefined && (
+                    <CurrentValueNote
+                      initial={row.initialValue}
+                      masked={!!masked}
+                      onReset={() => update(i, { value: row.initialValue, initialValue: undefined } as Partial<T>)}
+                      onSave={() => update(i, { initialValue: undefined } as Partial<T>)}
+                    />
+                  )}
                 </td>
                 {props.renderAfterValue && <td>{props.renderAfterValue(row, (p) => update(i, p))}</td>}
                 {showDescription && (
@@ -193,7 +204,7 @@ export function KeyValueTable<T extends Row>(props: Props<T>) {
                           aria-label={row.local ? `Save ${row.key || "value"} in the file` : `Keep ${row.key || "value"} local`}
                           aria-pressed={!!row.local}
                           className={clsx("rounded p-1", row.local ? "text-primary" : "text-faint hover:text-grey")}
-                          onClick={() => update(i, { local: row.local ? undefined : true } as Partial<T>)}
+                          onClick={() => update(i, { local: row.local ? undefined : true, initialValue: undefined } as Partial<T>)}
                         >
                           {row.local ? <HardDrive size={13} aria-hidden /> : <FileText size={13} aria-hidden />}
                         </button>

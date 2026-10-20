@@ -136,6 +136,12 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   `~/.config/yamlet` otherwise. The CLI has no data folder, so local values are blank there.
   The UI's File / Local switch (`components/ValueStorage.tsx`) sets every row; new rows and
   script-created variables are local when the whole scope is (`inheritLocal`).
+- **Initial and current values.** The YAML holds a variable's initial (shared) value. A
+  machine-only current value overrides it: `Variable.initialValue` is set and `value` is
+  the current one, stored in the same file under `current:<scope>`. Scripts write current
+  values (`asCurrentValues` in `persistChanges`), so tokens they store never reach Git; a
+  variable a script adds gets a blank file value. The variable tables show the file value
+  under an override with Reset / Save to file. Exports carry initial values; the CLI uses them.
 - **Variable precedence** (highest first): request, runner data row, environment,
   collection, globals (as in v2.1-compatible clients: an environment overrides a
   collection default). Values may contain placeholders, expanded up to 10 levels (cycles
@@ -155,8 +161,8 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   request pre, send, request post, folder posts (inner first), collection post. Request-script errors abort the send;
   collection-script errors are logged and swallowed. `pm.test` results are always
   captured (shown in the Tests tab, counted by the runner and CLI). Variable changes from
-  `pm.environment/collectionVariables/globals.set` are persisted by the server after
-  the send.
+  `pm.environment/collectionVariables/globals.set` are kept by the server after the send,
+  as current values. `pm.variables.set` values last for the rest of a runner run.
 - **OAuth 2.0**: client credentials and password grants are fetched by the server
   (`/api/oauth2/token`). Authorization code + PKCE: the UI opens the provider in a popup,
   the provider redirects to `/api/oauth2/callback` (`YAMLET_PUBLIC_URL` sets the base),

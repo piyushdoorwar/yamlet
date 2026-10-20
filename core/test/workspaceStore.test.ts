@@ -387,6 +387,40 @@ describe("WorkspaceStore", () => {
     expect(after.workspaces[path.join(tmp, "yamlet")]).toEqual({ globals: { me: "pd" } });
   });
 
+  it("keeps current values over the file's initial values in the data folder", async () => {
+    const data = path.join(tmp, "data");
+    const open = async () => WorkspaceStore.open(tmp, { localValues: (await LocalValuesFile.open(data)).forWorkspace(path.join(tmp, "yamlet")) });
+    await WorkspaceStore.create(tmp);
+    const store = await open();
+    const env = await store.createEnvironment("Mine");
+    await store.saveEnvironment({
+      ...env,
+      variables: [
+        { key: "baseUrl", value: "http://mine", enabled: true, initialValue: "http://shared" },
+        { key: "same", value: "x", enabled: true, initialValue: "x" },
+      ],
+    });
+    const file = store.findEnvironment(env.id)!.filePath!;
+    expect(await read(file)).toContain("http://shared");
+    expect(await read(file)).not.toContain("http://mine");
+    expect(await read(file)).not.toContain("initialValue");
+    // An override equal to the file value is no override.
+    expect(store.findEnvironment(env.id)!.variables[1]).toEqual({ key: "same", value: "x", enabled: true });
+
+    const re = await open();
+    expect(re.findEnvironment(env.id)!.variables[0]).toEqual({ key: "baseUrl", value: "http://mine", enabled: true, initialValue: "http://shared" });
+    // Without the data folder (the CLI) the file's value is used.
+    expect((await WorkspaceStore.open(tmp)).findEnvironment(env.id)!.variables[0]).toEqual({ key: "baseUrl", value: "http://shared", enabled: true });
+    // A teammate changes the file: the initial value follows it, the current one stays.
+    await fs.writeFile(file, (await read(file)).replace("http://shared", "http://shared2"));
+    expect((await open()).findEnvironment(env.id)!.variables[0]).toMatchObject({ value: "http://mine", initialValue: "http://shared2" });
+    // Save to file: no initial value, so the current one is written.
+    await re.saveEnvironment({ ...re.findEnvironment(env.id)!, variables: [{ key: "baseUrl", value: "http://mine", enabled: true }] });
+    expect(await read(file)).toContain("http://mine");
+    await re.deleteEnvironment(env.id);
+    expect(JSON.parse(await read(path.join(data, "local-values.json"))).workspaces).toEqual({});
+  });
+
   it("opens the sample workspace", async () => {
     const store = await WorkspaceStore.open(path.resolve(__dirname, "../../samples/demo"));
     const ws = store.workspace;

@@ -27,6 +27,12 @@ export interface Variable {
    * (which keeps the key with a blank value). Persisted as `local: true`.
    */
   local?: boolean;
+  /**
+   * Set when this machine overrides the file's value: the file (shared through Git) keeps
+   * `initialValue` and `value` is the current value, kept in Yamlet's data folder. Scripts
+   * write current values, so a token a script stores never reaches the file.
+   */
+  initialValue?: string;
 }
 
 export type AuthType = "inherit" | "none" | "bearer" | "basic" | "digest" | "apikey" | "cookie" | "oauth2" | "awsv4";
@@ -405,6 +411,22 @@ export function inheritLocal(previous: readonly Variable[], next: Variable[]): V
   if (!scopeIsLocal(previous)) return next;
   const known = new Set(previous.map((v) => v.key));
   return next.map((v) => (known.has(v.key) || v.local !== undefined ? v : { ...v, local: true }));
+}
+
+/**
+ * Script changes as current values: a file-stored variable whose value changed keeps its
+ * file (initial) value and gets the new one as an override; a variable the script added
+ * starts with a blank file value. Local variables are left as they are.
+ */
+export function asCurrentValues(previous: readonly Variable[], next: Variable[]): Variable[] {
+  const before = new Map(previous.map((v) => [v.key, v]));
+  return next.map((v) => {
+    if (v.local) return v;
+    const old = before.get(v.key);
+    const fileValue = old ? (old.initialValue ?? old.value) : "";
+    const { initialValue: _drop, ...rest } = v;
+    return v.value === fileValue ? rest : { ...rest, initialValue: fileValue };
+  });
 }
 
 /** QUERY is the safe, idempotent method that carries a body (like GET with a search payload). */
