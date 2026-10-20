@@ -11,6 +11,7 @@
 // moved to this layout the next time each one is saved.
 //
 // Variables marked `local` keep their values in a LocalValues store instead of the YAML.
+import { createHash } from "node:crypto";
 import { existsSync, promises as fs, statSync } from "node:fs";
 import path from "node:path";
 import {
@@ -337,8 +338,12 @@ export class WorkspaceStore {
   async deleteCollection(id: string): Promise<YamletCollection> {
     return this.enqueue(async () => {
       const c = this.requireCollection(id);
-      if (c.directoryPath) await fs.rm(c.directoryPath, { recursive: true, force: true });
+      if (c.directoryPath) {
+        await fs.rm(c.directoryPath, { recursive: true, force: true });
+        this.forget(c.directoryPath);
+      }
       await this.dropLocal(collectionScope(c.id));
+      await this.dropTokens(c);
       this.workspace.collections = this.workspace.collections.filter((x) => x !== c);
       return c;
     });
@@ -351,6 +356,7 @@ export class WorkspaceStore {
       const name = copyName(src.name);
       const dir = uniqueDirectoryPath(this.workspace.collectionsPath, fileSafeName(name, "Collection"));
       // Copying the directory keeps non-modeled files and unknown YAML keys.
+      this.forget(dir);
       await fs.cp(src.directoryPath, dir, { recursive: true });
       const c = structuredClone(src);
       repathTree(c, src.directoryPath, dir);
@@ -358,7 +364,7 @@ export class WorkspaceStore {
       c.name = name;
       c.filePath = path.join(dir, DEFINITION_FILE);
       c.order = nextOrder(this.workspace.collections);
-      await this.writeTree(c);
+      await this.writeCopy(c, dir);
       this.workspace.collections.push(c);
       return c;
     });
@@ -381,7 +387,9 @@ export class WorkspaceStore {
         for (const [i, r] of node.requests.entries()) {
           r.order = (i + 1) * ORDER_STEP;
           r.sourceFilePath = uniqueFilePath(nodeDir, fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
-          await this.writeFile(r.sourceFilePath, requestToYaml(r, undefined, r.sourceFilePath));
+          const text = requestToYaml(r, undefined, r.sourceFilePath);
+          await this.writeFile(r.sourceFilePath, text);
+          r.baseHash = textHash(text);
           await this.saveToken(r.id, r.auth);
         }
         for (const [i, f] of node.folders.entries()) {
@@ -436,7 +444,11 @@ export class WorkspaceStore {
     return this.enqueue(async () => {
       const hit = this.locateFolder(id);
       if (!hit) throw new Error(`Folder not found: ${id}`);
-      if (hit.folder.directoryPath) await fs.rm(hit.folder.directoryPath, { recursive: true, force: true });
+      if (hit.folder.directoryPath) {
+        await fs.rm(hit.folder.directoryPath, { recursive: true, force: true });
+        this.forget(hit.folder.directoryPath);
+      }
+      await this.dropTokens(hit.folder);
       hit.list.splice(hit.list.indexOf(hit.folder), 1);
       return hit.folder;
     });
@@ -450,12 +462,13 @@ export class WorkspaceStore {
       const srcDir = src.directoryPath!;
       const name = copyName(src.name);
       const dir = uniqueDirectoryPath(path.dirname(srcDir), fileSafeName(name, "Folder"));
+      this.forget(dir);
       await fs.cp(srcDir, dir, { recursive: true });
       const f = structuredClone(src);
       repathTree(f, srcDir, dir);
       freshIds(f);
       f.name = name;
-      await this.writeTree(f);
+      await this.writeCopy(f, dir);
       hit.list.splice(hit.list.indexOf(src) + 1, 0, f);
       await this.saveContainerOrder(hit.collection, hit.folders.at(-1) ?? null);
       return f;
@@ -472,7 +485,10 @@ export class WorkspaceStore {
       const id = init?.id && !this.idInUse(init.id) ? init.id : newId();
       const r = newRequest({ ...init, id, name, sourceFilePath: file, order: nextOrder(node.requests) });
       r.method = (r.method || "GET").toUpperCase();
-      await this.writeFile(file, requestToYaml(r, undefined, file));
+      const text = requestToYaml(r, undefined, file);
+      await this.writeFile(file, text);
+      r.baseHash = textHash(text);
+      await this.saveToken(r.id, r.auth);
       node.requests.push(r);
       return r;
     });
@@ -495,7 +511,17 @@ export class WorkspaceStore {
       };
       if (!existing.sourceFilePath) throw new Error("Request has no file path");
       if (!updated.name.trim()) updated.name = existing.name;
-      await this.writeRequest(updated, opts.force);
+      // The copy names the file it was based on: a file changed since (a git pull, even one
+      // Yamlet has reloaded) is not overwritten unless the user chose to.
+      let force = opts.force === true;
+      if (!force && request.baseHash) {
+        const now = await readIfExists(existing.sourceFilePath);
+        if (now !== undefined && textHash(now) !== request.baseHash) {
+          throw conflict(`${this.relPath(existing.sourceFilePath)} changed on disk since this request was opened (a git pull or another editor?). Overwrite it, or use the disk version.`, "changed");
+        }
+        force = now !== undefined && !this.track.broken.has(existing.sourceFilePath);
+      }
+      await this.writeRequest(updated, force);
       hit.list[hit.list.indexOf(existing)] = updated;
       return updated;
     });
@@ -505,7 +531,11 @@ export class WorkspaceStore {
     return this.enqueue(async () => {
       const hit = this.locateRequest(id);
       if (!hit) throw new Error(`Request not found: ${id}`);
-      if (hit.request.sourceFilePath) await fs.rm(hit.request.sourceFilePath, { force: true });
+      if (hit.request.sourceFilePath) {
+        await fs.rm(hit.request.sourceFilePath, { force: true });
+        this.forget(hit.request.sourceFilePath);
+      }
+      await this.dropTokens(hit.request);
       hit.list.splice(hit.list.indexOf(hit.request), 1);
       return hit.request;
     });
@@ -521,7 +551,9 @@ export class WorkspaceStore {
       for (const e of r.examples ?? []) e.id = newId();
       r.name = copyName(src.name);
       r.sourceFilePath = uniqueFilePath(path.dirname(src.sourceFilePath!), fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
-      await this.writeFile(r.sourceFilePath, requestToYaml(r, await readIfExists(src.sourceFilePath), r.sourceFilePath));
+      const text = requestToYaml(r, await readIfExists(src.sourceFilePath), r.sourceFilePath);
+      await this.writeFile(r.sourceFilePath, text);
+      r.baseHash = textHash(text);
       await this.saveToken(r.id, r.auth);
       hit.list.splice(hit.list.indexOf(src) + 1, 0, r);
       await this.saveContainerOrder(hit.collection, hit.folders.at(-1) ?? null);
@@ -601,7 +633,8 @@ export class WorkspaceStore {
       const fresh = await this.changedOnDisk(file);
       if (fresh !== undefined) {
         try {
-          r = { ...requestFromDto(loadYaml(fresh), file), id: r.id };
+          r = { ...requestFromDto(loadYaml(fresh), file), id: r.id, baseHash: textHash(fresh) };
+          r.auth = withTokensOf(r0.auth, r.auth);
           node.requests[i] = r;
         } catch (e) {
           this.track.broken.set(file, parseMessage(e));
@@ -619,7 +652,9 @@ export class WorkspaceStore {
       const fresh = await this.changedOnDisk(file);
       if (fresh !== undefined) {
         try {
+          const before = f.auth;
           applyFolderMetadata(f, loadYaml(fresh));
+          f.auth = withTokensOf(before, f.auth);
         } catch (e) {
           this.track.broken.set(file, parseMessage(e));
           continue;
@@ -684,7 +719,10 @@ export class WorkspaceStore {
       const list = this.workspace.environments;
       const env = list.find((e) => e.id === id);
       if (!env) throw new Error(`Environment not found: ${id}`);
-      if (env.filePath) await fs.rm(env.filePath, { force: true });
+      if (env.filePath) {
+        await fs.rm(env.filePath, { force: true });
+        this.forget(env.filePath);
+      }
       await this.dropLocal(environmentScope(env.id));
       list.splice(list.indexOf(env), 1);
       return env;
@@ -709,11 +747,27 @@ export class WorkspaceStore {
     return this.enqueue(async () => {
       const file = path.join(this.workspace.globalsPath, GLOBALS_FILE);
       const legacy = path.join(this.workspace.globalsPath, LEGACY_GLOBALS_FILE);
+      await this.assertWritable(legacy);
       await this.saveLocal(GLOBALS_SCOPE, vars);
       await this.writeFile(file, globalsToYaml(vars, (await readIfExists(file)) ?? (await readIfExists(legacy))));
       await fs.rm(legacy, { force: true });
+      this.track.seen.set(legacy, ABSENT);
       this.workspace.globals = structuredClone(vars);
       return this.workspace.globals;
+    });
+  }
+
+  /**
+   * A new OAuth 2.0 token for a collection or folder: kept in memory and the data folder
+   * only, so the YAML (which never holds tokens) isn't rewritten.
+   */
+  async setToken(id: string, t: { accessToken: string; refreshToken?: string; expiresAt?: number }): Promise<void> {
+    return this.enqueue(async () => {
+      const node = this.findCollection(id) ?? this.locateFolder(id)?.folder;
+      const auth = node?.auth;
+      if (!node || auth?.type !== "oauth2") return;
+      node.auth = { ...auth, oauth2: { ...auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || auth.oauth2.refreshToken, expiresAt: t.expiresAt } };
+      await this.saveToken(id, node.auth);
     });
   }
 
@@ -781,11 +835,17 @@ export class WorkspaceStore {
     if (known === undefined || force) return;
     const now = await readIfExists(file);
     if (now !== undefined && now !== known) {
+      // (ABSENT: the file appeared since; anything else: its text changed.)
       throw conflict(`${this.relPath(file)} changed on disk since Yamlet loaded it (a git pull or another editor?). Reload the workspace to use that version, or overwrite it.`, "changed");
     }
   }
 
   private async writeFile(file: string, content: string, force = false): Promise<void> {
+    // Writing what is already there changes nothing, so it is never a conflict.
+    if (!this.track.broken.has(file) && (await readIfExists(file)) === content) {
+      this.track.seen.set(file, content);
+      return;
+    }
     await this.assertWritable(file, force);
     await writeFileAtomic(file, content);
     this.track.seen.set(file, content);
@@ -808,6 +868,30 @@ export class WorkspaceStore {
     }
   }
 
+  /** Forgets what was read under a path that was deleted or is about to be filled by a copy. */
+  private forget(target: string): void {
+    for (const map of [this.track.seen, this.track.broken]) {
+      for (const file of [...map.keys()]) if (file === target || file.startsWith(target + path.sep)) map.delete(file);
+    }
+  }
+
+  /** Removes the stored tokens of a deleted item and everything under it. */
+  private async dropTokens(node: YamletCollection | YamletFolder | YamletRequest): Promise<void> {
+    if (!this.local) return;
+    const ids: string[] = [];
+    const walk = (n: YamletCollection | YamletFolder) => {
+      ids.push(n.id);
+      for (const r of n.requests) ids.push(r.id);
+      for (const f of n.folders) walk(f);
+    };
+    if ("folders" in node) walk(node);
+    else ids.push(node.id);
+    const tokens = { ...this.local.get(TOKENS_SCOPE) };
+    if (!ids.some((id) => id in tokens)) return;
+    for (const id of ids) delete tokens[id];
+    await this.local.set(TOKENS_SCOPE, tokens);
+  }
+
   /** The file's text if it changed on disk since Yamlet read it (it is then taken as read). */
   private async changedOnDisk(file: string): Promise<string | undefined> {
     const known = this.track.seen.get(file);
@@ -822,15 +906,18 @@ export class WorkspaceStore {
   private async writeRequest(r: YamletRequest, force = false): Promise<void> {
     const file = r.sourceFilePath;
     if (!file) return;
-    await this.assertWritable(file, force);
     const original = await readIfExists(file);
     const target = uniqueFilePath(path.dirname(file), fileSafeName(r.name, "New Request"), REQUEST_SUFFIX, file);
     if (target !== file && existsSync(file)) {
+      // Checked before the rename, so a refused write leaves the file where it was.
+      await this.assertWritable(file, force);
       await fs.rename(file, target);
       this.moved(file, target);
     }
     r.sourceFilePath = target;
-    await this.writeFile(target, requestToYaml(r, original, target), force);
+    const text = requestToYaml(r, original, target);
+    await this.writeFile(target, text, force);
+    r.baseHash = textHash(text);
     await this.saveToken(r.id, r.auth);
   }
 
@@ -849,11 +936,10 @@ export class WorkspaceStore {
   /** Writes `.resources/definition.yaml` (renaming the directory to match the name) and drops a legacy collection.yaml. */
   private async writeCollection(c: YamletCollection): Promise<void> {
     if (!c.directoryPath) throw new Error("Collection has no directory");
-    await this.assertWritable(path.join(c.directoryPath, DEFINITION_FILE));
+    if (path.basename(c.directoryPath) !== fileSafeName(c.name, "New Collection")) await this.assertWritable(path.join(c.directoryPath, DEFINITION_FILE));
     await this.renameNodeDir(c, this.workspace.collectionsPath, fileSafeName(c.name, "New Collection"));
     const file = path.join(c.directoryPath, DEFINITION_FILE);
     const legacy = path.join(c.directoryPath, LEGACY_COLLECTION_FILE);
-    await this.assertWritable(file);
     await this.assertWritable(legacy);
     const original = (await readIfExists(file)) ?? (await readIfExists(legacy));
     c.filePath = file;
@@ -861,11 +947,12 @@ export class WorkspaceStore {
     await this.writeFile(file, collectionToYaml(c, original));
     await this.saveToken(c.id, c.auth);
     await fs.rm(legacy, { force: true });
+    this.forget(legacy);
   }
 
   private async writeFolder(f: YamletFolder): Promise<void> {
     if (!f.directoryPath) return;
-    await this.assertWritable(path.join(f.directoryPath, DEFINITION_FILE));
+    if (path.basename(f.directoryPath) !== fileSafeName(f.name, "New Folder")) await this.assertWritable(path.join(f.directoryPath, DEFINITION_FILE));
     await this.assertWritable(path.join(f.directoryPath, LEGACY_FOLDER_FILE));
     await this.renameNodeDir(f, path.dirname(f.directoryPath), fileSafeName(f.name, "New Folder"));
     const dir = f.directoryPath;
@@ -875,6 +962,18 @@ export class WorkspaceStore {
     await this.writeFile(file, folderToYaml(f, original, path.basename(dir)));
     await this.saveToken(f.id, f.auth);
     await fs.rm(legacy, { force: true });
+    this.forget(legacy);
+  }
+
+  /** Writes a freshly copied tree; if that fails, the copy is removed rather than left behind. */
+  private async writeCopy(node: YamletCollection | YamletFolder, dir: string): Promise<void> {
+    try {
+      await this.writeTree(node);
+    } catch (e) {
+      await fs.rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      this.forget(dir);
+      throw e;
+    }
   }
 
   /** Rewrites every metadata and request file under a node (used after copying a directory). */
@@ -885,6 +984,18 @@ export class WorkspaceStore {
     for (const f of node.folders) await this.writeTree(f);
   }
 }
+
+/** `next` with the OAuth 2.0 token (kept on this machine, not in the file) of `prev`, if both are OAuth. */
+function withTokensOf<T extends Auth | undefined>(prev: Auth | undefined, next: T): T {
+  if (prev?.type !== "oauth2" || next?.type !== "oauth2") return next;
+  const { accessToken, refreshToken, expiresAt } = prev.oauth2;
+  return { ...next, oauth2: { ...next.oauth2, accessToken, refreshToken, ...(expiresAt ? { expiresAt } : {}) } };
+}
+
+/** Marks a file that wasn't there when Yamlet read the folder (one appearing later is a change). */
+const ABSENT = "\u0000absent";
+
+export const textHash = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 32);
 
 /** A refused write; the API answers 409 with the message. */
 function conflict(message: string, reason: "broken" | "changed"): Error {
@@ -948,6 +1059,10 @@ async function loadWorkspace(root: string, track: LoadTrack): Promise<YamletWork
   const current = await readIfExists(globalsFile);
   const globalsText = current ?? (await readIfExists(legacyGlobals));
   const globalsPath = current !== undefined ? globalsFile : legacyGlobals;
+  if (current === undefined) track.seen.set(globalsFile, ABSENT);
+  if (globalsText === undefined || current !== undefined) {
+    if (!(await readIfExists(legacyGlobals))) track.seen.set(legacyGlobals, ABSENT);
+  }
   if (globalsText) {
     try {
       ws.globals = globalsFromYaml(globalsText);
@@ -977,6 +1092,7 @@ async function loadCollection(dir: string, rel: (p: string) => string, track: Lo
   // with the file held back from writes until it's fixed.
   const read = async (file: string, apply: (raw: unknown) => void) => {
     const text = await readIfExists(file);
+    if (text === undefined) track.seen.set(file, ABSENT);
     if (!text) return;
     try {
       apply(loadYaml(text));
@@ -1000,6 +1116,7 @@ async function loadFolders(parentDir: string, rel: (p: string) => string, track:
     const f = newFolder({ id: stableId("f", rel(dir)), name: entry.name, directoryPath: dir });
     for (const file of [DEFINITION_FILE, LEGACY_FOLDER_FILE]) {
       const meta = await readIfExists(path.join(dir, file));
+      if (meta === undefined) track.seen.set(path.join(dir, file), ABSENT);
       if (!meta) continue;
       try {
         applyFolderMetadata(f, loadYaml(meta));
@@ -1031,6 +1148,7 @@ async function loadRequests(dir: string, rel: (p: string) => string, track: Load
       if (raw.$kind !== undefined && String(raw.$kind) !== REQUEST_KIND) continue;
       const r = requestFromDto(raw, file);
       if (!String(raw.id ?? "").trim()) r.id = stableId("r", rel(file));
+      r.baseHash = textHash(text);
       requests.push(r);
       track.seen.set(file, text);
     } catch (e) {

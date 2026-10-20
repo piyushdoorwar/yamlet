@@ -71,6 +71,7 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
     setSummary(null);
     setExpanded(null);
     const controller = new AbortController();
+    let finished = false;
     abort.current = controller;
     try {
       await api.run(
@@ -87,8 +88,12 @@ export function RunnerView({ collectionId, folderId }: { collectionId: string; f
         },
         (e) => {
           if (e.type === "result") setResults((r) => [...r, e]);
-          else if (e.type === "summary") setSummary(e);
-          else toast.error("Run failed", e.error);
+          else if (e.type === "summary") {
+            finished = true;
+            setSummary(e);
+          }
+          // After the summary, an error is about saving the scripts' variable changes.
+          else toast.error(finished ? "Run finished, but not saved" : "Run failed", e.error);
         },
         controller.signal,
       );

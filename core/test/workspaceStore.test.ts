@@ -123,7 +123,7 @@ describe("WorkspaceStore", () => {
     const r = await store.createRequest(c.id, null, { name: "First" });
     await fs.appendFile(r.sourceFilePath!, "team: core\n");
     await store.reload(); // another tool changed the file: Yamlet picks it up before saving
-    const saved = await store.saveRequest({ ...r, name: "Renamed Thing", url: "https://x.test" });
+    const saved = await store.saveRequest({ ...store.findRequest(r.id)!.request, name: "Renamed Thing", url: "https://x.test" });
     expect(path.basename(saved.sourceFilePath!)).toBe("Renamed Thing.request.yaml");
     expect(existsSync(r.sourceFilePath!)).toBe(false);
     const text = await read(saved.sourceFilePath!);
@@ -483,6 +483,78 @@ describe("WorkspaceStore", () => {
     expect(re.findRequest(r.id)!.request.auth.oauth2.accessToken).toBe("at-secret"); // the stored one wins
     await re.saveRequest({ ...re.findRequest(r.id)!.request, name: "Me 2" });
     expect(await read(re.findRequest(r.id)!.request.sourceFilePath!)).not.toContain("legacy-at");
+  });
+
+  it("checks a save against the file its copy came from, even after a reload", async () => {
+    const store = await WorkspaceStore.create(tmp);
+    const c = await store.createCollection("API");
+    const r = await store.createRequest(c.id, null, { name: "A", url: "https://a" });
+    const stale = store.findRequest(r.id)!.request;
+    await fs.writeFile(r.sourceFilePath!, (await read(r.sourceFilePath!)).replace("https://a", "https://pulled"));
+    await store.reload(); // the user reloads, but still holds the copy from before
+    await expect(store.saveRequest({ ...stale, url: "https://mine" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await read(r.sourceFilePath!)).toContain("https://pulled");
+    const fresh = await store.saveRequest({ ...store.findRequest(r.id)!.request, url: "https://mine" });
+    // The next save is based on what was just written.
+    await store.saveRequest({ ...fresh, url: "https://mine2" });
+    expect(await read(r.sourceFilePath!)).toContain("https://mine2");
+  });
+
+  it("tracks deletes, copies and files that appear after loading", async () => {
+    const store = await WorkspaceStore.create(tmp);
+    const c = await store.createCollection("API");
+    await store.createRequest(c.id, null, { name: "A" });
+    const copy = await store.duplicateCollection(c.id);
+    await store.deleteCollection(copy.id);
+    const again = await store.duplicateCollection(c.id); // no false conflict on the reused path
+    expect(again.name).toBe("API Copy");
+
+    // A definition git adds after loading isn't replaced by a stale save.
+    const f = await store.createFolder(c.id, null, "F");
+    const def = path.join(f.directoryPath!, ".resources", "definition.yaml");
+    await fs.rm(def);
+    const re = await WorkspaceStore.open(tmp);
+    await fs.writeFile(def, "$kind: folder\nauth:\n  type: bearer\n  credentials:\n    token: pulled\n");
+    const reF = re.workspace.collections.find((x) => x.name === "API")!.folders.find((x) => x.name === "F")!;
+    await expect(re.updateFolder(reF.id, { description: "x" })).rejects.toMatchObject({ statusCode: 409 });
+    expect(await read(def)).toContain("pulled");
+
+    // Legacy globals pulled after loading aren't lost when globals are saved.
+    const legacy = path.join(tmp, "yamlet", "globals", "globals.yaml");
+    await fs.rm(path.join(tmp, "yamlet", "globals", "workspace.globals.yaml"));
+    await fs.writeFile(legacy, "values:\n  - key: a\n    value: '1'\n");
+    const re2 = await WorkspaceStore.open(tmp);
+    await fs.writeFile(legacy, "values:\n  - key: a\n    value: '1'\n  - key: pulled\n    value: '2'\n");
+    await expect(re2.saveGlobals([{ key: "a", value: "1", enabled: true }])).rejects.toMatchObject({ statusCode: 409 });
+    expect(await read(legacy)).toContain("pulled");
+  });
+
+  it("keeps tokens through a reorder after a pull, drops them with the item, and saves them without touching the YAML", async () => {
+    const data = path.join(tmp, "data");
+    const open = async () => WorkspaceStore.open(tmp, { localValues: (await LocalValuesFile.open(data)).forWorkspace(path.join(tmp, "yamlet")) });
+    await WorkspaceStore.create(tmp);
+    const store = await open();
+    const auth = defaultAuth("oauth2");
+    auth.oauth2 = { ...auth.oauth2, grantType: "authorization_code", clientId: "app", accessToken: "at", refreshToken: "rt" };
+    const c = await store.createCollection("API");
+    const a = await store.createRequest(c.id, null, { name: "A" });
+    const b = await store.createRequest(c.id, null, { name: "B", auth });
+    await fs.writeFile(b.sourceFilePath!, (await read(b.sourceFilePath!)).replace("clientId: app", "clientId: pulled"));
+    await store.move("request", a.id, c.id, null, 1);
+    expect(store.findRequest(b.id)!.request.auth.oauth2).toMatchObject({ clientId: "pulled", accessToken: "at", refreshToken: "rt" });
+    expect((await open()).findRequest(b.id)!.request.auth.oauth2.accessToken).toBe("at");
+
+    // A refreshed collection token: data folder only, even with its definition changed on disk.
+    await store.updateCollection(c.id, { auth });
+    const def = store.findCollection(c.id)!.filePath!;
+    await fs.writeFile(def, `${await read(def)}# pulled\n`);
+    await store.setToken(c.id, { accessToken: "new" });
+    expect(await read(def)).toContain("# pulled");
+    expect((await open()).findCollection(c.id)!.auth.oauth2.accessToken).toBe("new");
+
+    await store.deleteRequest(b.id);
+    const tokens = JSON.parse(await read(path.join(data, "local-values.json"))).workspaces[path.join(tmp, "yamlet")]["oauth-tokens"];
+    expect(tokens[b.id]).toBeUndefined();
   });
 
   it("opens the sample workspace", async () => {

@@ -58,7 +58,7 @@ export function HistoryList({ filter }: { filter: string }) {
     if (!loc || !snapshot) return;
     if (!(await confirm({ title: "Restore sent version", message: `Replace "${loc.request.name}" with the version sent at ${new Date(h.at).toLocaleString()}?`, action: "Restore" }))) return;
     const s = useStore.getState();
-    s.updateDraft(h.requestId, (current) => ({ ...snapshot, id: current.id, name: current.name, order: current.order, sourceFilePath: current.sourceFilePath }));
+    s.updateDraft(h.requestId, (current) => ({ ...snapshot, id: current.id, name: current.name, order: current.order, sourceFilePath: current.sourceFilePath, baseHash: current.baseHash }));
     s.openTab({ kind: "request", id: h.requestId });
   };
 

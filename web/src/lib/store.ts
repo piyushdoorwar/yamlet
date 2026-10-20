@@ -7,6 +7,7 @@ import { entryFromResponse, useConsole } from "./consoleLog";
 import { forgetResponse, loadResponse, saveResponse } from "./responseCache";
 import { keys, readJson, writeJson } from "./storage";
 import { allRequests, findFolder, findRequest } from "./tree";
+import { displayUrl } from "./urlSync";
 
 export type TabKind = "request" | "collection" | "folder" | "environment" | "globals" | "runner";
 
@@ -42,6 +43,15 @@ export interface ResponseState {
   events?: SseEvent[];
   /** Set when the response was restored from an earlier session rather than just sent. */
   restoredAt?: number;
+  /** The request as sent, {{variables}} unresolved (so no secret is kept): what an example records. */
+  sent?: { method: string; url: string; body?: string };
+}
+
+/** What "Save as example" records of the request: method, URL and a text body, as written. */
+function sentOf(r: YamletRequest): ResponseState["sent"] {
+  const b = r.body;
+  const body = b.type === "graphql" ? b.graphqlQuery : b.type === "none" || b.type === "form-data" || b.type === "urlencoded" || b.type === "binary" ? "" : b.raw;
+  return { method: r.method, url: displayUrl(r.url, r.queryParams), ...(body ? { body } : {}) };
 }
 
 export interface HistoryEntry {
@@ -395,6 +405,10 @@ export const useStore = create<State>((set, get) => ({
         set({ saveState: { ...get().saveState, [id]: "saved" }, saveErrors, saveConflicts });
         if (savesInFlight.get(id) === queued) savesInFlight.delete(id);
         get().applyWorkspace(workspace);
+        // Edits made while this save was in flight are now based on the file just written.
+        const saved = findRequest(workspace, id)?.request.baseHash;
+        const current = get().drafts[id];
+        if (current && saved && current.baseHash !== saved) set({ drafts: { ...get().drafts, [id]: { ...current, baseHash: saved } } });
       } catch (err) {
         unsaved.add(id);
         const conflict = err instanceof ApiError && err.status === 409;
@@ -475,7 +489,7 @@ export const useStore = create<State>((set, get) => ({
         controller.signal,
       );
       if (sse) events = [...(events ?? []), ...sse.end(Date.now() - startedAt)];
-      patch({ loading: false, response: result.response, events });
+      patch({ loading: false, response: result.response, events, sent: sentOf(request) });
       keepResponse(id, result.response, events);
       if (result.workspace) get().applyWorkspace(result.workspace);
       const t = result.oauthRefreshed;

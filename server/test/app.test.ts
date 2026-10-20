@@ -153,6 +153,22 @@ describe("send", () => {
     expect(file).not.toContain("Ada");
   });
 
+  it("returns the response with a warning when script changes can't be saved", async () => {
+    const ws = (await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } })).json().workspace;
+    // As the UI does: the workspace's own root, so the open store is used without a reload.
+    const RW = { ...H, [CSRF_HEADER]: "1", [WORKSPACE_HEADER]: encodeURIComponent(ws.rootPath) };
+    const env = (await app.inject({ method: "POST", url: "/api/environments", headers: RW, payload: { name: "dev", variables: [{ key: "a", value: "1", enabled: true }] } })).json().item;
+    // A git pull changes the environment file after Yamlet read it.
+    await writeFile(env.filePath, (await readFile(env.filePath, "utf8")).replace("value: \"1\"", "value: \"pulled\"").replace("value: '1'", "value: 'pulled'"));
+    agent.get("https://api.test").intercept({ path: "/x", method: "GET" }).reply(200, "ok");
+    const request = newRequest({ url: "https://api.test/x", postResponseScript: "pm.environment.set('added', 'x')" });
+    const res = await app.inject({ method: "POST", url: "/api/send", headers: RW, payload: { request, environmentId: env.id } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().response.statusCode).toBe(200);
+    expect(res.json().response.scriptLogs.join("\n")).toMatch(/weren't saved: .*changed on disk/);
+    expect(await readFile(env.filePath, "utf8")).toContain("pulled");
+  });
+
   it("streams the head, body pieces and the result as NDJSON when asked", async () => {
     await app.inject({ method: "POST", url: "/api/workspace/create", headers: W(), payload: { path: join(root, "ws") } });
     agent

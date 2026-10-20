@@ -178,6 +178,11 @@ export interface YamletRequest {
   order: number;
   /** Absolute path of the backing YAML file (server-side). */
   sourceFilePath?: string;
+  /**
+   * Hash of the file this copy was read from (never written to it). A save names it, so an
+   * edit based on an older file is refused instead of overwriting a newer one.
+   */
+  baseHash?: string;
 }
 
 export interface YamletFolder {

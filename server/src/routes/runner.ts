@@ -48,19 +48,6 @@ export function runnerRoutes(app: FastifyInstance, { workspaces, sendOptions }: 
         onResult: (r) => emit({ type: "result", ...r }),
         onOAuthRefreshed: (where, token) => (where.folderId ? saveFolderToken(store, where.folderId, token) : saveCollectionToken(store, where.collectionId!, token)),
       });
-      // Keep variable changes made by scripts, as a single send would.
-      if (body.persistVariables !== false) {
-        await persistChanges(
-          store,
-          {
-            environment: environment ? summary.variables.environment : undefined,
-            collectionVariables: summary.variables.collections[collection.id],
-            globals: summary.variables.globals,
-          },
-          body.environmentId,
-          collection.id,
-        );
-      }
       emit({
         type: "summary",
         total: summary.total,
@@ -69,6 +56,24 @@ export function runnerRoutes(app: FastifyInstance, { workspaces, sendOptions }: 
         durationMs: summary.durationMs,
         iterations: summary.iterations,
       });
+      // Keep variable changes made by scripts, as a single send would. The results are
+      // already out, so a failure here (a file changed on disk) is reported on its own.
+      if (body.persistVariables !== false) {
+        try {
+          await persistChanges(
+            store,
+            {
+              environment: environment ? summary.variables.environment : undefined,
+              collectionVariables: summary.variables.collections[collection.id],
+              globals: summary.variables.globals,
+            },
+            body.environmentId,
+            collection.id,
+          );
+        } catch (e) {
+          emit({ type: "error", error: `Variable changes from scripts weren't saved: ${e instanceof Error ? e.message : String(e)}` });
+        }
+      }
     } catch (err) {
       emit({ type: "error", error: err instanceof Error ? err.message : String(err) });
     } finally {
