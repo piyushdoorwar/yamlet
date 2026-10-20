@@ -46,7 +46,7 @@ export function HistoryList({ filter }: { filter: string }) {
     const s = useStore.getState();
     const loc = where(h);
     const collection = loc?.collection ?? s.workspace?.collections[0];
-    if (!collection) return;
+    if (!collection || !h.snapshot) return;
     const { id: _id, sourceFilePath: _f, order: _o, ...sent } = h.snapshot;
     // A deleted request comes back with its old id, so its history stays linked.
     void actions.newRequest(collection.id, loc?.folders.at(-1)?.id ?? null, loc ? { ...sent, name: `${sent.name} (sent ${new Date(h.at).toLocaleTimeString()})` } : { ...sent, id: h.requestId });
@@ -54,10 +54,11 @@ export function HistoryList({ filter }: { filter: string }) {
 
   const restore = async (h: HistoryEntry) => {
     const loc = where(h);
-    if (!loc) return;
+    const snapshot = h.snapshot;
+    if (!loc || !snapshot) return;
     if (!(await confirm({ title: "Restore sent version", message: `Replace "${loc.request.name}" with the version sent at ${new Date(h.at).toLocaleString()}?`, action: "Restore" }))) return;
     const s = useStore.getState();
-    s.updateDraft(h.requestId, (current) => ({ ...h.snapshot, id: current.id, name: current.name, order: current.order, sourceFilePath: current.sourceFilePath }));
+    s.updateDraft(h.requestId, (current) => ({ ...snapshot, id: current.id, name: current.name, order: current.order, sourceFilePath: current.sourceFilePath }));
     s.openTab({ kind: "request", id: h.requestId });
   };
 
@@ -73,10 +74,10 @@ export function HistoryList({ filter }: { filter: string }) {
       ...(exists
         ? [
             { label: "Open request", icon: ExternalLink, onSelect: () => open(h) },
-            { label: "Restore the sent version", icon: RotateCcw, onSelect: () => void restore(h) },
+            ...(h.snapshot ? [{ label: "Restore the sent version", icon: RotateCcw, onSelect: () => void restore(h) }] : []),
           ]
         : []),
-      ...(hasCollection ? [{ label: exists ? "Save as a new request" : "Restore as a request", icon: CopyPlus, onSelect: () => saveAsNew(h) }] : []),
+      ...(hasCollection && h.snapshot ? [{ label: exists ? "Save as a new request" : "Restore as a request", icon: CopyPlus, onSelect: () => saveAsNew(h) }] : []),
     ]);
   };
 
@@ -102,7 +103,7 @@ export function HistoryList({ filter }: { filter: string }) {
               onClick={() => open(h)}
               onContextMenu={(e) => showMenu(e, h)}
               className="mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-primary-soft"
-              title={`${h.url}\n${where(h) ? "Click to open; right-click for more" : "Deleted since; click to restore it as a request"}`}
+              title={`${h.url}\n${where(h) ? "Click to open; right-click for more" : h.snapshot ? "Deleted since; click to restore it as a request" : "Deleted since; too large to keep a copy"}`}
             >
               <MethodLabel method={h.method} short className="w-9 shrink-0 text-right" />
               <span className="min-w-0 flex-1">

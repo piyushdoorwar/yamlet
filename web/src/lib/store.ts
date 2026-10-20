@@ -54,8 +54,8 @@ export interface HistoryEntry {
   status: number;
   durationMs: number;
   isError: boolean;
-  /** Snapshot of the request as sent, so it can be reopened even if edited since. */
-  snapshot: YamletRequest;
+  /** The request as sent, so it can be reopened even if edited since; left out when large, so history fits in browser storage. */
+  snapshot?: YamletRequest;
 }
 
 export type SaveState = "saving" | "saved" | "error";
@@ -119,6 +119,10 @@ interface State {
 
 const SAVE_DEBOUNCE_MS = 500;
 const HISTORY_LIMIT = 150;
+/** A sent request larger than this (a big body) is listed without a copy to restore. */
+const MAX_SNAPSHOT_CHARS = 100_000;
+/** Snapshots kept per workspace, well inside the browser's ~5 MB storage. */
+const HISTORY_BUDGET_CHARS = 1_500_000;
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 // The latest queued save per request. While one is queued, server copies of that
 // request are older than the draft and must not replace it.
@@ -504,9 +508,17 @@ function recordHistory(requestId: string, request: YamletRequest, r: YamletRespo
     status: r.statusCode,
     durationMs: r.durationMs,
     isError: r.isError,
-    snapshot: request,
+    ...(JSON.stringify(request).length <= MAX_SNAPSHOT_CHARS ? { snapshot: request } : {}),
   };
-  const history = [entry, ...useStore.getState().history].slice(0, HISTORY_LIMIT);
+  // Older entries drop their snapshots once the list passes its budget; the rows stay.
+  let budget = HISTORY_BUDGET_CHARS;
+  const history = [entry, ...useStore.getState().history].slice(0, HISTORY_LIMIT).map((h) => {
+    if (!h.snapshot) return h;
+    budget -= JSON.stringify(h.snapshot).length;
+    if (budget >= 0) return h;
+    const { snapshot: _drop, ...row } = h;
+    return row;
+  });
   useStore.setState({ history });
   const root = useStore.getState().workspace?.rootPath;
   if (root) writeJson(keys.history(root), history);
