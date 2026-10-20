@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportCollectionV2, exportEnvironmentJson, exportFileName } from "../src/exporters.js";
+import { exportCollectionV2, exportEnvironmentJson, exportFileName, V21_COLLECTION_SCHEMA } from "../src/exporters.js";
 import { detectImportFormat, importCollectionV2, importEnvironmentJson } from "../src/importers.js";
 import { defaultAuth, defaultBody, newCollection, newEnvironment, newFolder, newRequest } from "../src/models.js";
 
@@ -44,6 +44,7 @@ describe("collection export", () => {
   it("round-trips through the importer", () => {
     const exported = exportCollectionV2(sample());
     const text = JSON.stringify(exported);
+    expect((exported as { info: { schema: string } }).info.schema).toBe(V21_COLLECTION_SCHEMA);
     expect(detectImportFormat(text)).toBe("collection-v2");
     const back = importCollectionV2(JSON.parse(text));
     expect(back.name).toBe("Shop API");

@@ -137,12 +137,15 @@ function items(node: { folders: YamletFolder[]; requests: YamletRequest[] }): Ob
 const vars = (list: Variable[]) =>
   list.map((v) => ({ key: v.key, value: v.value, type: v.secret ? "secret" : "default", ...(v.enabled === false ? { disabled: true } : {}) }));
 
+/** The v2.1 collection format's schema id; importers use it to recognise the file. */
+export const V21_COLLECTION_SCHEMA = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
+
 /** A collection as v2.1 JSON. Local variable values are included only when `includeLocal`. */
 export function exportCollectionV2(c: YamletCollection, opts: { includeLocal?: boolean } = {}): Obj {
   const auth = v2Auth(c.auth);
   const ev = events(c.preRequestScript, c.postResponseScript);
   return {
-    info: { name: c.name, ...(c.description ? { description: c.description } : {}) },
+    info: { name: c.name, ...(c.description ? { description: c.description } : {}), schema: V21_COLLECTION_SCHEMA },
     item: items(c),
     ...(auth ? { auth } : {}),
     ...(ev ? { event: ev } : {}),
