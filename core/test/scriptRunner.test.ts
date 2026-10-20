@@ -321,6 +321,9 @@ describe("script libraries", () => {
     const res = response({ body: '<?xml version="1.0"?><!-- c --><root a="1"><item>x &amp; y</item><item id="2">z</item><empty/><![CDATA[raw <b>]]></root>' });
     const { logs } = await run("console.log(JSON.stringify(xml2Json(responseBody)))", { res });
     expect(JSON.parse(logs[0])).toEqual({ root: { $: { a: "1" }, item: ["x & y", { $: { id: "2" }, _: "z" }], empty: "", _: "raw <b>" } });
+    const viaLib = await run(`require("xml2js").parseString("<r><a>1</a></r>", (err, out) => console.log(JSON.stringify(out)));
+      console.log(JSON.stringify(await new (require("xml2js").Parser)({ explicitArray: false }).parseStringPromise("<r><a>1</a></r>")));`);
+    expect(viaLib.logs).toEqual(['{"r":{"a":["1"]}}', '{"r":{"a":"1"}}']);
     const bad = await run("xml2Json('<a><b></a>')", { throwOnFailure: true }).catch((e: Error) => e.message);
     expect(bad).toMatch(/Invalid XML: <\/a> doesn't match <b>/);
   });

@@ -17,14 +17,20 @@ function decode(s: string): string {
   });
 }
 
-function shape(n: Node): unknown {
+export interface XmlToJsonOptions {
+  /** Every child as an array, even a single one (the xml2js default). */
+  explicitArray?: boolean;
+}
+
+function shape(n: Node, opts: XmlToJsonOptions): unknown {
   const text = n.text.trim();
   const hasAttrs = Object.keys(n.attrs).length > 0;
   if (!n.children.length && !hasAttrs) return text;
   const out: Record<string, unknown> = {};
   if (hasAttrs) out.$ = n.attrs;
   for (const [name, value] of n.children) {
-    if (!(name in out)) out[name] = value;
+    if (opts.explicitArray) ((out[name] ??= []) as unknown[]).push(value);
+    else if (!(name in out)) out[name] = value;
     else if (Array.isArray(out[name])) (out[name] as unknown[]).push(value);
     else out[name] = [out[name], value];
   }
@@ -32,7 +38,7 @@ function shape(n: Node): unknown {
   return out;
 }
 
-export function xmlToJson(xml: string): Record<string, unknown> {
+export function xmlToJson(xml: string, opts: XmlToJsonOptions = {}): Record<string, unknown> {
   const src = String(xml ?? "");
   const stack: Node[] = [];
   let root: Record<string, unknown> | undefined;
@@ -80,7 +86,7 @@ export function xmlToJson(xml: string): Record<string, unknown> {
       const open = stack.pop();
       if (!open || open.name !== name) fail(`</${name}> doesn't match <${open?.name ?? "nothing"}>`);
       i = end + 1;
-      const value = shape(open!);
+      const value = shape(open!, opts);
       if (stack.length) stack[stack.length - 1].children.push([name, value]);
       else root = { [name]: value };
     } else {
@@ -92,7 +98,7 @@ export function xmlToJson(xml: string): Record<string, unknown> {
       const node: Node = { name: m![1], attrs, text: "", children: [] };
       i += m![0].length;
       if (m![3]) {
-        const value = shape(node);
+        const value = shape(node, opts);
         if (stack.length) stack[stack.length - 1].children.push([node.name, value]);
         else root = { [node.name]: value };
       } else stack.push(node);
@@ -101,4 +107,32 @@ export function xmlToJson(xml: string): Record<string, unknown> {
   if (stack.length) fail(`<${stack[stack.length - 1].name}> is never closed`);
   if (!root) fail("no root element");
   return root!;
+}
+
+/** `require("xml2js")` in scripts: parseString / parseStringPromise / Parser, on the parser above. */
+export function xml2jsShim() {
+  type Cb = (err: Error | null, result?: unknown) => void;
+  const parse = (xml: unknown, opts: XmlToJsonOptions) => xmlToJson(String(xml ?? ""), { explicitArray: opts.explicitArray !== false });
+  const parseString = (xml: unknown, a?: XmlToJsonOptions | Cb, b?: Cb) => {
+    const [opts, cb] = typeof a === "function" ? [{}, a] : [a ?? {}, b];
+    let result: unknown;
+    try {
+      result = parse(xml, opts);
+    } catch (e) {
+      cb?.(e as Error);
+      return;
+    }
+    cb?.(null, result);
+  };
+  const parseStringPromise = async (xml: unknown, opts: XmlToJsonOptions = {}) => parse(xml, opts);
+  class Parser {
+    constructor(private readonly opts: XmlToJsonOptions = {}) {}
+    parseString(xml: unknown, cb: Cb) {
+      parseString(xml, this.opts, cb);
+    }
+    parseStringPromise(xml: unknown) {
+      return parseStringPromise(xml, this.opts);
+    }
+  }
+  return { parseString, parseStringPromise, Parser };
 }

@@ -18,7 +18,7 @@ import type { CookieJar } from "./cookieJar.js";
 import { encodeMultipart } from "./multipart.js";
 import { appendQuery, withScheme } from "./requestBuilder.js";
 import { lookupVariable, mergedVariables, resolveVariables, type VariableContext } from "./variableResolver.js";
-import { xmlToJson } from "./xmlToJson.js";
+import { xml2jsShim, xmlToJson } from "./xmlToJson.js";
 
 export const DEFAULT_SCRIPT_TIMEOUT_MS = 5000;
 
@@ -877,6 +877,7 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     ajv: Ajv,
     tv4: tv4Shim(),
     moment,
+    xml2js: xml2jsShim(),
     atob: (s: string) => atob(s),
     btoa: (s: string) => btoa(s),
     buffer: { Buffer },
