@@ -69,8 +69,9 @@ Options:
 
 HTTP_PROXY, HTTPS_PROXY and NO_PROXY are honored.
 
-A request fails on a network error, a status outside 2xx/3xx, or a failed
-pm.test assertion. The exit code is 1 if anything failed, else 0.
+A request fails on a network error or a failed pm.test assertion. One without
+tests also fails on a status outside 2xx/3xx. The exit code is 1 if anything
+failed, else 0.
 
 Example:
   yamlet run ./my-workspace --env dev --reporter junit --out results.xml`;

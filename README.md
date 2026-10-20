@@ -157,7 +157,8 @@ Try [samples/demo](samples/demo): mount it with `-v ./samples/demo:/workspace`.
 ## CLI for CI
 
 The `yamlet` CLI runs a workspace headlessly. It fails the build when a request errors,
-returns a non-2xx/3xx status, or a `pm.test` assertion fails.
+a `pm.test` assertion fails, or a request without tests returns a non-2xx/3xx status
+(a request with tests is judged by them, so a test can expect a 404).
 
 ```bash
 npm install -g @piyushdoorwar/yamlet

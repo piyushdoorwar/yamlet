@@ -26,6 +26,8 @@ export interface ExecuteInput {
   workspaceRoot: string;
   cookieJar?: CookieJar;
   iterationData?: Record<string, unknown>;
+  /** pm.variables.set values from earlier requests in the same run. */
+  localVariables?: Variable[];
   /** Used when the request's own timeout is 0. 0 or absent means no timeout. */
   defaultTimeoutMs?: number;
   signal?: AbortSignal;
@@ -65,6 +67,8 @@ export interface ExecuteResult {
   oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "folder" | "collection"; folderId?: string };
   /** Full new variable lists for scopes that scripts changed. */
   changes: { environment?: Variable[]; collectionVariables?: Variable[]; globals?: Variable[] };
+  /** pm.variables.set values after this send, for the runner to carry to the next request. */
+  localVariables?: Variable[];
 }
 
 export const MAX_REDIRECTS = 10;
@@ -527,6 +531,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     environment: input.environment ? structuredClone(input.environment.variables ?? []) : undefined,
     globals: structuredClone(input.globals ?? []),
   });
+  for (const v of input.localVariables ?? []) vars.local.set(v.key.toLowerCase(), { ...v });
   const tests: ScriptTestResult[] = [];
   const logs: string[] = [];
   const settings = { ...defaultSettings(), ...req.settings };
@@ -565,6 +570,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
     return {
       response: r,
       changes: vars.changes(),
+      ...(vars.local.size || input.localVariables?.length ? { localVariables: [...vars.local.values()] } : {}),
       ...(oauthRefreshed ? { oauthRefreshed } : {}),
       ...(execution.nextRequest !== undefined ? { nextRequest: execution.nextRequest } : {}),
     };

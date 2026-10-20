@@ -98,6 +98,27 @@ describe("runCollection", () => {
     expect(s.assertions).toEqual({ total: 1, failed: 1 });
   });
 
+  it("judges a request with tests by its tests, so an expected 404 passes", async () => {
+    serve((p) => (p === "/missing" ? { status: 404 } : {}));
+    const c = newCollection();
+    c.requests.push(newRequest({ name: "missing", url: "https://api.test/missing", postResponseScript: "pm.test('is 404', () => pm.response.to.have.status(404));" }));
+    const s = await run(workspaceWith(c));
+    expect(s.results[0]).toMatchObject({ status: 404, passed: true });
+    expect(s.results[0].error).toBeUndefined();
+  });
+
+  it("keeps pm.variables.set values for later requests in the run", async () => {
+    serve();
+    const c = newCollection();
+    c.requests.push(
+      newRequest({ name: "a", order: 1, url: "https://api.test/a", postResponseScript: "pm.variables.set('token', 'abc')" }),
+      newRequest({ name: "b", order: 2, url: "https://api.test/b/{{token}}" }),
+    );
+    const s = await run(workspaceWith(c), { iterations: 2 });
+    expect(urls).toEqual(["https://api.test/a", "https://api.test/b/abc", "https://api.test/a", "https://api.test/b/abc"]);
+    expect(s.failed).toBe(0);
+  });
+
   it("walks folders before root requests, depth-first, with folder paths", async () => {
     serve();
     const c = newCollection({ name: "Smoke" });

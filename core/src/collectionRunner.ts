@@ -161,6 +161,8 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
     return { ...c, variables: collectionVars.get(c.id)! };
   };
 
+  // pm.variables.set values last for the whole run, as they do in other runners.
+  let localVariables: Variable[] = [];
   const results: RunRequestResult[] = [];
   let stopped = false;
   outer: for (let iteration = 0; iteration < iterations; iteration++) {
@@ -185,7 +187,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         break outer;
       }
       const collection = collectionFor(item.collection);
-      const { response, changes, oauthRefreshed, nextRequest } = await execute({
+      const executed = await execute({
         request: item.request,
         collection,
         environment,
@@ -194,6 +196,7 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         cookieJar: opts.cookieJar,
         folders: item.folders,
         iterationData: opts.data?.[iteration],
+        localVariables,
         dispatcher: opts.dispatcher,
         signal: opts.signal,
         defaultTimeoutMs: opts.defaultTimeoutMs,
@@ -202,6 +205,8 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         iteration,
         iterationCount: iterations,
       });
+      const { response, changes, oauthRefreshed, nextRequest } = executed;
+      if (executed.localVariables) localVariables = executed.localVariables;
       if (oauthRefreshed?.source === "collection") await opts.onOAuthRefreshed?.({ collectionId: item.collection.id }, oauthRefreshed);
       else if (oauthRefreshed?.source === "folder" && oauthRefreshed.folderId) await opts.onOAuthRefreshed?.({ folderId: oauthRefreshed.folderId }, oauthRefreshed);
       if (changes.environment && environment) environment = { ...environment, variables: changes.environment };
@@ -220,8 +225,11 @@ export async function runCollection(opts: RunOptions): Promise<RunSummary> {
         continue;
       }
 
+      // A request with tests passes or fails by them, so "expect a 404" can pass; one
+      // without tests needs a 2xx or 3xx status.
       const transportError = response.isError;
-      const statusOk = response.statusCode >= 200 && response.statusCode <= 399;
+      const hasTests = response.testResults.length > 0;
+      const statusOk = hasTests || (response.statusCode >= 200 && response.statusCode <= 399);
       const passed = !transportError && statusOk && response.testResults.every((t) => t.passed);
       const result: RunRequestResult = {
         iteration,
