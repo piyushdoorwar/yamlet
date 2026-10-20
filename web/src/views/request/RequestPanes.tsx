@@ -173,6 +173,11 @@ export function RequestPanes({ request, collection, folders, update, variables }
                     <Trash2 size={13} aria-hidden />
                   </button>
                 </div>
+                {ex.request && (
+                  <div className="truncate border-b border-line-soft px-4 py-1.5 font-mono text-11 text-muted" title={ex.request.body ? `${ex.request.url}\n\n${ex.request.body}` : ex.request.url}>
+                    {ex.request.method} {ex.request.url}
+                  </div>
+                )}
                 <div className="h-56 overflow-hidden rounded-b-lg">
                   <CodeEditor fill readOnly value={ex.body} language={ex.contentType?.includes("json") ? "json" : "text"} ariaLabel={`Example ${ex.name}`} />
                 </div>

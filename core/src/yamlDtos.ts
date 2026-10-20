@@ -706,6 +706,10 @@ function readExamples(raw: unknown): ResponseExample[] {
     };
     if (o.contentType) e.contentType = str(o.contentType);
     if (o.savedAt) e.savedAt = str(o.savedAt);
+    if (isObj(o.request) && (o.request.method || o.request.url)) {
+      e.request = { method: str(o.request.method) || "GET", url: str(o.request.url) };
+      if (o.request.body) e.request.body = str(o.request.body);
+    }
     return e;
   });
 }
@@ -719,6 +723,7 @@ function writeExamples(list: ResponseExample[] | undefined): Obj[] | undefined {
     if (e.contentType) o.contentType = e.contentType;
     if (e.body) o.body = e.body;
     if (e.savedAt) o.savedAt = e.savedAt;
+    if (e.request) o.request = { method: e.request.method, url: e.request.url, ...(e.request.body ? { body: e.request.body } : {}) };
     return o;
   });
 }

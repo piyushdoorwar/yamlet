@@ -80,9 +80,13 @@ function v2Body(r: YamletRequest): Obj | undefined {
 }
 
 function v2Response(e: ResponseExample, original: Obj): Obj {
+  // The example's own request when it has one, over the request's current state.
+  const sent = e.request
+    ? { ...original, method: e.request.method, url: { raw: e.request.url }, ...(e.request.body ? { body: { mode: "raw", raw: e.request.body } } : {}) }
+    : original;
   return {
     name: e.name,
-    originalRequest: original,
+    originalRequest: sent,
     code: e.status,
     header: rows(e.headers),
     body: e.body,

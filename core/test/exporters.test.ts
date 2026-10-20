@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { exportCollectionV2, exportEnvironmentJson, exportFileName, V21_COLLECTION_SCHEMA } from "../src/exporters.js";
 import { detectImportFormat, importCollectionV2, importEnvironmentJson } from "../src/importers.js";
+import { requestFromYaml, requestToYaml } from "../src/yamlDtos.js";
 import { defaultAuth, defaultBody, newCollection, newEnvironment, newFolder, newRequest } from "../src/models.js";
 
 function sample() {
@@ -41,6 +42,25 @@ function sample() {
 }
 
 describe("collection export", () => {
+  it("keeps the request that produced an example through import, YAML and export", () => {
+    const imported = importCollectionV2({
+      info: { name: "E" },
+      item: [
+        {
+          name: "r",
+          request: { method: "GET", url: "https://h/current" },
+          response: [{ name: "created", code: 201, originalRequest: { method: "post", url: { raw: "https://h/{{id}}" }, body: { mode: "raw", raw: '{"a":1}' } }, body: "{}" }],
+        },
+      ],
+    });
+    const ex = imported.requests[0].examples[0];
+    expect(ex.request).toEqual({ method: "POST", url: "https://h/{{id}}", body: '{"a":1}' });
+    const back = requestFromYaml(requestToYaml(imported.requests[0]));
+    expect(back.examples[0].request).toEqual(ex.request);
+    const exported = exportCollectionV2(imported) as { item: { response: { originalRequest: { method: string; url: { raw: string } } }[] }[] };
+    expect(exported.item[0].response[0].originalRequest).toMatchObject({ method: "POST", url: { raw: "https://h/{{id}}" } });
+  });
+
   it("keeps request variables and splits multi-file form rows on import", () => {
     const c = newCollection({ name: "V" });
     c.requests.push(newRequest({ name: "r", variables: [{ key: "id", value: "7", enabled: true }] }));

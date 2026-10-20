@@ -10,6 +10,7 @@ import { useMenu } from "../../components/Menu";
 import { CountBadge, UnderlineTabs } from "../../components/Tabs";
 import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
+import { displayUrl } from "../../lib/urlSync";
 import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml, suggestedFileName } from "../../lib/format";
 import { queryJson, JsonPathError } from "../../lib/jsonPath";
 import { keys, readJson, writeJson } from "../../lib/storage";
@@ -140,7 +141,9 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
       ...req,
       examples: [
         ...req.examples,
-        { id: newId(), name, status: r.statusCode, headers: r.headers, body: text, contentType: r.contentType, savedAt: new Date().toISOString() },
+        { id: newId(), name, status: r.statusCode, headers: r.headers, body: text, contentType: r.contentType, savedAt: new Date().toISOString(),
+          // As written ({{variables}} unresolved), so no resolved secret lands in the file.
+          request: { method: req.method, url: displayUrl(req.url, req.queryParams) } },
       ],
     }));
     toast.success("Example saved", "Find it under the request's Examples tab.");

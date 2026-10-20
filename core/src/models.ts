@@ -153,6 +153,8 @@ export interface ResponseExample {
   body: string;
   contentType?: string;
   savedAt?: string;
+  /** The request that produced this response (headers are left out: they can hold credentials). */
+  request?: { method: string; url: string; body?: string };
 }
 
 export interface YamletRequest {

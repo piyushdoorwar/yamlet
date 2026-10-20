@@ -220,6 +220,15 @@ function v2Examples(responses: unknown): ResponseExample[] {
       };
       const ct = headers.find((h) => h.key.toLowerCase() === "content-type")?.value;
       if (ct) e.contentType = ct;
+      if (isObj(r.originalRequest)) {
+        const o = r.originalRequest;
+        const u = o.url;
+        const url = typeof u === "string" ? u : isObj(u) ? str(u.raw) : "";
+        e.request = { method: str(o.method).toUpperCase() || "GET", url };
+        const body = asObj(o.body);
+        const text = str(body.mode) === "raw" ? str(body.raw) : str(body.mode) === "graphql" ? str(asObj(body.graphql).query) : "";
+        if (text) e.request.body = text;
+      }
       return e;
     });
 }
