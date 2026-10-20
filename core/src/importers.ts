@@ -178,15 +178,18 @@ function v2Body(raw: unknown, headers: KeyValue[], req: YamletRequest): void {
       req.body.type = "form-data";
       req.body.fields = arr(b.formdata)
         .filter(isObj)
-        .map((o) => {
+        .flatMap((o) => {
           const isFile = str(o.type) === "file";
-          const src = Array.isArray(o.src) ? str(o.src[0]) : str(o.src);
-          const f: BodyField = { key: str(o.key), value: isFile ? src : str(o.value), enabled: o.disabled !== true };
-          if (isFile) f.isFile = true;
-          if (str(o.contentType)) f.contentType = str(o.contentType);
-          const d = description(o.description);
-          if (d) f.description = d;
-          return f;
+          // A file row can list several files: one part each, under the same key.
+          const sources = isFile ? (Array.isArray(o.src) ? o.src.map(str) : [str(o.src)]) : [str(o.value)];
+          return (sources.length ? sources : [""]).map((value) => {
+            const f: BodyField = { key: str(o.key), value, enabled: o.disabled !== true };
+            if (isFile) f.isFile = true;
+            if (str(o.contentType)) f.contentType = str(o.contentType);
+            const d = description(o.description);
+            if (d) f.description = d;
+            return f;
+          });
         });
       break;
     case "graphql": {

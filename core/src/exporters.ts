@@ -113,6 +113,7 @@ function v2Request(r: YamletRequest): Obj {
   return {
     name: r.name,
     ...(ev ? { event: ev } : {}),
+    ...(r.variables?.length ? { variable: vars(r.variables) } : {}),
     ...(Object.keys(behavior).length ? { protocolProfileBehavior: behavior } : {}),
     request,
     response: r.examples.map((e) => v2Response(e, request)),

@@ -41,6 +41,22 @@ function sample() {
 }
 
 describe("collection export", () => {
+  it("keeps request variables and splits multi-file form rows on import", () => {
+    const c = newCollection({ name: "V" });
+    c.requests.push(newRequest({ name: "r", variables: [{ key: "id", value: "7", enabled: true }] }));
+    const back = importCollectionV2(JSON.parse(JSON.stringify(exportCollectionV2(c))));
+    expect(back.requests[0].variables).toEqual([{ key: "id", value: "7", enabled: true }]);
+
+    const multi = importCollectionV2({
+      info: { name: "M" },
+      item: [{ name: "up", request: { method: "POST", url: "https://h/u", body: { mode: "formdata", formdata: [{ key: "f", type: "file", src: ["a.txt", "b.txt"] }] } } }],
+    });
+    expect(multi.requests[0].body.fields).toEqual([
+      { key: "f", value: "a.txt", enabled: true, isFile: true },
+      { key: "f", value: "b.txt", enabled: true, isFile: true },
+    ]);
+  });
+
   it("round-trips through the importer", () => {
     const exported = exportCollectionV2(sample());
     const text = JSON.stringify(exported);
