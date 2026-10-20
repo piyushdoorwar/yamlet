@@ -37,7 +37,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={notify}>
       {children}
-      <div className="pointer-events-none fixed top-4 right-4 z-[60] flex w-80 flex-col gap-2" aria-live="polite">
+      {/* Bottom right, above the status bar: never over the request header and its save actions. */}
+      <div className="pointer-events-none fixed right-4 bottom-10 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2" aria-live="polite">
         {items.map((t) => (
           <div
             key={t.id}
