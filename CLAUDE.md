@@ -128,8 +128,11 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   (refresh token, else a fresh client-credentials/password fetch) and a resend. The CLI
   has no data folder: CI passes tokens through variables.
 - **Files changed or broken on disk are never overwritten unseen.** The store keeps each
-  file's text as it last read or wrote it. A write over a file changed since (a `git pull`)
-  is refused with 409 (the request view offers Overwrite / Use disk version); a reorder
+  file's text as it last read or wrote it (a file absent at load counts as changed when it
+  appears; a write of identical text is a no-op). A write over a file changed since (a
+  `git pull`) is refused with 409. Requests also carry `baseHash` (the file each copy was
+  read from, never written): a save is checked against it, so a reload can't let a stale
+  draft win; the request view offers Overwrite / Use disk version. A reorder
   re-reads such a sibling and changes only its order. Files that don't parse (Git conflict
   markers) are listed in `workspace.problems`, shown in the sidebar, and never written.
 - **Backward compatibility: old and imported formats are read, never written.**
