@@ -11,6 +11,9 @@ export type LocalScope = string;
 export const environmentScope = (id: string): LocalScope => `environment:${id}`;
 export const collectionScope = (id: string): LocalScope => `collection:${id}`;
 export const GLOBALS_SCOPE: LocalScope = "globals";
+/** OAuth 2.0 tokens by request, folder or collection id (JSON per entry), kept out of the YAML. */
+export const TOKENS_SCOPE: LocalScope = "oauth-tokens";
+
 /** Where a scope's current values (overrides of file values) are kept. */
 export const currentScope = (scope: LocalScope): LocalScope => `current:${scope}`;
 

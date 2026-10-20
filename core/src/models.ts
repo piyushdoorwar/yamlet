@@ -55,6 +55,11 @@ export interface OAuth2Config {
   grantType: OAuth2GrantType;
   accessToken: string;
   refreshToken: string;
+  /**
+   * When the access token expires (ms since the epoch), if the provider said; a token past
+   * it is refreshed before sending. Tokens and expiry stay on this machine, never in the YAML.
+   */
+  expiresAt?: number;
   /** Scheme used in the Authorization header (usually "Bearer"). */
   headerPrefix: string;
   accessTokenUrl: string;

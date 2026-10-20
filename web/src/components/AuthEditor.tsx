@@ -240,6 +240,16 @@ function formatExpiry(seconds: number): string {
   return `${Math.round(seconds / 3600)} hours`;
 }
 
+/** The stored token's expiry, for the access-token hint. */
+function tokenHint(cfg: OAuth2Config): string {
+  const where = "Kept on this machine, not in the YAML file.";
+  if (!cfg.accessToken || !cfg.expiresAt) return `Used for every request with this auth. Fetched below, or paste one. ${where}`;
+  const left = Math.round((cfg.expiresAt - Date.now()) / 1000);
+  const at = new Date(cfg.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const renew = cfg.refreshToken ? " It is refreshed before sending once it expires." : cfg.grantType === "client_credentials" || cfg.grantType === "password" ? " A new one is fetched once it expires." : "";
+  return left > 0 ? `Expires at ${at} (in ${formatExpiry(left)}).${renew} ${where}` : `Expired at ${at}.${renew} ${where}`;
+}
+
 function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: { cfg: OAuth2Config; set: (p: Partial<OAuth2Config>) => void; variables?: VariableSource; collectionId?: string; requestVariables?: Variable[] }) {
   const environmentId = useStore((s) => s.environmentId);
   const callback = useStore((s) => s.info?.oauthCallbackUrl);
@@ -301,7 +311,11 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
   };
 
   const applyToken = (token: { accessToken: string; refreshToken?: string; expiresIn?: number; tokenType?: string }) => {
-    set({ accessToken: token.accessToken, refreshToken: token.refreshToken ?? latestCfg.current.refreshToken });
+    set({
+      accessToken: token.accessToken,
+      refreshToken: token.refreshToken ?? latestCfg.current.refreshToken,
+      expiresAt: token.expiresIn ? Date.now() + token.expiresIn * 1000 : undefined,
+    });
     setOutcome({ kind: "success", at: new Date(), expiresIn: token.expiresIn, refreshToken: !!token.refreshToken, tokenType: token.tokenType });
   };
 
@@ -325,8 +339,8 @@ function OAuth2Fields({ cfg, set, variables, collectionId, requestVariables }: {
   return (
     <>
       <div className="rounded-lg border border-line bg-subtle p-4">
-        <Field label="Access token" hint="Used for every request with this auth. Fetched below, or paste one." warning={unresolvedWarning(cfg.accessToken, variables)}>
-          <VarInput label="Access token" secret value={cfg.accessToken} onChange={(accessToken) => set({ accessToken })} variables={variables} placeholder="Get a new token below, or paste one" />
+        <Field label="Access token" hint={tokenHint(cfg)} warning={unresolvedWarning(cfg.accessToken, variables)}>
+          <VarInput label="Access token" secret value={cfg.accessToken} onChange={(accessToken) => set({ accessToken, expiresAt: undefined })} variables={variables} placeholder="Get a new token below, or paste one" />
         </Field>
         <div className="mt-3 grid gap-4 md:grid-cols-2">
           <Field label="Header prefix">

@@ -2,7 +2,7 @@ import { existsSync, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { newCollection, newFolder, newRequest } from "../src/models.js";
+import { defaultAuth, newCollection, newFolder, newRequest } from "../src/models.js";
 import { LocalValuesFile } from "../src/localValues.js";
 import { fileSafeName } from "../src/pathNaming.js";
 import { WorkspaceStore } from "../src/workspaceStore.js";
@@ -458,6 +458,31 @@ describe("WorkspaceStore", () => {
     const re2 = await WorkspaceStore.open(tmp);
     expect(re2.findCollection(c.id) ?? re2.workspace.collections.find((x) => x.name === "API")).toBeDefined();
     expect(re2.workspace.collections.find((x) => x.name === "API")!.requests.map((r) => r.name).sort()).toEqual(["A", "B"]);
+  });
+
+  it("keeps OAuth 2.0 tokens in the data folder, never in the YAML", async () => {
+    const data = path.join(tmp, "data");
+    const open = async () => WorkspaceStore.open(tmp, { localValues: (await LocalValuesFile.open(data)).forWorkspace(path.join(tmp, "yamlet")) });
+    await WorkspaceStore.create(tmp);
+    const store = await open();
+    const c = await store.createCollection("API");
+    const auth = defaultAuth("oauth2");
+    auth.oauth2 = { ...auth.oauth2, grantType: "authorization_code", clientId: "app", accessToken: "at-secret", refreshToken: "rt-secret", expiresAt: 1234 };
+    const r = await store.createRequest(c.id, null, { name: "Me" });
+    await store.saveRequest({ ...store.findRequest(r.id)!.request, auth });
+    const file = store.findRequest(r.id)!.request.sourceFilePath!;
+    expect(await read(file)).not.toMatch(/at-secret|rt-secret/);
+    expect(await read(file)).toContain("clientId: app");
+    expect((await open()).findRequest(r.id)!.request.auth.oauth2).toMatchObject({ accessToken: "at-secret", refreshToken: "rt-secret", expiresAt: 1234 });
+    // Without the data folder (the CLI) there is no token.
+    expect((await WorkspaceStore.open(tmp)).findRequest(r.id)!.request.auth.oauth2.accessToken).toBe("");
+
+    // A token left in an older file is used, then moved out on the next save.
+    await fs.writeFile(file, (await read(file)).replace("clientId: app", "clientId: app\n    accessToken: legacy-at"));
+    const re = await open();
+    expect(re.findRequest(r.id)!.request.auth.oauth2.accessToken).toBe("at-secret"); // the stored one wins
+    await re.saveRequest({ ...re.findRequest(r.id)!.request, name: "Me 2" });
+    expect(await read(re.findRequest(r.id)!.request.sourceFilePath!)).not.toContain("legacy-at");
   });
 
   it("opens the sample workspace", async () => {

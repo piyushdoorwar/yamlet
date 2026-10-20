@@ -404,8 +404,8 @@ function writeOAuth2(o: OAuth2Config): Obj {
   put("redirect_uri", o.redirectUri);
   put("username", o.username);
   put("password", o.password);
-  put("accessToken", o.accessToken);
-  put("refreshToken", o.refreshToken);
+  // Tokens are never written: they stay on this machine (the store keeps them in the data
+  // folder). Ones found in older files are read, then dropped from the file on its next save.
   if (o.headerPrefix && o.headerPrefix !== "Bearer") out.tokenType = o.headerPrefix;
   out.addTokenTo = o.addTokenTo === "query" ? "queryParams" : "header";
   out.client_authentication = o.clientAuthentication === "body" ? "body" : "header";
@@ -427,8 +427,22 @@ const MODELED_CREDENTIALS = new Set(
   ].map((k) => k.toLowerCase()),
 );
 
-/** Auth compared by what it means (only the active scheme's fields). */
-const normalizedAuth = (v: unknown) => writeAuth(readAuth(v, "none"));
+const TOKEN_KEYS = new Set(["accesstoken", "access_token", "refreshtoken", "refresh_token"]);
+
+/** Whether a stored auth block still carries OAuth 2.0 tokens (older files did). */
+function hasTokenIn(v: unknown): boolean {
+  if (Array.isArray(v)) return v.some(hasTokenIn);
+  if (!isObj(v)) return false;
+  // Map form ({ accessToken: ... }) or list form ({ key: accessToken, value: ... }).
+  if (typeof v.key === "string" && TOKEN_KEYS.has(v.key.toLowerCase()) && v.value) return true;
+  return Object.entries(v).some(([k, val]) => (TOKEN_KEYS.has(k.toLowerCase()) && !!val) || hasTokenIn(val));
+}
+
+/**
+ * Auth compared by what it means (only the active scheme's fields). An older block with a
+ * token in it never counts as the same, so the token leaves the file on the next save.
+ */
+const normalizedAuth = (v: unknown) => ({ ...writeAuth(readAuth(v, "none")), ...(hasTokenIn(v) ? { token: true } : {}) });
 
 /** Ours, plus the original's unmodeled credential keys when the scheme is unchanged. */
 function mergeAuth(ours: Obj, original: unknown): Obj {

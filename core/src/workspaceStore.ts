@@ -27,7 +27,7 @@ import {
   type YamletRequest,
   type YamletWorkspace,
 } from "./models.js";
-import { collectionScope, currentScope, environmentScope, GLOBALS_SCOPE, type LocalScope, type LocalValues } from "./localValues.js";
+import { collectionScope, currentScope, environmentScope, GLOBALS_SCOPE, TOKENS_SCOPE, type LocalScope, type LocalValues } from "./localValues.js";
 import { fileSafeName, uniqueDirectoryPath, uniqueFilePath } from "./pathNaming.js";
 import {
   applyCollectionDefinition,
@@ -382,18 +382,21 @@ export class WorkspaceStore {
           r.order = (i + 1) * ORDER_STEP;
           r.sourceFilePath = uniqueFilePath(nodeDir, fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
           await this.writeFile(r.sourceFilePath, requestToYaml(r, undefined, r.sourceFilePath));
+          await this.saveToken(r.id, r.auth);
         }
         for (const [i, f] of node.folders.entries()) {
           f.order = (i + 1) * ORDER_STEP;
           f.directoryPath = uniqueDirectoryPath(nodeDir, fileSafeName(f.name, "New Folder"));
           await fs.mkdir(f.directoryPath, { recursive: true });
           await this.writeFile(path.join(f.directoryPath, DEFINITION_FILE), folderToYaml(f, undefined, path.basename(f.directoryPath)));
+          await this.saveToken(f.id, f.auth);
           await placeAndWrite(f, f.directoryPath);
         }
       };
       await placeAndWrite(c, dir);
       await this.saveLocal(collectionScope(c.id), c.variables);
       await this.writeFile(c.filePath, collectionToYaml(c));
+      await this.saveToken(c.id, c.auth);
       ws.collections.push(c);
       return c;
     });
@@ -519,6 +522,7 @@ export class WorkspaceStore {
       r.name = copyName(src.name);
       r.sourceFilePath = uniqueFilePath(path.dirname(src.sourceFilePath!), fileSafeName(r.name, "New Request"), REQUEST_SUFFIX);
       await this.writeFile(r.sourceFilePath, requestToYaml(r, await readIfExists(src.sourceFilePath), r.sourceFilePath));
+      await this.saveToken(r.id, r.auth);
       hit.list.splice(hit.list.indexOf(src) + 1, 0, r);
       await this.saveContainerOrder(hit.collection, hit.folders.at(-1) ?? null);
       return r;
@@ -827,6 +831,19 @@ export class WorkspaceStore {
     }
     r.sourceFilePath = target;
     await this.writeFile(target, requestToYaml(r, original, target), force);
+    await this.saveToken(r.id, r.auth);
+  }
+
+  /** Keeps an item's OAuth 2.0 token (and expiry) in the data folder; the YAML never has it. */
+  private async saveToken(id: string, auth: Auth | undefined): Promise<void> {
+    if (!this.local) return;
+    const tokens = { ...this.local.get(TOKENS_SCOPE) };
+    const o = auth?.type === "oauth2" ? auth.oauth2 : undefined;
+    const entry = o && (o.accessToken || o.refreshToken) ? JSON.stringify({ accessToken: o.accessToken, refreshToken: o.refreshToken, ...(o.expiresAt ? { expiresAt: o.expiresAt } : {}) }) : undefined;
+    if (tokens[id] === entry) return;
+    if (entry) tokens[id] = entry;
+    else delete tokens[id];
+    await this.local.set(TOKENS_SCOPE, tokens);
   }
 
   /** Writes `.resources/definition.yaml` (renaming the directory to match the name) and drops a legacy collection.yaml. */
@@ -842,6 +859,7 @@ export class WorkspaceStore {
     c.filePath = file;
     await this.saveLocal(collectionScope(c.id), c.variables);
     await this.writeFile(file, collectionToYaml(c, original));
+    await this.saveToken(c.id, c.auth);
     await fs.rm(legacy, { force: true });
   }
 
@@ -855,6 +873,7 @@ export class WorkspaceStore {
     const legacy = path.join(dir, LEGACY_FOLDER_FILE);
     const original = (await readIfExists(file)) ?? (await readIfExists(legacy));
     await this.writeFile(file, folderToYaml(f, original, path.basename(dir)));
+    await this.saveToken(f.id, f.auth);
     await fs.rm(legacy, { force: true });
   }
 
@@ -1065,4 +1084,23 @@ function applyLocalValues(ws: YamletWorkspace, local: LocalValues): void {
   for (const e of ws.environments) overlay(e.variables, environmentScope(e.id));
   for (const c of ws.collections) overlay(c.variables, collectionScope(c.id));
   overlay(ws.globals, GLOBALS_SCOPE);
+
+  // OAuth 2.0 tokens kept on this machine go back onto the auth they belong to.
+  const tokens = local.get(TOKENS_SCOPE);
+  if (!tokens) return;
+  const withToken = (id: string, auth: Auth | undefined) => {
+    if (auth?.type !== "oauth2" || !tokens[id]) return;
+    try {
+      const t = JSON.parse(tokens[id]) as { accessToken?: string; refreshToken?: string; expiresAt?: number };
+      auth.oauth2 = { ...auth.oauth2, accessToken: t.accessToken ?? "", refreshToken: t.refreshToken ?? "", ...(t.expiresAt ? { expiresAt: t.expiresAt } : {}) };
+    } catch {
+      // An unreadable entry is ignored.
+    }
+  };
+  const walk = (node: YamletCollection | YamletFolder) => {
+    withToken(node.id, node.auth);
+    for (const r of node.requests) withToken(r.id, r.auth);
+    for (const f of node.folders) walk(f);
+  };
+  ws.collections.forEach(walk);
 }

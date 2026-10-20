@@ -306,7 +306,7 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
 
     const first = await send({ request });
     expect(first.response.statusCode).toBe(200);
-    expect(first.oauthRefreshed).toEqual({ accessToken: "new", refreshToken: "r2", source: "request" });
+    expect(first.oauthRefreshed).toEqual({ accessToken: "new", refreshToken: "r2", expiresAt: expect.any(Number), source: "request" });
     expect(first.response.scriptLogs.join("\n")).toMatch(/got a new one with the refresh token/);
 
     // The same saved (old) token now goes straight out as the refreshed one.
@@ -314,6 +314,33 @@ const started = Date.now(); while (Date.now() - started < 150) {}`,
     const second = await send({ request });
     expect(second.response.statusCode).toBe(200);
     expect(seen.map((x) => x.origin)).toEqual(["https://api.test"]);
+  });
+
+  it("refreshes a token past its stored expiry before sending", async () => {
+    route("https://api.test", (s) => (h(s, "authorization") === "Bearer fresh" ? json({ ok: true }) : { status: 401, body: "expired" }));
+    route("https://idp2.test", () => json({ access_token: "fresh", expires_in: 300 }));
+    const auth = defaultAuth("oauth2");
+    auth.oauth2 = { ...auth.oauth2, grantType: "authorization_code", accessToken: "stale", refreshToken: "r9", expiresAt: Date.now() - 1000, accessTokenUrl: "https://idp2.test/token", clientId: "app" };
+    const res = await send({ request: newRequest({ url: "https://api.test/me", auth }) });
+    expect(res.response.statusCode).toBe(200);
+    expect(seen.map((s) => s.origin)).toEqual(["https://idp2.test", "https://api.test"]);
+    expect(res.oauthRefreshed).toMatchObject({ accessToken: "fresh", source: "request" });
+  });
+
+  it("uses a client-credentials token in hand, and fetches a new one when it is rejected", async () => {
+    route("https://api.test", (s) => (h(s, "authorization") === "Bearer pasted" || h(s, "authorization") === "Bearer issued" ? json({ ok: true }) : { status: 401, body: "no" }));
+    route("https://cc.test", () => json({ access_token: "issued", expires_in: 3600 }));
+    const auth = defaultAuth("oauth2");
+    auth.oauth2 = { ...auth.oauth2, grantType: "client_credentials", accessTokenUrl: "https://cc.test/token", clientId: "c-pasted", accessToken: "pasted" };
+    await send({ request: newRequest({ url: "https://api.test/a", auth }) });
+    expect(seen.map((s) => s.origin)).toEqual(["https://api.test"]);
+
+    seen = [];
+    auth.oauth2 = { ...auth.oauth2, accessToken: "revoked" };
+    const res = await send({ request: newRequest({ url: "https://api.test/a", auth }) });
+    expect(res.response.statusCode).toBe(200);
+    expect(seen.map((s) => s.origin)).toEqual(["https://api.test", "https://cc.test", "https://api.test"]);
+    expect(res.oauthRefreshed).toMatchObject({ accessToken: "issued" });
   });
 
   it("reports OAuth2 token failures as error responses", async () => {

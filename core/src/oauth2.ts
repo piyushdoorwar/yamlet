@@ -10,6 +10,8 @@ export interface TokenResponse {
   refreshToken?: string;
   tokenType?: string;
   expiresIn?: number;
+  /** expiresIn as a time (ms since the epoch), stamped when the token arrived. */
+  expiresAt?: number;
   raw: unknown;
 }
 
@@ -162,7 +164,10 @@ function parseTokenBody(text: string, contentType: string): TokenResponse {
   const result: TokenResponse = { accessToken, raw };
   if (typeof o.refresh_token === "string" && o.refresh_token) result.refreshToken = o.refresh_token;
   if (typeof o.token_type === "string" && o.token_type) result.tokenType = o.token_type;
-  if (Number.isFinite(expires) && expires > 0) result.expiresIn = expires;
+  if (Number.isFinite(expires) && expires > 0) {
+    result.expiresIn = expires;
+    result.expiresAt = Date.now() + expires * 1000;
+  }
   return result;
 }
 
@@ -253,7 +258,18 @@ const EXPIRY_MARGIN_MS = 30_000;
 const DEFAULT_LIFETIME_S = 3600;
 
 function cacheKey(cfg: OAuth2Config, resolve: Resolve): string {
-  return [cfg.grantType, resolve(cfg.accessTokenUrl), resolve(cfg.clientId), resolve(cfg.scope), resolve(cfg.username), cfg.clientAuthentication, resolve(cfg.audience ?? ""), resolve(cfg.resource ?? "")].join("|");
+  // Credentials are part of the key: a changed secret or password gets its own token.
+  return [cfg.grantType, resolve(cfg.accessTokenUrl), resolve(cfg.clientId), resolve(cfg.clientSecret), resolve(cfg.scope), resolve(cfg.username), resolve(cfg.password), cfg.clientAuthentication, resolve(cfg.audience ?? ""), resolve(cfg.resource ?? "")].join("|");
+}
+
+/** Drops the cached token for this config (the server rejected it). */
+export function forgetCachedToken(cfg: OAuth2Config, resolve: Resolve): void {
+  cache.delete(cacheKey(cfg, resolve));
+}
+
+/** True when a token with this expiry should be renewed before use. */
+export function isExpired(expiresAt: number | undefined): boolean {
+  return !!expiresAt && expiresAt - EXPIRY_MARGIN_MS < Date.now();
 }
 
 /** True when the grant can be fetched without user interaction. */

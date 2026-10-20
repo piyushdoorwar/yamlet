@@ -482,7 +482,7 @@ export const useStore = create<State>((set, get) => ({
       if (t) {
         // The request's token was refreshed by the server; keep it with the request.
         get().updateDraft(id, (r) =>
-          r.auth.type === "oauth2" ? { ...r, auth: { ...r.auth, oauth2: { ...r.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || r.auth.oauth2.refreshToken } } } : r,
+          r.auth.type === "oauth2" ? { ...r, auth: { ...r.auth, oauth2: { ...r.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || r.auth.oauth2.refreshToken, expiresAt: t.expiresAt } } } : r,
         );
       }
       recordHistory(id, request, result.response);

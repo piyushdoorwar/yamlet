@@ -55,17 +55,17 @@ export async function persistChanges(
 }
 
 /** Stores a refreshed OAuth 2.0 token in the collection's auth (the refresh token too, if it rotated). */
-export async function saveCollectionToken(store: WorkspaceStore, collectionId: string, t: { accessToken: string; refreshToken?: string }): Promise<void> {
+export async function saveCollectionToken(store: WorkspaceStore, collectionId: string, t: { accessToken: string; refreshToken?: string; expiresAt?: number }): Promise<void> {
   const c = store.findCollection(collectionId);
   if (!c || c.auth.type !== "oauth2") return;
-  await store.updateCollection(c.id, { auth: { ...c.auth, oauth2: { ...c.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || c.auth.oauth2.refreshToken } } });
+  await store.updateCollection(c.id, { auth: { ...c.auth, oauth2: { ...c.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || c.auth.oauth2.refreshToken, expiresAt: t.expiresAt } } });
 }
 
 /** Stores a refreshed OAuth 2.0 token in a folder's auth. */
-export async function saveFolderToken(store: WorkspaceStore, folderId: string, t: { accessToken: string; refreshToken?: string }): Promise<void> {
+export async function saveFolderToken(store: WorkspaceStore, folderId: string, t: { accessToken: string; refreshToken?: string; expiresAt?: number }): Promise<void> {
   const f = store.findFolder(folderId)?.folder;
   if (!f?.auth || f.auth.type !== "oauth2") return;
-  await store.updateFolder(f.id, { auth: { ...f.auth, oauth2: { ...f.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || f.auth.oauth2.refreshToken } } });
+  await store.updateFolder(f.id, { auth: { ...f.auth, oauth2: { ...f.auth.oauth2, accessToken: t.accessToken, refreshToken: t.refreshToken || f.auth.oauth2.refreshToken, expiresAt: t.expiresAt } } });
 }
 
 /** Gap between streamed body pieces; small pieces arriving faster are merged. */
@@ -103,7 +103,7 @@ export function sendRoutes(app: FastifyInstance, { workspaces, sendOptions }: De
         await saveFolderToken(store, oauthRefreshed.folderId, oauthRefreshed);
         changed = true;
       }
-      const token = oauthRefreshed?.source === "request" ? { oauthRefreshed: { accessToken: oauthRefreshed.accessToken, refreshToken: oauthRefreshed.refreshToken } } : {};
+      const token = oauthRefreshed?.source === "request" ? { oauthRefreshed: { accessToken: oauthRefreshed.accessToken, refreshToken: oauthRefreshed.refreshToken, expiresAt: oauthRefreshed.expiresAt } } : {};
       return changed ? { response, workspace: store.workspace, ...token } : { response, ...token };
     };
     if (!req.body.stream) return run();

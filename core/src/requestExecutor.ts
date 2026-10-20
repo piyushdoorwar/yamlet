@@ -11,7 +11,7 @@ import { dispatcherFor, withTrace, type ExchangeTrace } from "./agents.js";
 import { CookieJar, parseSetCookie } from "./cookieJar.js";
 import { DEFAULT_REQUEST_HEADERS, defaultSettings, type NetworkSettings, yamletUserAgent, type KeyValue, type ResponseCookie, type ScriptTestResult, type Variable, type YamletCollection, type YamletEnvironment, type YamletFolder, type YamletRequest, type YamletResponse } from "./models.js";
 import { digestAuthorization, parseDigestChallenge, signAwsV4 } from "./authSigning.js";
-import { canFetchAutomatically, getCachedToken, refreshAndRemember, refreshedTokenFor } from "./oauth2.js";
+import { canFetchAutomatically, forgetCachedToken, getCachedToken, isExpired, refreshAndRemember, refreshedTokenFor, type TokenResponse } from "./oauth2.js";
 import { encodeMultipart } from "./multipart.js";
 import { buildRequest, effectiveAuth, encodeUrlEncodedBody, mimeForFile, type BuiltRequest } from "./requestBuilder.js";
 import { type ExecutionControl, runScript, ScriptVariables, type SendRequestSpec } from "./scriptRunner.js";
@@ -64,7 +64,7 @@ export interface ExecuteResult {
   /** Set by pm.execution.setNextRequest: the runner's next request (null stops the iteration). */
   nextRequest?: string | null;
   /** A new OAuth 2.0 token got with the stored refresh token, to save where the auth lives. */
-  oauthRefreshed?: { accessToken: string; refreshToken?: string; source: "request" | "folder" | "collection"; folderId?: string };
+  oauthRefreshed?: { accessToken: string; refreshToken?: string; expiresAt?: number; source: "request" | "folder" | "collection"; folderId?: string };
   /** Full new variable lists for scopes that scripts changed. */
   changes: { environment?: Variable[]; collectionVariables?: Variable[]; globals?: Variable[] };
   /** How many of the tests came from the request's own scripts. */
@@ -618,14 +618,38 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
   const resolve = (s: string) => resolveVariables(s ?? "", ctx);
   const auth = effectiveAuth(req, collection, folders);
   let oauthToken: string | undefined;
-  if (auth.type === "oauth2" && canFetchAutomatically(auth.oauth2, resolve)) {
-    try {
-      oauthToken = (await getCachedToken(auth.oauth2, resolve, { dispatcher, signal: input.signal })).accessToken;
-    } catch (e) {
-      return finish(errorResponse(emptyResponse(req.method, resolve(req.url)), `OAuth 2.0 token request failed: ${errMessage(e)}`));
+  /** Where a new token is saved: the request, or the folder or collection whose auth it inherits. */
+  const remember = (t: TokenResponse) => {
+    const source: "request" | "folder" | "collection" = req.auth.type === "inherit" ? (folders.some((f) => f.auth === auth) ? "folder" : "collection") : "request";
+    oauthRefreshed = { accessToken: t.accessToken, refreshToken: t.refreshToken, expiresAt: t.expiresAt, source };
+    if (source === "folder") oauthRefreshed.folderId = [...folders].reverse().find((f) => f.auth === auth)?.id;
+  };
+  if (auth.type === "oauth2") {
+    const cfg = auth.oauth2;
+    const known = refreshedTokenFor(cfg, resolve);
+    if (known) oauthToken = known.accessToken;
+    // The token in hand (fetched with "Get token", pasted, or refreshed earlier) is used
+    // while it is valid; past its expiry it is refreshed first.
+    const current = known?.accessToken ?? resolve(cfg.accessToken).trim();
+    let usable = !!current && !isExpired(known ? known.expiresAt : cfg.expiresAt);
+    if (!usable && current && resolve(cfg.refreshToken).trim()) {
+      try {
+        const t = await refreshAndRemember(cfg, resolve, { dispatcher, signal: input.signal });
+        oauthToken = t.accessToken;
+        remember(t);
+        usable = true;
+        logs.push("OAuth 2.0: the access token had expired; got a new one with the refresh token.");
+      } catch (e) {
+        logs.push(`[warn] OAuth 2.0: refreshing the expired token failed: ${errMessage(e)}`);
+      }
     }
-  } else if (auth.type === "oauth2") {
-    oauthToken = refreshedTokenFor(auth.oauth2, resolve)?.accessToken;
+    if (!usable && canFetchAutomatically(cfg, resolve)) {
+      try {
+        oauthToken = (await getCachedToken(cfg, resolve, { dispatcher, signal: input.signal })).accessToken;
+      } catch (e) {
+        return finish(errorResponse(emptyResponse(req.method, resolve(req.url)), `OAuth 2.0 token request failed: ${errMessage(e)}`));
+      }
+    }
   }
   let built: BuiltRequest;
   try {
@@ -695,18 +719,28 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
           ex = await send([{ key: "Authorization", value: authorization, enabled: true }]);
         } else ex = probe;
       } else ex = await send();
-      // An expired token with a refresh token stored: refresh once and try again.
-      if (ex.status === 401 && auth.type === "oauth2" && !canFetchAutomatically(auth.oauth2, resolve) && resolve(auth.oauth2.refreshToken).trim()) {
+      // A rejected token: get a new one once (refresh token first, else fetch for the
+      // client-credentials and password grants) and send again.
+      if (ex.status === 401 && auth.type === "oauth2") {
+        const cfg = auth.oauth2;
+        let token: TokenResponse | undefined;
         try {
-          const token = await refreshAndRemember(auth.oauth2, resolve, { dispatcher, signal });
+          if (!oauthRefreshed && resolve(cfg.refreshToken).trim()) {
+            token = await refreshAndRemember(cfg, resolve, { dispatcher, signal });
+            logs.push("OAuth 2.0: the access token was rejected; got a new one with the refresh token and sent again.");
+          } else if (canFetchAutomatically(cfg, resolve)) {
+            forgetCachedToken(cfg, resolve);
+            token = await getCachedToken(cfg, resolve, { dispatcher, signal });
+            logs.push("OAuth 2.0: the access token was rejected; fetched a new one and sent again.");
+          }
+        } catch (e) {
+          logs.push(`[warn] OAuth 2.0: getting a new token failed: ${errMessage(e)}`);
+        }
+        if (token) {
           built = buildRequest(req, { ctx, collection, folders, oauthToken: token.accessToken });
           headers = withBodyType(built.headers);
-          oauthRefreshed = { accessToken: token.accessToken, refreshToken: token.refreshToken, source: req.auth.type === "inherit" ? (folders.some((f) => f.auth === auth) ? "folder" : "collection") : "request" };
-          if (oauthRefreshed.source === "folder") oauthRefreshed.folderId = [...folders].reverse().find((f) => f.auth === auth)?.id;
-          logs.push("OAuth 2.0: the access token was rejected; got a new one with the refresh token and sent again.");
+          remember(token);
           ex = await send();
-        } catch (e) {
-          logs.push(`[warn] OAuth 2.0: refreshing the token failed: ${errMessage(e)}`);
         }
       }
       if (ex.truncated) {

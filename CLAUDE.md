@@ -121,6 +121,12 @@ vitest.config.ts, tsconfig.web.json). **Only import isomorphic modules from the 
   per-row `type: secret` / `local: true`, and `variableSettings` for collection-variable flags.
 - **Tree order is persisted per file** via `order`, spaced by 1000 (`ORDER_STEP`); ties
   fall back to filename. After structural changes the store renumbers the affected container.
+- **OAuth 2.0 tokens never reach the YAML.** Access and refresh tokens (and `expiresAt`) are
+  kept per item id in `<dataDir>/local-values.json` under `oauth-tokens` (`saveToken` in the
+  store; overlaid on load). Tokens found in older files are read, then dropped on the next
+  save. A token past `expiresAt` is refreshed before sending; a 401 gets one new token
+  (refresh token, else a fresh client-credentials/password fetch) and a resend. The CLI
+  has no data folder: CI passes tokens through variables.
 - **Files changed or broken on disk are never overwritten unseen.** The store keeps each
   file's text as it last read or wrote it. A write over a file changed since (a `git pull`)
   is refused with 409 (the request view offers Overwrite / Use disk version); a reorder

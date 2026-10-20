@@ -79,7 +79,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   and SSL settings. Paste a cURL command into the URL box to import it.
 - **Auth.** Bearer, Basic, Digest, API key, cookie, AWS Signature v4, and OAuth 2.0
   (client credentials, password, authorization code with PKCE, or implicit), set per request or
-  inherited from the enclosing folder or collection.
+  inherited from the enclosing folder or collection. OAuth tokens stay on your machine, never in
+  the YAML; an expired one is refreshed before the request goes out.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request, folder and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
   `pm.response.json()`, `pm.response.to.have.jsonSchema()` and more), with built-in
