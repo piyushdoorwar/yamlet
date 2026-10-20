@@ -10,7 +10,7 @@ import { useMenu } from "../../components/Menu";
 import { CountBadge, UnderlineTabs } from "../../components/Tabs";
 import { useToast } from "../../components/Toast";
 import { CodeEditor } from "../../editor/CodeEditor";
-import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml } from "../../lib/format";
+import { copyText, downloadBlob, formatBytes, formatMs, languageFor, prettyJson, prettyXml, suggestedFileName } from "../../lib/format";
 import { queryJson, JsonPathError } from "../../lib/jsonPath";
 import { keys, readJson, writeJson } from "../../lib/storage";
 import { useStore } from "../../lib/store";
@@ -150,7 +150,7 @@ export function ResponsePanel({ request, update }: { request: YamletRequest; upd
   const saveBody = () => {
     if (!r) return;
     const bytes = r.bodyEncoding === "base64" ? Uint8Array.from(atob(r.body), (c) => c.charCodeAt(0)) : r.body;
-    downloadBlob(bytes, `response.${extensionFor(ct)}`, ct || "application/octet-stream");
+    downloadBlob(bytes, suggestedFileName(r.headers, r.resolvedUrl) ?? `response.${extensionFor(ct)}`, ct || "application/octet-stream");
   };
 
   if (!state || (!state.loading && !r && !state.error)) {

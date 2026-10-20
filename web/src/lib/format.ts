@@ -104,3 +104,37 @@ export function downloadBlob(data: BlobPart, fileName: string, type = "applicati
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/**
+ * The file name a response suggests: Content-Disposition's `filename*` (RFC 5987) or
+ * `filename`, else the URL's last path segment when it has an extension. Reduced to a
+ * plain name (no folders, no control characters); undefined when there is none.
+ */
+export function suggestedFileName(headers: { key: string; value: string }[], url: string): string | undefined {
+  const clean = (s: string) => {
+    const name = s.split(/[/\\]/).pop()!.replace(/[\u0000-\u001f\u007f<>:"|?*]/g, "_").trim();
+    return name && name !== "." && name !== ".." ? name : undefined;
+  };
+  const cd = headers.find((h) => h.key.toLowerCase() === "content-disposition")?.value ?? "";
+  const star = /filename\*\s*=\s*([^']*)'[^']*'([^;]+)/i.exec(cd);
+  if (star) {
+    try {
+      const name = clean(decodeURIComponent(star[2].trim().replace(/^"|"$/g, "")));
+      if (name) return name;
+    } catch {
+      // A malformed encoding: try the plain filename.
+    }
+  }
+  const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(cd);
+  if (plain) {
+    const name = clean((plain[1] ?? plain[2]).replace(/\\(.)/g, "$1"));
+    if (name) return name;
+  }
+  try {
+    const last = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+    if (/\.[a-z0-9]{1,8}$/i.test(last)) return clean(last);
+  } catch {
+    // No usable URL.
+  }
+  return undefined;
+}

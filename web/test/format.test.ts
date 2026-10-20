@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { prettyJson } from "../src/lib/format";
+import { prettyJson, suggestedFileName } from "../src/lib/format";
 
 describe("prettyJson", () => {
   it("indents like JSON.stringify for ordinary values", () => {
@@ -15,5 +15,19 @@ describe("prettyJson", () => {
   it("leaves text that isn't JSON alone", () => {
     expect(prettyJson("{nope")).toBe("{nope");
     expect(prettyJson(" 42 ")).toBe("42");
+  });
+});
+
+describe("suggestedFileName", () => {
+  const cd = (value: string) => [{ key: "Content-Disposition", value }];
+  it("reads Content-Disposition, preferring filename*", () => {
+    expect(suggestedFileName(cd('attachment; filename="report 2024.csv"'), "https://h/x")).toBe("report 2024.csv");
+    expect(suggestedFileName(cd("attachment; filename=plain.txt; size=3"), "https://h/x")).toBe("plain.txt");
+    expect(suggestedFileName(cd(`attachment; filename="fallback.txt"; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf`), "https://h/x")).toBe("résumé.pdf");
+  });
+  it("keeps only a plain name, and falls back to the URL", () => {
+    expect(suggestedFileName(cd('attachment; filename="../../etc/passwd"'), "https://h/x")).toBe("passwd");
+    expect(suggestedFileName([], "https://h/files/data.json?x=1")).toBe("data.json");
+    expect(suggestedFileName([], "https://h/users/1")).toBeUndefined();
   });
 });
