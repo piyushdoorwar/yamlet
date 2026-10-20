@@ -696,7 +696,8 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
       exchange({
         url: built.url,
         method: built.method,
-        headers: [...headers, ...extra],
+        // Headers computed at send time (Digest) replace ones of the same name.
+        headers: [...headers.filter((h) => !extra.some((x) => x.key.toLowerCase() === h.key.toLowerCase())), ...extra],
         body: prepared.body,
         dispatcher,
         signal,
@@ -720,7 +721,7 @@ export async function execute(input: ExecuteInput): Promise<ExecuteResult> {
         const challenge = probe.status === 401 ? parseDigestChallenge(headerValue(probe.headers, "www-authenticate")) : undefined;
         if (challenge) {
           const u = new URL(built.url);
-          const authorization = digestAuthorization(challenge, { username: resolve(auth.username), password: resolve(auth.password), method: built.method, uri: u.pathname + u.search });
+          const authorization = digestAuthorization(challenge, { username: resolve(auth.username), password: resolve(auth.password), method: built.method, uri: u.pathname + u.search, body: prepared.body });
           ex = await send([{ key: "Authorization", value: authorization, enabled: true }]);
         } else ex = probe;
       } else ex = await send();

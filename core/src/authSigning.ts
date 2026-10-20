@@ -34,7 +34,10 @@ export function parseDigestChallenge(header: string | undefined): DigestChalleng
 }
 
 /** The Authorization header answering `challenge` for one request. */
-export function digestAuthorization(c: DigestChallenge, opts: { username: string; password: string; method: string; uri: string; cnonce?: string; nc?: number }): string {
+export function digestAuthorization(
+  c: DigestChallenge,
+  opts: { username: string; password: string; method: string; uri: string; cnonce?: string; nc?: number; body?: string | Buffer },
+): string {
   const alg = c.algorithm.toUpperCase();
   const hashName = alg.startsWith("SHA-512-256") ? "sha512-256" : alg.startsWith("SHA-256") ? "sha256" : "md5";
   const H = (s: string) => createHash(hashName).update(s).digest("hex");
@@ -42,9 +45,10 @@ export function digestAuthorization(c: DigestChallenge, opts: { username: string
   const nc = (opts.nc ?? 1).toString(16).padStart(8, "0");
   let ha1 = H(`${opts.username}:${c.realm}:${opts.password}`);
   if (alg.endsWith("-SESS")) ha1 = H(`${ha1}:${c.nonce}:${cnonce}`);
-  const ha2 = H(`${opts.method}:${opts.uri}`);
-  // Only "auth" is supported; "auth-int" would need the body hashed in too.
-  const qop = c.qop?.split(",").map((q) => q.trim()).find((q) => q === "auth");
+  // "auth" when offered; else "auth-int", which also covers the body's hash.
+  const offered = c.qop?.split(",").map((q) => q.trim().toLowerCase()) ?? [];
+  const qop = offered.includes("auth") ? "auth" : offered.includes("auth-int") ? "auth-int" : undefined;
+  const ha2 = qop === "auth-int" ? H(`${opts.method}:${opts.uri}:${createHash(hashName).update(opts.body ?? "").digest("hex")}`) : H(`${opts.method}:${opts.uri}`);
   const response = qop ? H(`${ha1}:${c.nonce}:${nc}:${cnonce}:${qop}:${ha2}`) : H(`${ha1}:${c.nonce}:${ha2}`);
   const q = (s: string) => `"${s.replace(/(["\\])/g, "\\$1")}"`;
   const parts = [
@@ -114,9 +118,11 @@ export function signAwsV4(opts: {
   const canonicalHeaders = names.map((k) => `${k}:${signed.get(k)}\n`).join("");
   const signedHeaders = names.join(";");
 
-  // S3 paths are encoded once; other services want each segment encoded again.
+  // Each segment is URI-encoded per the SigV4 rules (WHATWG URLs leave + ( ) : = , @ $ ! '
+  // as they are): once for S3, twice for other services.
   const path = url.pathname || "/";
-  const canonicalPath = service === "s3" ? path : path.split("/").map((seg) => awsEncode(decodeSafe(seg))).map((seg) => awsEncode(seg)).join("/");
+  const once = path.split("/").map((seg) => awsEncode(decodeSafe(seg)));
+  const canonicalPath = (service === "s3" ? once : once.map((seg) => awsEncode(seg))).join("/");
   const canonicalQuery = [...url.searchParams.entries()]
     .map(([k, v]) => [awsEncode(k), awsEncode(v)])
     .sort(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0))

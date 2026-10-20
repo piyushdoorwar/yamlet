@@ -34,6 +34,14 @@ describe("AWS Signature Version 4", () => {
     expect(awsScopeFromHost("dynamodb.us-west-2.amazonaws.com")).toEqual({ service: "dynamodb", region: "us-west-2" });
   });
 
+  it("encodes S3 key characters once, however the URL wrote them", () => {
+    const sign = (url: string) => authOf(signAwsV4({ method: "GET", url, headers: [], body: "", aws: { ...aws, region: "us-east-1", service: "s3" }, now }));
+    const raw = sign("https://bucket.s3.amazonaws.com/a+b/2024-01-01T10:00:00.json");
+    expect(raw).toBe(sign("https://bucket.s3.amazonaws.com/a%2Bb/2024-01-01T10%3A00%3A00.json"));
+    // Not the signature of the path left as the URL parser keeps it.
+    expect(raw).not.toBe(sign("https://bucket.s3.amazonaws.com/ab/2024-01-01T10-00-00.json"));
+  });
+
   it("is stored and read back in the workspace YAML shape", () => {
     const a = { ...defaultAuth("awsv4"), aws: { ...aws, sessionToken: "t" } };
     expect(readAuth(writeAuth(a)).aws).toEqual(a.aws);
@@ -47,6 +55,16 @@ describe("Digest", () => {
     expect(header).toContain('response="6629fae49393a05397450978507c4ef1"');
     expect(header).toContain("qop=auth, nc=00000001");
     expect(header).toContain('opaque="5ccc069c403ebaf9f0171e9517f40e41"');
+  });
+
+  it("answers an auth-int only challenge with the body hashed in", () => {
+    const md5 = (s: string) => createHash("md5").update(s).digest("hex");
+    const c = parseDigestChallenge('Digest realm="r", qop="auth-int", nonce="n1"')!;
+    const header = digestAuthorization(c, { username: "u", password: "p", method: "POST", uri: "/x", cnonce: "c", nc: 1, body: '{"a":1}' });
+    const ha1 = md5("u:r:p");
+    const ha2 = md5(`POST:/x:${md5('{"a":1}')}`);
+    expect(header).toContain("qop=auth-int");
+    expect(header).toContain(`response="${md5(`${ha1}:n1:00000001:c:auth-int:${ha2}`)}"`);
   });
 
   it("ignores other schemes in the header", () => {
