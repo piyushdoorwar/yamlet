@@ -217,6 +217,42 @@ try { require('fs'); } catch (e) { console.log(e.message); }`,
   });
 });
 
+describe("older script globals", () => {
+  it("records tests[...] and maps postman.* onto pm", async () => {
+    const vars = new ScriptVariables({ environment: [], collection: [], globals: [] });
+    const { tests, logs } = await run(
+      `
+      tests["status is 200"] = responseCode.code === 200;
+      tests["has id"] = JSON.parse(responseBody).id === 6;
+      postman.setEnvironmentVariable("token", "t1");
+      postman.setGlobalVariable("g", 2);
+      console.log(postman.getEnvironmentVariable("token"), postman.getResponseHeader("Content-Type"), responseHeaders["content-type"], responseTime, request.method, request.headers.Accept);
+      pm.visualizer.set("<p>{{x}}</p>", {});
+      pm.visualizer.set("<p>{{x}}</p>", {});
+    `,
+      { vars },
+    );
+    expect(tests).toEqual([
+      { name: "status is 200", passed: true },
+      { name: "has id", passed: false, error: "The test's expression was false" },
+    ]);
+    expect(logs).toEqual(["t1 application/json application/json 12 GET */*", "[info] pm.visualizer isn't supported in Yamlet; the visualization was skipped."]);
+    expect(vars.get("environment", "token")).toBe("t1");
+    expect(vars.get("globals", "g")).toBe("2");
+  });
+
+  it("keeps tests[...] set before a script error", async () => {
+    const recorded: ScriptTestResult[] = [];
+    await runScript({ script: 'tests["first"] = true; throw new Error("boom")', phase: "post", request: newRequest(), response: response(), variables: new ScriptVariables({ environment: [], collection: [], globals: [] }), tests: recorded, logs: [] }).catch(() => undefined);
+    expect(recorded).toEqual([{ name: "first", passed: true }]);
+  });
+
+  it("reports the reason phrase, header size and header members", async () => {
+    const { logs } = await run("console.log(pm.response.reason(), pm.response.size().header, pm.response.headers.members.length)");
+    expect(logs).toEqual(["OK 32 1"]);
+  });
+});
+
 describe("script libraries", () => {
   it("offers lodash, CryptoJS, Buffer and require() of common modules", async () => {
     const { logs } = await run(`
@@ -246,6 +282,25 @@ describe("script libraries", () => {
     expect(tests[0]).toEqual({ name: "body matches", passed: true });
     expect(tests[1].passed).toBe(false);
     expect(tests[1].error).toMatch(/must be integer|must have required property 'name'/);
+  });
+
+  it("offers tv4 and the safe Node built-ins", async () => {
+    const { logs } = await run(`
+      const tv4 = require("tv4");
+      const schema = { $schema: "http://json-schema.org/draft-04/schema#", id: "x", type: "object", required: ["id"] };
+      console.log(tv4.validate({ id: 1 }, schema), tv4.validate({}, schema), tv4.error.message);
+      console.log(require("querystring").stringify({ a: 1, b: "x y" }), require("url").parse("https://h/p?q=1").pathname);
+      console.log(require("path").join("a", "b"), require("node:util").format("%s=%d", "n", 2));
+    `);
+    expect(logs).toEqual(["true false data must have required property 'id'", "a=1&b=x%20y /p", "a/b n=2"]);
+  });
+
+  it("parses XML with xml2Json", async () => {
+    const res = response({ body: '<?xml version="1.0"?><!-- c --><root a="1"><item>x &amp; y</item><item id="2">z</item><empty/><![CDATA[raw <b>]]></root>' });
+    const { logs } = await run("console.log(JSON.stringify(xml2Json(responseBody)))", { res });
+    expect(JSON.parse(logs[0])).toEqual({ root: { $: { a: "1" }, item: ["x & y", { $: { id: "2" }, _: "z" }], empty: "", _: "raw <b>" } });
+    const bad = await run("xml2Json('<a><b></a>')", { throwOnFailure: true }).catch((e: Error) => e.message);
+    expect(bad).toMatch(/Invalid XML: <\/a> doesn't match <b>/);
   });
 
   it("only lets pre-request scripts skip the request", async () => {

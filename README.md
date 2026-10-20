@@ -72,7 +72,8 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
   in; type `{{$` for the full list.
 - **Requests.** Every HTTP method, including the new `QUERY` (a safe method with a body), or
   any custom verb. Query and `:path` params, headers, and bodies as JSON, XML, text, HTML,
-  form-data (with files), urlencoded, GraphQL or binary. Per-request timeout, redirects
+  form-data (with files), urlencoded, GraphQL (with schema completion and a picker for
+  documents with several operations) or binary. Per-request timeout, redirects
   and SSL settings. Paste a cURL command into the URL box to import it.
 - **Auth.** Bearer, Basic, Digest, API key, cookie, AWS Signature v4, and OAuth 2.0
   (client credentials, password, authorization code with PKCE, or implicit), set per request or
@@ -80,8 +81,10 @@ add `--user "$(id -u):$(id -g)"` so files Yamlet writes belong to you.
 - **Scripts and tests.** Pre-request and post-response JavaScript at request, folder and
   collection level, using a `pm` API (`pm.environment.set`, `pm.test`, `pm.expect`,
   `pm.response.json()`, `pm.response.to.have.jsonSchema()` and more), with built-in
-  snippets. `_` (lodash), `CryptoJS`, `Buffer`, and `require()` of `lodash`, `crypto-js`,
-  `ajv`, `chai` and `uuid` are available. In the runner, `pm.execution.setNextRequest()`
+  snippets. `_` (lodash), `CryptoJS`, `Buffer`, `xml2Json()`, and `require()` of `lodash`,
+  `crypto-js`, `ajv`, `tv4`, `chai`, `uuid`, `url`, `querystring`, `path`, `util` and
+  `events` are available. Older scripts that use `tests["name"] = ...`, `postman.*`,
+  `responseBody` and `responseCode` still run. In the runner, `pm.execution.setNextRequest()`
   picks what runs next and `pm.execution.skipRequest()` skips a request.
   `pm.cookies.jar()` reads and sets cookies in the workspace jar.
 - **Responses.** Pretty, raw and preview (HTML or images), headers, cookies and test

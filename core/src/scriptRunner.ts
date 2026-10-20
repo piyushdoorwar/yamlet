@@ -2,7 +2,11 @@
 // fresh node:vm context. node:vm is isolation for convenience, not a security boundary:
 // scripts are trusted the same way the workspace files are.
 import { randomUUID } from "node:crypto";
-import { inspect } from "node:util";
+import { EventEmitter } from "node:events";
+import path from "node:path";
+import querystring from "node:querystring";
+import url from "node:url";
+import util, { inspect } from "node:util";
 import vm from "node:vm";
 import { Ajv } from "ajv";
 import * as chai from "chai";
@@ -13,6 +17,7 @@ import type { CookieJar } from "./cookieJar.js";
 import { encodeMultipart } from "./multipart.js";
 import { appendQuery, withScheme } from "./requestBuilder.js";
 import { lookupVariable, mergedVariables, resolveVariables, type VariableContext } from "./variableResolver.js";
+import { xmlToJson } from "./xmlToJson.js";
 
 export const DEFAULT_SCRIPT_TIMEOUT_MS = 5000;
 
@@ -335,6 +340,9 @@ function headerList(list: KeyValue[]) {
     toObject: () => Object.fromEntries(list.map((h) => [h.key, h.value])),
     each: (fn: (h: { key: string; value: string }) => void) => list.forEach((h) => fn({ key: h.key, value: h.value })),
     count: () => list.length,
+    get members() {
+      return list.map((h) => ({ key: h.key, value: h.value }));
+    },
   };
 }
 
@@ -386,6 +394,54 @@ function jarApi(jar: CookieJar | undefined) {
   };
 }
 
+/** A draft-04 schema in the form Ajv reads: `id` and `$schema` dropped, boolean exclusive bounds made numeric. */
+function fromDraft4(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(fromDraft4);
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) {
+    if ((k === "id" || k === "$schema") && typeof v === "string") continue;
+    out[k] = k === "enum" || k === "default" || k === "const" || k === "examples" ? v : fromDraft4(v);
+  }
+  for (const [flag, bound] of [["exclusiveMaximum", "maximum"], ["exclusiveMinimum", "minimum"]] as const) {
+    if (typeof out[flag] !== "boolean") continue;
+    if (out[flag] && typeof out[bound] === "number") {
+      out[flag] = out[bound];
+      delete out[bound];
+    } else delete out[flag];
+  }
+  return out;
+}
+
+/** `require("tv4")`: its validate / validateResult / validateMultiple calls, checked by Ajv. */
+function tv4Shim() {
+  const ajv = new Ajv({ strict: false, allErrors: true, validateSchema: false });
+  const check = (data: unknown, schema: unknown) => {
+    const validate = ajv.compile(fromDraft4(schema && typeof schema === "object" ? schema : {}) as object);
+    const valid = validate(data) as boolean;
+    const errors = (validate.errors ?? []).map((e) => ({ message: `${e.instancePath || "data"} ${e.message ?? "is invalid"}`, dataPath: e.instancePath, schemaPath: e.schemaPath, params: e.params }));
+    return { valid, errors };
+  };
+  const shim = {
+    error: null as unknown,
+    missing: [] as string[],
+    validate(data: unknown, schema: unknown) {
+      const r = check(data, schema);
+      shim.error = r.errors[0] ?? null;
+      return r.valid;
+    },
+    validateResult(data: unknown, schema: unknown) {
+      const r = check(data, schema);
+      return { valid: r.valid, error: r.errors[0] ?? null, missing: [] };
+    },
+    validateMultiple(data: unknown, schema: unknown) {
+      const r = check(data, schema);
+      return { valid: r.valid, errors: r.errors, missing: [] };
+    },
+  };
+  return shim;
+}
+
 function responseFacade(r: YamletResponse) {
   const facade = {
     [RESPONSE]: r,
@@ -402,7 +458,11 @@ function responseFacade(r: YamletResponse) {
     },
     text: () => decodeBody(r),
     json: () => JSON.parse(decodeBody(r) || "null"),
-    size: () => ({ body: r.sizeBytes, header: 0, total: r.sizeBytes }),
+    reason: () => r.reasonPhrase,
+    size: () => {
+      const header = r.headers.reduce((n, h) => n + Buffer.byteLength(`${h.key}: ${h.value}\r\n`), 0);
+      return { body: r.sizeBytes, header, total: r.sizeBytes + header };
+    },
     get to() {
       return chai.expect(facade).to;
     },
@@ -629,6 +689,11 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     tests.push(r);
   };
 
+  const noted = new Set<string>();
+  const noteOnce = (text: string) => {
+    if (!noted.has(text)) logs.push(`[info] ${text}`);
+    noted.add(text);
+  };
   const fmt = (args: unknown[]) =>
     args.map((a) => (typeof a === "string" ? a : inspect(a, { depth: 4, breakLength: Infinity, compact: true }))).join(" ");
   const consoleApi = {
@@ -726,6 +791,10 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     test,
     expect: chai.expect,
     sendRequest,
+    visualizer: {
+      set: () => noteOnce("pm.visualizer isn't supported in Yamlet; the visualization was skipped."),
+      clear: () => undefined,
+    },
     execution: {
       /** In a pre-request script: don't send this request. */
       skipRequest: () => {
@@ -745,11 +814,65 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
     lodash: _,
     "crypto-js": CryptoJS,
     ajv: Ajv,
+    tv4: tv4Shim(),
     atob: (s: string) => atob(s),
     btoa: (s: string) => btoa(s),
     buffer: { Buffer },
+    url,
+    querystring,
+    path: path.posix,
+    util,
+    events: EventEmitter,
+  };
+  for (const name of ["buffer", "url", "querystring", "path", "util", "events"]) modules[`node:${name}`] = modules[name];
+
+  // The older script globals (tests[...], postman.*, responseBody, ...) that imported
+  // collections still use, mapped onto the pm API.
+  const legacyTests: Record<string, unknown> = {};
+  const legacy = {
+    tests: legacyTests,
+    xml2Json: (text: unknown) => xmlToJson(String(text ?? "")),
+    data: { ...iterationData },
+    iteration: opts.info?.iteration ?? 0,
+    environment: vars.toObject("environment"),
+    globals: vars.toObject("globals"),
+    request: {
+      id: pm.info.requestId,
+      name: pm.info.requestName,
+      url: resolveVariables(opts.request.url, ctxForReplace()),
+      method: opts.request.method,
+      headers: Object.fromEntries(opts.request.headers.filter((h) => h.enabled !== false && h.key).map((h) => [h.key, resolveVariables(h.value, ctxForReplace())])),
+      data: opts.request.body.type === "form-data" || opts.request.body.type === "urlencoded" ? Object.fromEntries(opts.request.body.fields.filter((f) => f.enabled !== false && f.key).map((f) => [f.key, f.value])) : opts.request.body.raw,
+    },
+    ...(opts.response
+      ? {
+          responseBody: decodeBody(opts.response),
+          responseCode: { code: opts.response.statusCode, name: opts.response.reasonPhrase, detail: opts.response.reasonPhrase },
+          responseHeaders: Object.fromEntries(opts.response.headers.map((h) => [h.key, h.value])),
+          responseTime: opts.response.durationMs,
+          responseCookies: opts.response.cookies.map((c) => ({ ...c })),
+        }
+      : {}),
+    postman: {
+      setEnvironmentVariable: (k: string, v: unknown) => pm.environment.set(k, v),
+      getEnvironmentVariable: (k: string) => pm.environment.get(k),
+      clearEnvironmentVariable: (k: string) => pm.environment.unset(k),
+      clearEnvironmentVariables: () => pm.environment.clear(),
+      setGlobalVariable: (k: string, v: unknown) => pm.globals.set(k, v),
+      getGlobalVariable: (k: string) => pm.globals.get(k),
+      clearGlobalVariable: (k: string) => pm.globals.unset(k),
+      clearGlobalVariables: () => pm.globals.clear(),
+      getVariable: (k: string) => pm.variables.get(k),
+      setNextRequest: (next: unknown) => pm.execution.setNextRequest(next),
+      getResponseHeader: (name: string) => response?.headers.get(name),
+      getResponseCookie: (name: string) => opts.response?.cookies.find((c) => c.name === name),
+    },
+  };
+  const recordLegacyTests = () => {
+    for (const [name, value] of Object.entries(legacyTests)) record(name, !!value, value ? undefined : "The test's expression was false");
   };
   const sandbox: Record<string, unknown> = {
+    ...legacy,
     pm,
     console: consoleApi,
     atob,
@@ -801,6 +924,7 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
   } finally {
     for (const t of timers) clearTimeout(t);
     timers.clear();
+    recordLegacyTests();
   }
   if (opts.throwOnFailure && asyncFailures.length) throw new Error(asyncFailures[0]);
 }

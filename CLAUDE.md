@@ -62,6 +62,8 @@ core/src/     UI-free engine (TypeScript, NodeNext: relative imports end in .js)
   appSettings.ts       machine settings (timeout, size cap, proxy, certificates) in <dataDir>/settings.json
   agents.ts            undici dispatchers per network settings; per-request DNS/TCP/TLS timing and socket info
   sse.ts               server-sent events parser                          (isomorphic)
+  graphqlOperations.ts operations in a GraphQL document, operationName to send (isomorphic)
+  xmlToJson.ts         xml2Json() for scripts                              (isomorphic)
   variableResolver.ts  {{var}} resolution, lookup, placeholder scan        (isomorphic)
   dynamicVariables.ts  {{$guid}}, {{$timestamp}}, {{$random*}} catalog    (isomorphic)
   requestBuilder.ts    request + scopes -> BuiltRequest (url, headers, auth, body) (isomorphic)
