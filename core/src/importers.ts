@@ -230,6 +230,8 @@ interface Inherited {
   post: string[];
   /** `protocolProfileBehavior` merged from the collection and enclosing folders. */
   behavior: Obj;
+  /** Variables of the enclosing folders, nearest last. */
+  vars?: Variable[];
 }
 
 /** Overlays an item's `protocolProfileBehavior` on what it inherits. */
@@ -256,7 +258,10 @@ function v2Request(item: Obj, inherited: Inherited): YamletRequest {
   if (req.auth.type === "inherit" && inherited.auth) req.auth = structuredClone(inherited.auth);
   req.preRequestScript = [...inherited.pre, eventScript(item.event, "prerequest")].filter(Boolean).join("\n\n");
   req.postResponseScript = [eventScript(item.event, "test"), ...inherited.post].filter(Boolean).join("\n\n");
-  const vars = readVariables(item.variable);
+  // Folder variables (Yamlet has no folder scope) are copied onto each request inside;
+  // the request's own and a nearer folder's win.
+  const own = readVariables(item.variable);
+  const vars = [...(inherited.vars ?? []).filter((v) => !own.some((o) => o.key === v.key)), ...own];
   if (vars.length) req.variables = vars;
   const behavior = behaviorOf(item.protocolProfileBehavior, inherited.behavior);
   if (behavior.followRedirects === false) req.settings.followRedirects = false;
@@ -278,7 +283,9 @@ function v2Items(items: unknown, node: YamletCollection | YamletFolder, inherite
       if (raw.auth !== undefined && raw.auth !== null) folder.auth = v2Auth(raw.auth, "inherit");
       folder.preRequestScript = eventScript(raw.event, "prerequest");
       folder.postResponseScript = eventScript(raw.event, "test");
-      v2Items(raw.item, folder, { ...inherited, behavior: behaviorOf(raw.protocolProfileBehavior, inherited.behavior) });
+      const folderVars = readVariables(raw.variable);
+      const vars = [...(inherited.vars ?? []).filter((v) => !folderVars.some((f) => f.key === v.key)), ...folderVars];
+      v2Items(raw.item, folder, { ...inherited, vars, behavior: behaviorOf(raw.protocolProfileBehavior, inherited.behavior) });
       node.folders.push(folder);
     } else {
       const req = v2Request(raw, inherited);

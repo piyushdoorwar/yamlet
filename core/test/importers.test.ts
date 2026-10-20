@@ -165,6 +165,25 @@ describe("importCollectionV2", () => {
   });
 });
 
+describe("folder variables in a v2.1 collection", () => {
+  it("copies them onto the requests inside, nearest and own values winning", () => {
+    const c = importCollectionV2({
+      info: { name: "F" },
+      item: [
+        {
+          name: "outer",
+          variable: [{ key: "a", value: "outer" }, { key: "b", value: "outer" }],
+          item: [
+            { name: "inner", variable: [{ key: "b", value: "inner" }], item: [{ name: "r", variable: [{ key: "c", value: "own" }], request: { url: "https://h/{{a}}" } }] },
+          ],
+        },
+      ],
+    });
+    const r = c.folders[0].folders[0].requests[0];
+    expect(Object.fromEntries(r.variables.map((v) => [v.key, v.value]))).toEqual({ a: "outer", b: "inner", c: "own" });
+  });
+});
+
 describe("disabled parts of a v2.1 collection", () => {
   it("comments out disabled scripts and drops a disabled body", () => {
     const c = importCollectionV2({
