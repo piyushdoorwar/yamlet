@@ -66,6 +66,10 @@ describe("parseCurl", () => {
     expect(r).toMatchObject({ url: "https://api.test/a", method: "POST", body: { raw: "-xyz" } });
     expect(r.settings.skipSslVerification).toBe(true);
     expect(parseCurl("curl -sXPUT https://api.test/a").method).toBe("PUT");
+    expect(parseCurl("curl -sD headers.txt https://api.test/a").url).toBe("https://api.test/a");
+    expect(parseCurl(`curl https://h/u -F 'f=@"my;file.txt";type=text/plain'`).body.fields[0]).toMatchObject({ value: "my;file.txt", isFile: true, contentType: "text/plain" });
+    // A bash command whose body holds ^" keeps its carets.
+    expect(parseCurl(`curl https://h/u --data-raw '^"x'`).body.raw).toBe('^"x');
     const cmd = parseCurl('curl ^"https://api.test/a?x=1^&y=2^" ^\n  -H ^"accept: application/json^" ^\n  --data-raw ^"^{^\\^"a^\\^":1^}^"');
     expect(cmd.url).toBe("https://api.test/a");
     expect(cmd.queryParams.map((q) => `${q.key}=${q.value}`)).toEqual(["x=1", "y=2"]);

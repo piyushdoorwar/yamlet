@@ -103,7 +103,7 @@ export function HistoryList({ filter }: { filter: string }) {
               onClick={() => open(h)}
               onContextMenu={(e) => showMenu(e, h)}
               className="mx-2 flex w-[calc(100%-16px)] items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-primary-soft"
-              title={`${h.url}\n${where(h) ? "Click to open; right-click for more" : h.snapshot ? "Deleted since; click to restore it as a request" : "Deleted since; too large to keep a copy"}`}
+              title={`${h.url}\n${where(h) ? "Click to open; right-click for more" : h.snapshot ? "Deleted since; click to restore it as a request" : "Deleted since; no copy was kept (large, or older history)"}`}
             >
               <MethodLabel method={h.method} short className="w-9 shrink-0 text-right" />
               <span className="min-w-0 flex-1">

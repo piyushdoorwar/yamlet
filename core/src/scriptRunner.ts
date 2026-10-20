@@ -395,13 +395,14 @@ function jarApi(jar: CookieJar | undefined) {
   };
 }
 
-/** A draft-04 schema in the form Ajv reads: `id` and `$schema` dropped, boolean exclusive bounds made numeric. */
+/** A draft-04 schema in the form Ajv reads: `id`, `$id` and `$schema` dropped, boolean exclusive bounds made numeric. */
 function fromDraft4(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(fromDraft4);
   if (!node || typeof node !== "object") return node;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(node)) {
-    if ((k === "id" || k === "$schema") && typeof v === "string") continue;
+    // Ids are dropped too: one Ajv compiles the same schema on every call, and a repeated $id would clash.
+    if ((k === "id" || k === "$id" || k === "$schema") && typeof v === "string") continue;
     out[k] = k === "enum" || k === "default" || k === "const" || k === "examples" ? v : fromDraft4(v);
   }
   for (const [flag, bound] of [["exclusiveMaximum", "maximum"], ["exclusiveMinimum", "minimum"]] as const) {
@@ -889,7 +890,7 @@ export async function runScript(opts: RunScriptOptions): Promise<void> {
   };
   for (const name of ["buffer", "url", "querystring", "path", "util", "events"]) modules[`node:${name}`] = modules[name];
 
-  // The older script globals (tests[...], postman.*, responseBody, ...) that imported
+  // The legacy global script API (tests[...], responseBody, a global helper object) that imported
   // collections still use, mapped onto the pm API.
   const legacyTests: Record<string, unknown> = {};
   const legacy = {

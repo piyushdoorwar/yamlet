@@ -22,6 +22,11 @@ export interface XmlToJsonOptions {
   explicitArray?: boolean;
 }
 
+/** An own property even for names like __proto__ or constructor. */
+function put(o: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(o, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
 function shape(n: Node, opts: XmlToJsonOptions): unknown {
   const text = n.text.trim();
   const hasAttrs = Object.keys(n.attrs).length > 0;
@@ -29,10 +34,13 @@ function shape(n: Node, opts: XmlToJsonOptions): unknown {
   const out: Record<string, unknown> = {};
   if (hasAttrs) out.$ = n.attrs;
   for (const [name, value] of n.children) {
-    if (opts.explicitArray) ((out[name] ??= []) as unknown[]).push(value);
-    else if (!(name in out)) out[name] = value;
+    const has = Object.hasOwn(out, name);
+    if (opts.explicitArray) {
+      if (has) (out[name] as unknown[]).push(value);
+      else put(out, name, [value]);
+    } else if (!has) put(out, name, value);
     else if (Array.isArray(out[name])) (out[name] as unknown[]).push(value);
-    else out[name] = [out[name], value];
+    else put(out, name, [out[name], value]);
   }
   if (text) out._ = text;
   return out;
@@ -88,19 +96,19 @@ export function xmlToJson(xml: string, opts: XmlToJsonOptions = {}): Record<stri
       i = end + 1;
       const value = shape(open!, opts);
       if (stack.length) stack[stack.length - 1].children.push([name, value]);
-      else root = { [name]: value };
+      else put((root = {}), name, value);
     } else {
       const m = /^<([^\s/>]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/.exec(src.slice(i));
       if (!m) fail("malformed start tag");
       if (root && !stack.length) fail("more than one root element");
       const attrs: Record<string, string> = {};
-      for (const a of m![2].matchAll(/([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) attrs[a[1]] = decode(a[2] ?? a[3] ?? "");
+      for (const a of m![2].matchAll(/([^\s=]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) put(attrs, a[1], decode(a[2] ?? a[3] ?? ""));
       const node: Node = { name: m![1], attrs, text: "", children: [] };
       i += m![0].length;
       if (m![3]) {
         const value = shape(node, opts);
         if (stack.length) stack[stack.length - 1].children.push([node.name, value]);
-        else root = { [node.name]: value };
+        else put((root = {}), node.name, value);
       } else stack.push(node);
     }
   }

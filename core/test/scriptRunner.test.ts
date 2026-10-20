@@ -239,7 +239,7 @@ describe("pm.request changes", () => {
 });
 
 describe("older script globals", () => {
-  it("records tests[...] and maps postman.* onto pm", async () => {
+  it("records tests[...] and maps the legacy global helpers onto pm", async () => {
     const vars = new ScriptVariables({ environment: [], collection: [], globals: [] });
     const { tests, logs } = await run(
       `
@@ -310,11 +310,13 @@ describe("script libraries", () => {
       const tv4 = require("tv4");
       const schema = { $schema: "http://json-schema.org/draft-04/schema#", id: "x", type: "object", required: ["id"] };
       console.log(tv4.validate({ id: 1 }, schema), tv4.validate({}, schema), tv4.error.message);
+      const withId = { $id: "https://x/s", type: "number" };
+      console.log(tv4.validate(1, withId), tv4.validate("a", withId));
       console.log(require("querystring").stringify({ a: 1, b: "x y" }), require("url").parse("https://h/p?q=1").pathname);
       console.log(require("path").join("a", "b"), require("node:util").format("%s=%d", "n", 2));
       console.log(require("moment").utc("2026-01-02T03:04:05Z").add(1, "day").format("YYYY-MM-DD HH:mm"));
     `);
-    expect(logs).toEqual(["true false data must have required property 'id'", "a=1&b=x%20y /p", "a/b n=2", "2026-01-03 03:04"]);
+    expect(logs).toEqual(["true false data must have required property 'id'", "true false", "a=1&b=x%20y /p", "a/b n=2", "2026-01-03 03:04"]);
   });
 
   it("parses XML with xml2Json", async () => {
@@ -324,6 +326,9 @@ describe("script libraries", () => {
     const viaLib = await run(`require("xml2js").parseString("<r><a>1</a></r>", (err, out) => console.log(JSON.stringify(out)));
       console.log(JSON.stringify(await new (require("xml2js").Parser)({ explicitArray: false }).parseStringPromise("<r><a>1</a></r>")));`);
     expect(viaLib.logs).toEqual(['{"r":{"a":["1"]}}', '{"r":{"a":"1"}}']);
+    const odd = await run(`console.log(JSON.stringify(xml2Json("<a><toString>x</toString><__proto__>p</__proto__></a>")), JSON.stringify(require("xml2js").parseStringPromise && 1));
+      require("xml2js").parseString("<a><constructor>c</constructor></a>", (e, out) => console.log(JSON.stringify(out), out.a.hasOwnProperty("constructor")));`);
+    expect(odd.logs).toEqual(['{"a":{"toString":"x","__proto__":"p"}} 1', '{"a":{"constructor":["c"]}} true']);
     const bad = await run("xml2Json('<a><b></a>')", { throwOnFailure: true }).catch((e: Error) => e.message);
     expect(bad).toMatch(/Invalid XML: <\/a> doesn't match <b>/);
   });

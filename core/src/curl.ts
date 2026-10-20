@@ -8,8 +8,8 @@ export function tokenizeShell(input: string): string[] {
   let has = false;
   let i = 0;
   let s = input.replace(/\^\r?\n/g, " "); // Windows cmd continuation
-  // Windows cmd quoting (`^"...^"`, `^&`, `^%`): ^ escapes the next character.
-  if (/\^"/.test(s)) s = s.replace(/\^([\s\S])/g, "$1");
+  // Windows cmd quoting (`curl ^"...^"`, `^&`, `^%`): ^ escapes the next character.
+  if (/(^|\s)curl(\.exe)?\s+\^"/i.test(s)) s = s.replace(/\^([\s\S])/g, "$1");
   const push = () => {
     if (has) tokens.push(cur);
     cur = "";
@@ -109,10 +109,11 @@ const VALUE_FLAGS_IGNORED = new Set([
   "--expect100-timeout", "--happy-eyeballs-timeout-ms", "-U", "--proxy-user", "--proxy-header", "--preproxy", "--socks5",
   "--socks5-hostname", "-z", "--time-cond", "--trace", "--trace-ascii", "--stderr", "--variable", "--connect-to",
   "--proxy-cacert", "--proxy-cert", "--proxy-key", "--hostpubmd5", "--pubkey", "--create-file-mode", "--parallel-max",
+  "-D", "--dump-header", "-C", "--continue-at", "-t", "--telnet-option", "-Q", "--quote", "-P", "--ftp-port",
 ]);
 
 /** Short flags that take a value; the others in a cluster such as `-sSLk` are switches. */
-const SHORT_WITH_VALUE = new Set("XHdFubeTmAowxEcryYKUz");
+const SHORT_WITH_VALUE = new Set("XHdFubeTmAowxEcryYKUzDCtQP");
 
 /** `-sSLk` as `-s -S -L -k`; a value flag in the cluster takes the rest (`-sXPOST`). */
 function expandCluster(tok: string): string[] {
@@ -262,7 +263,12 @@ export function tryParseCurl(text: string): YamletRequest | undefined {
           if (tok !== "--form-string") {
             // name=value;type=...;filename=..., with the value optionally in double quotes.
             let rest = "";
-            if (v.startsWith('"') && v.indexOf('"', 1) > 0) {
+            if (v.startsWith("@\"") && v.indexOf('"', 2) > 0) {
+              // @"file;name.txt": a quoted file path
+              const close = v.indexOf('"', 2);
+              rest = v.slice(close + 1);
+              v = "@" + v.slice(2, close);
+            } else if (v.startsWith('"') && v.indexOf('"', 1) > 0) {
               const close = v.indexOf('"', 1);
               rest = v.slice(close + 1);
               v = v.slice(1, close);
