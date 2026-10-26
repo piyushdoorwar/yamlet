@@ -86,7 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: bash extension/package.sh "$GITHUB_REF_NAME"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extension
           path: dist/yamlet-interceptor-*.zip
@@ -111,7 +111,7 @@ jobs:
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.configured.outputs.publish == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: extension
           path: dist
@@ -135,7 +135,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: extension
           path: dist
