@@ -30,7 +30,7 @@
     "cheerio": "^1.2.0",
     "cm6-graphql": "^0.2.2",
     "crypto-js": "^4.2.0",
-    "fastify": "^5.12.5",
+    "fastify": "^5.12.6",
     "graphql": "^17.0.2",
     "lodash": "^4.18.1",
     "moment": "^2.31.0",
