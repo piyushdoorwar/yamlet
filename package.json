@@ -34,7 +34,7 @@
     "graphql": "^17.0.2",
     "lodash": "^4.18.1",
     "moment": "^2.31.0",
-    "undici": "^8.11.2",
+    "undici": "^8.12.3",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
